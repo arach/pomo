@@ -1,0 +1,96 @@
+{
+  "$schema": "../node_modules/@tauri-apps/cli/schema.json",
+  "build": {
+    "beforeBuildCommand": "pnpm run build",
+    "beforeDevCommand": "pnpm run dev",
+    "devUrl": "http://localhost:1420",
+    "frontendDist": "../dist"
+  },
+  "bundle": {
+    "active": true,
+    "category": "Productivity",
+    "copyright": "",
+    "externalBin": [],
+    "icon": [
+      "icons/32x32.png",
+      "icons/128x128.png",
+      "icons/128x128@2x.png",
+      "icons/icon.icns",
+      "icons/icon.ico"
+    ],
+    "longDescription": "A simple, floating Pomodoro timer with minimal UI",
+    "macOS": {
+      "entitlements": null,
+      "exceptionDomain": "",
+      "frameworks": [],
+      "providerShortName": null,
+      "signingIdentity": null
+    },
+    "resources": [],
+    "shortDescription": "Floating Pomodoro timer",
+    "targets": "all",
+    "windows": {
+      "certificateThumbprint": null,
+      "digestAlgorithm": "sha256",
+      "timestampUrl": ""
+    }
+  },
+  "productName": "Pomo",
+  "version": "0.1.0",
+  "identifier": "com.pomo.dev",
+  "app": {
+    "macOSPrivateApi": true,
+    "security": {
+      "csp": null,
+      "capabilities": [
+        {
+          "identifier": "main-capability",
+          "description": "Capability for the main window",
+          "windows": ["main"],
+          "permissions": [
+            "core:window:allow-start-dragging",
+            "core:window:allow-set-always-on-top",
+            "core:window:allow-show",
+            "core:window:allow-hide",
+            "core:window:allow-set-focus",
+            "core:window:allow-is-visible",
+            "core:window:allow-center",
+            "core:window:allow-minimize",
+            "core:window:allow-close",
+            "core:window:allow-set-size",
+            "core:window:allow-set-position",
+            "global-shortcut:allow-register",
+            "global-shortcut:allow-unregister",
+            "global-shortcut:allow-is-registered",
+            "core:event:allow-listen",
+            "core:event:allow-emit"
+          ]
+        }
+      ]
+    },
+    "windows": [
+      {
+        "label": "main",
+        "title": "Pomo",
+        "width": 300,
+        "height": 200,
+        "minWidth": 200,
+        "minHeight": 100,
+        "resizable": true,
+        "fullscreen": false,
+        "transparent": true,
+        "decorations": false,
+        "alwaysOnTop": true,
+        "titleBarStyle": "Overlay",
+        "hiddenTitle": true,
+        "visible": true,
+        "center": true
+      }
+    ]
+  },
+  "plugins": {
+    "shell": {
+      "open": true
+    }
+  }
+}

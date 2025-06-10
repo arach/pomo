@@ -6,6 +6,7 @@ import { CustomTitleBar } from "./components/CustomTitleBar";
 import { TimerDisplay } from "./components/TimerDisplay";
 import { DurationInput } from "./components/DurationInput";
 import { useTimerStore } from "./stores/timer-store";
+import { AudioService } from "./services/audio";
 
 interface TimerUpdate {
   duration: number;
@@ -31,12 +32,8 @@ function App() {
     
     // Listen for timer completion
     const unlistenComplete = listen('timer-complete', async () => {
-      // Play completion sound
-      const audio = new Audio('/notification.mp3');
-      audio.play().catch(() => {
-        // Fallback to system beep if audio fails
-        console.log('Timer complete!');
-      });
+      // Play completion sound using our audio service
+      AudioService.playCompletionSound();
     });
     
     // Listen for window collapse events

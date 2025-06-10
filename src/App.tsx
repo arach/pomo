@@ -5,7 +5,9 @@ import { WindowWrapper } from "./components/WindowWrapper";
 import { CustomTitleBar } from "./components/CustomTitleBar";
 import { TimerDisplay } from "./components/TimerDisplay";
 import { DurationInput } from "./components/DurationInput";
+import { SettingsPanel } from "./components/SettingsPanel";
 import { useTimerStore } from "./stores/timer-store";
+import { useSettingsStore } from "./stores/settings-store";
 import { AudioService } from "./services/audio";
 
 interface TimerUpdate {
@@ -18,6 +20,7 @@ interface TimerUpdate {
 function App() {
   const [isCollapsed, setIsCollapsed] = useState(false);
   const updateState = useTimerStore((state) => state.updateState);
+  const { soundEnabled, volume } = useSettingsStore();
   
   useEffect(() => {
     // Listen for timer updates
@@ -33,7 +36,9 @@ function App() {
     // Listen for timer completion
     const unlistenComplete = listen('timer-complete', async () => {
       // Play completion sound using our audio service
-      AudioService.playCompletionSound();
+      if (soundEnabled) {
+        AudioService.playCompletionSound(volume);
+      }
     });
     
     // Listen for window collapse events
@@ -62,13 +67,14 @@ function App() {
       unlistenCollapse.then((fn) => fn());
       unlistenVisibility.then((fn) => fn());
     };
-  }, [updateState]);
+  }, [updateState, soundEnabled, volume]);
   
   return (
     <WindowWrapper>
       <CustomTitleBar isCollapsed={isCollapsed} />
       <TimerDisplay isCollapsed={isCollapsed} />
       {!isCollapsed && <DurationInput />}
+      <SettingsPanel />
     </WindowWrapper>
   );
 }

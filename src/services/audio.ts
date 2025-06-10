@@ -3,21 +3,22 @@
 export class AudioService {
   private static audioContext: AudioContext | null = null;
 
-  static playCompletionSound() {
+  static playCompletionSound(volume: number = 0.5) {
     try {
       // Try to play a sound file first
       const audio = new Audio('/notification.mp3');
+      audio.volume = volume;
       audio.play().catch(() => {
         // If file doesn't exist, use Web Audio API to generate a beep
-        this.playGeneratedBeep();
+        this.playGeneratedBeep(volume);
       });
     } catch (error) {
       // Fallback to generated beep
-      this.playGeneratedBeep();
+      this.playGeneratedBeep(volume);
     }
   }
 
-  private static playGeneratedBeep() {
+  private static playGeneratedBeep(volume: number = 0.5) {
     try {
       // Create or reuse AudioContext
       if (!this.audioContext) {
@@ -36,9 +37,9 @@ export class AudioService {
       oscillator.frequency.value = 800; // Frequency in Hz
       oscillator.type = 'sine';
 
-      // Create envelope for pleasant sound
+      // Create envelope for pleasant sound with volume control
       gainNode.gain.setValueAtTime(0, ctx.currentTime);
-      gainNode.gain.linearRampToValueAtTime(0.3, ctx.currentTime + 0.01);
+      gainNode.gain.linearRampToValueAtTime(0.3 * volume, ctx.currentTime + 0.01);
       gainNode.gain.exponentialRampToValueAtTime(0.01, ctx.currentTime + 0.5);
 
       // Play the sound
@@ -57,7 +58,7 @@ export class AudioService {
         osc2.type = 'sine';
         
         gain2.gain.setValueAtTime(0, ctx.currentTime);
-        gain2.gain.linearRampToValueAtTime(0.3, ctx.currentTime + 0.01);
+        gain2.gain.linearRampToValueAtTime(0.3 * volume, ctx.currentTime + 0.01);
         gain2.gain.exponentialRampToValueAtTime(0.01, ctx.currentTime + 0.5);
         
         osc2.start(ctx.currentTime);

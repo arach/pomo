@@ -49,11 +49,14 @@
   margin: 0;
   padding: 0;
   box-sizing: border-box;
+  border: none;
+  outline: none;
 }
 
 html, body, #root {
   height: 100%;
   overflow: hidden;
+  background: transparent;
 }
 
 body {
@@ -62,6 +65,8 @@ body {
     sans-serif;
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
+  background: transparent;
+  font-size: 14px;
 }
 
 /* Custom animations */

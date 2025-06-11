@@ -30,6 +30,10 @@ export function StatusDisplay({ isRunning, isPaused, remaining, style, format, p
     positionStyle.transform = 'translateX(-50%)';
   } else if (position?.x === 'center') {
     positionStyle.textAlign = 'center';
+  } else if (position?.x === 'right' && position?.y === 'bottom') {
+    positionStyle.position = 'absolute';
+    positionStyle.bottom = '20px';
+    positionStyle.right = '30px';
   }
 
   // Add success styling when finished

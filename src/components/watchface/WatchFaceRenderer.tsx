@@ -1,19 +1,42 @@
 import { WatchFaceConfig, WatchFaceProps } from '../../types/watchface';
-import { ProgressRing } from './components/ProgressRing';
-import { TimeDisplay } from './components/TimeDisplay';
-import { StatusDisplay } from './components/StatusDisplay';
-import { ControlButtons } from './components/ControlButtons';
-import { TerminalProgress } from './components/TerminalProgress';
-import { TerminalHeader } from './components/TerminalHeader';
-import { DigitalDisplay } from './components/DigitalDisplay';
-import { RetroProgress } from './components/RetroProgress';
-import { MinimalProgress } from './components/MinimalProgress';
-import { NeonRing } from './components/NeonRing';
-import { ChronographFace } from './components/ChronographFace';
-import { ChronographMarkings } from './components/ChronographMarkings';
-import { NpmLoader } from './components/NpmLoader';
-import { TerminalCursor } from './components/TerminalCursor';
-import { TerminalBootMessages } from './components/TerminalBootMessages';
+// Shared components
+import { ProgressRing } from './shared/ProgressRing';
+import { TimeDisplay } from './shared/TimeDisplay';
+import { StatusDisplay } from './shared/StatusDisplay';
+import { ControlButtons } from './shared/ControlButtons';
+
+// Terminal watchface components
+import { TerminalProgress } from './watchfaces/terminal/TerminalProgress';
+import { TerminalHeader } from './watchfaces/terminal/TerminalHeader';
+import { TerminalCursor } from './watchfaces/terminal/TerminalCursor';
+import { TerminalBootMessages } from './watchfaces/terminal/TerminalBootMessages';
+import { TerminalControls } from './watchfaces/terminal/TerminalControls';
+
+// Retro Digital watchface components
+import { DigitalDisplay } from './watchfaces/retro-digital/DigitalDisplay';
+import { RetroProgress } from './watchfaces/retro-digital/RetroProgress';
+import { LCDProgress } from './watchfaces/retro-digital/LCDProgress';
+
+// Minimal watchface components
+import { MinimalProgress } from './watchfaces/minimal/MinimalProgress';
+import { MinimalProgressDot } from './watchfaces/minimal/MinimalProgressDot';
+import { MinimalCompact } from './watchfaces/minimal/MinimalCompact';
+
+// Neon watchface components
+import { NeonRing } from './watchfaces/neon/NeonRing';
+import { NeonProgress } from './watchfaces/neon/NeonProgress';
+
+// Chronograph watchface components
+import { ChronographFace } from './watchfaces/chronograph/ChronographFace';
+import { ChronographMarkings } from './watchfaces/chronograph/ChronographMarkings';
+import { ChronographSweep } from './watchfaces/chronograph/ChronographSweep';
+
+// Default watchface components
+import { DefaultProgress } from './watchfaces/default/DefaultProgress';
+
+// Unused components (for now)
+import { NpmLoader } from './unused/NpmLoader';
+import { TopProgressBar } from './unused/TopProgressBar';
 
 interface WatchFaceRendererProps extends WatchFaceProps {
   config: WatchFaceConfig;
@@ -21,6 +44,12 @@ interface WatchFaceRendererProps extends WatchFaceProps {
 
 export function WatchFaceRenderer({ config, ...props }: WatchFaceRendererProps) {
   const { theme, layout, components } = config;
+  
+  const formatTime = (seconds: number): string => {
+    const mins = Math.floor(seconds / 60);
+    const secs = seconds % 60;
+    return `${mins.toString().padStart(2, '0')}:${secs.toString().padStart(2, '0')}`;
+  };
   
   // Inject custom styles if defined
   if (theme.customStyles?.['@import']) {
@@ -37,6 +66,15 @@ export function WatchFaceRenderer({ config, ...props }: WatchFaceRendererProps) 
   const renderComponent = (component: any) => {
     switch (component.type) {
       case 'progress':
+        if (component.id === 'top-progress') {
+          return (
+            <TopProgressBar
+              key={component.id}
+              progress={props.progress}
+              style={component.style}
+            />
+          );
+        }
         return (
           <ProgressRing
             key={component.id}
@@ -96,10 +134,16 @@ export function WatchFaceRenderer({ config, ...props }: WatchFaceRendererProps) 
             );
           
           case 'terminal-header':
+            // Replace {duration} placeholder with actual duration in minutes
+            let headerText = component.props?.text || '';
+            if (headerText.includes('{duration}')) {
+              const durationMinutes = Math.floor(props.duration / 60);
+              headerText = headerText.replace('{duration}', `${durationMinutes}m`);
+            }
             return (
               <TerminalHeader
                 key={component.id}
-                text={component.props?.text}
+                text={headerText}
                 style={component.style}
               />
             );
@@ -108,7 +152,8 @@ export function WatchFaceRenderer({ config, ...props }: WatchFaceRendererProps) 
             return (
               <DigitalDisplay
                 key={component.id}
-                style={component.properties?.style}
+                value={formatTime(props.remaining)}
+                style={component.style}
               />
             );
           
@@ -124,6 +169,49 @@ export function WatchFaceRenderer({ config, ...props }: WatchFaceRendererProps) 
           case 'minimal-progress':
             return (
               <MinimalProgress
+                key={component.id}
+                progress={props.progress}
+                style={component.properties?.style}
+              />
+            );
+          
+          case 'lcd-progress':
+            return (
+              <LCDProgress
+                key={component.id}
+                progress={props.progress}
+                style={component.properties?.style}
+              />
+            );
+          
+          case 'minimal-progress-dot':
+            return (
+              <MinimalProgressDot
+                key={component.id}
+                progress={props.progress}
+                isRunning={props.isRunning}
+                isPaused={props.isPaused}
+                style={component.properties?.style}
+              />
+            );
+          
+          case 'minimal-compact':
+            return (
+              <MinimalCompact
+                key={component.id}
+                remaining={props.remaining}
+                progress={props.progress}
+                isRunning={props.isRunning}
+                isPaused={props.isPaused}
+                onStart={props.onStart}
+                onPause={props.onPause}
+                onStop={props.onStop}
+              />
+            );
+          
+          case 'neon-progress':
+            return (
+              <NeonProgress
                 key={component.id}
                 progress={props.progress}
                 style={component.properties?.style}
@@ -155,6 +243,24 @@ export function WatchFaceRenderer({ config, ...props }: WatchFaceRendererProps) 
               />
             );
           
+          case 'chronograph-sweep':
+            return (
+              <ChronographSweep
+                key={component.id}
+                progress={props.progress}
+                style={component.properties?.style}
+              />
+            );
+          
+          case 'default-progress':
+            return (
+              <DefaultProgress
+                key={component.id}
+                progress={props.progress}
+                style={component.properties?.style}
+              />
+            );
+          
           case 'npm-loader':
             return (
               <NpmLoader
@@ -182,6 +288,19 @@ export function WatchFaceRenderer({ config, ...props }: WatchFaceRendererProps) 
                 isRunning={props.isRunning}
                 style={component.properties?.style}
                 position={component.position}
+              />
+            );
+          
+          case 'terminal-controls':
+            return (
+              <TerminalControls
+                key={component.id}
+                isRunning={props.isRunning}
+                isPaused={props.isPaused}
+                onStart={props.onStart}
+                onPause={props.onPause}
+                onStop={props.onStop}
+                style={component.properties?.style}
               />
             );
           

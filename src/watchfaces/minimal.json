@@ -1,100 +1,48 @@
 {
   "id": "minimal",
   "name": "Minimal",
-  "description": "Clean and simple design focused on clarity",
+  "description": "Ultra-compact design for maximum focus",
   "author": "Pomo Team",
-  "version": "1.0.0",
+  "version": "3.0.0",
   "theme": {
     "colors": {
       "background": "transparent",
       "foreground": "var(--foreground)",
       "accent": "var(--muted-foreground)",
-      "success": "#4CAF50",
-      "warning": "#FF9800",
-      "error": "#F44336"
+      "success": "#10b981",
+      "warning": "#f59e0b",
+      "error": "#ef4444"
     },
     "fonts": {
-      "primary": "-apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif",
-      "accent": "-apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif"
+      "primary": "-apple-system, BlinkMacSystemFont, sans-serif",
+      "accent": "-apple-system, BlinkMacSystemFont, sans-serif"
     },
     "customStyles": {
+      "@import": "@keyframes fadeIn { from { opacity: 0; } to { opacity: 1; } } @keyframes subtlePulse { 0%, 100% { opacity: 0.4; } 50% { opacity: 0.7; } }",
       ".container": {
-        "background": "rgba(var(--background-rgb), 0.95)",
-        "backdropFilter": "blur(10px)",
-        "border": "1px solid rgba(var(--border-rgb), 0.2)",
-        "boxShadow": "0 8px 32px rgba(0, 0, 0, 0.12)"
-      },
-      "@media (prefers-color-scheme: dark)": {
-        ".container": {
-          "background": "rgba(0, 0, 0, 0.85)",
-          "border": "1px solid rgba(255, 255, 255, 0.1)"
-        }
+        "background": "var(--background)",
+        "animation": "fadeIn 0.4s ease-out"
       }
     }
   },
   "layout": {
     "type": "rectangular",
     "size": {
-      "width": 280,
-      "height": 180
+      "width": "180px",
+      "height": "100px"
     },
-    "padding": 30
+    "padding": 20
   },
   "components": [
     {
-      "id": "time",
-      "type": "time",
-      "position": {
-        "x": "center",
-        "y": 60
-      },
-      "style": {
-        "fontSize": "56px",
-        "fontWeight": "200",
-        "color": "hsl(var(--foreground))",
-        "letterSpacing": "-0.02em"
-      }
-    },
-    {
-      "id": "progress-line",
+      "id": "compact-display",
       "type": "custom",
       "position": {
-        "x": "center",
-        "y": 110
+        "x": 20,
+        "y": 20
       },
       "properties": {
-        "component": "minimal-progress",
-        "style": {
-          "width": "200px",
-          "height": "2px",
-          "background": "hsl(var(--muted))",
-          "borderRadius": "1px"
-        }
-      }
-    },
-    {
-      "id": "controls",
-      "type": "controls",
-      "position": {
-        "x": "center",
-        "y": 140
-      },
-      "style": {
-        "gap": "20px"
-      },
-      "properties": {
-        "buttonStyle": {
-          "background": "transparent",
-          "border": "none",
-          "color": "hsl(var(--muted-foreground))",
-          "padding": "8px",
-          "borderRadius": "50%",
-          "transition": "all 0.2s",
-          "hover": {
-            "background": "hsl(var(--muted))",
-            "color": "hsl(var(--foreground))"
-          }
-        }
+        "component": "minimal-compact"
       }
     }
   ]

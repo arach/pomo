@@ -273,83 +273,33 @@ export function SettingsPanel({ isStandalone = false }: SettingsPanelProps) {
             </div>
             
             <div className="pl-6">
-              <div className="grid grid-cols-3 gap-2">
+              <div className="grid grid-cols-2 gap-3">
                 {availableWatchFaces.map((face) => (
                   <button
                     key={face.id}
                     onClick={() => updateSettings({ watchFace: face.id })}
-                    className={`relative flex flex-col gap-1 p-2 rounded-lg transition-all ${
+                    className={`relative flex gap-3 p-3 rounded-lg transition-all items-start text-left ${
                       watchFace === face.id
                         ? 'ring-2 ring-primary bg-primary/10'
                         : 'bg-secondary hover:bg-secondary/80'
                     }`}
                   >
-                    <div className="aspect-[3/2] bg-black/20 rounded-md flex items-center justify-center overflow-hidden relative">
-                      <div className="watchface-preview" data-face={face.id}>
-                        {/* Preview representations */}
-                        {face.id === 'default' && (
-                          <div className="relative">
-                            <div className="w-8 h-8 rounded-full border-2 border-blue-500 relative">
-                              <div className="absolute inset-0 rounded-full" style={{
-                                background: `conic-gradient(from 0deg, #3b82f6 0deg 120deg, transparent 120deg 360deg)`
-                              }} />
-                            </div>
-                            <div className="absolute inset-0 flex items-center justify-center text-xs text-white font-mono">25</div>
-                          </div>
-                        )}
-                        {face.id === 'chronograph' && (
-                          <div className="relative">
-                            <div className="w-8 h-8 rounded-full border-2 border-gradient-to-r from-blue-400 to-purple-500 relative bg-gradient-to-br from-blue-500 to-purple-600">
-                              <div className="absolute inset-0 rounded-full border border-white/20" />
-                            </div>
-                            <div className="absolute inset-0 flex items-center justify-center text-xs text-white font-mono">25</div>
-                          </div>
-                        )}
-                        {face.id === 'terminal' && (
-                          <div className="bg-black/90 p-2 rounded text-green-400 font-mono text-xs">
-                            <div>$ pomo --duration=25m</div>
-                            <div className="text-center">25:00</div>
-                            <div className="text-center">████████████</div>
-                          </div>
-                        )}
-                        {face.id === 'retro-digital' && (
-                          <div className="bg-gray-900 border border-green-400 p-2 rounded text-green-400 font-mono text-xs text-center">
-                            <div className="text-lg font-bold" style={{ textShadow: '0 0 5px currentColor' }}>25:00</div>
-                            <div className="mt-1 bg-green-400 h-1 rounded"></div>
-                          </div>
-                        )}
-                        {face.id === 'minimal' && (
-                          <div className="text-center bg-background/80 backdrop-blur-sm border border-border/20 rounded p-2">
-                            <div className="text-lg font-light text-foreground">25:00</div>
-                            <div className="w-12 h-0.5 bg-muted mx-auto mt-1"></div>
-                          </div>
-                        )}
-                        {face.id === 'neon' && (
-                          <div className="relative">
-                            <div className="w-8 h-8 rounded-full border-2 border-pink-500 relative" style={{
-                              boxShadow: '0 0 10px #ff00ff'
-                            }}>
-                              <div className="absolute inset-1 rounded-full border border-cyan-400" style={{
-                                boxShadow: '0 0 5px #00ffff'
-                              }} />
-                            </div>
-                            <div className="absolute inset-0 flex items-center justify-center text-xs text-pink-500 font-bold" style={{
-                              textShadow: '0 0 5px currentColor'
-                            }}>25</div>
-                          </div>
-                        )}
-                        {face.id.startsWith('custom_') && (
-                          <div className="text-xs text-muted-foreground flex flex-col items-center">
-                            <div className="text-lg">✦</div>
-                            <div>Custom</div>
-                          </div>
-                        )}
-                      </div>
+                    <div className="w-16 h-16 rounded-md overflow-hidden bg-background/50 border border-border/30 flex-shrink-0">
+                      <img 
+                        src="/watchface-placeholder.png" 
+                        alt={face.name}
+                        className="w-full h-full object-cover"
+                      />
                     </div>
-                    <div className="text-left">
-                      <span className="text-xs font-medium block truncate">{face.name}</span>
+                    <div className="flex flex-col gap-1 min-w-0">
+                      <span className="text-sm font-medium truncate">
+                        {face.name}
+                      </span>
+                      <span className="text-xs text-muted-foreground line-clamp-2">
+                        {face.description || 'Custom watchface'}
+                      </span>
                       {watchFace === face.id && (
-                        <span className="text-xs text-primary">Active</span>
+                        <span className="text-xs text-primary font-medium">Active</span>
                       )}
                     </div>
                   </button>
@@ -397,7 +347,7 @@ export function SettingsPanel({ isStandalone = false }: SettingsPanelProps) {
                       alert(`Failed to load watch face: ${error}`);
                     }
                   }}
-                  className="col-span-3 flex items-center justify-center gap-2 px-3 py-3 mt-2 rounded-lg bg-secondary hover:bg-secondary/80 transition-all border-2 border-dashed border-border"
+                  className="col-span-2 flex items-center justify-center gap-2 px-3 py-3 mt-2 rounded-lg bg-secondary hover:bg-secondary/80 transition-all border-2 border-dashed border-border"
                 >
                   <Upload className="w-4 h-4" />
                   <span className="text-sm">Load Custom Watch Face</span>

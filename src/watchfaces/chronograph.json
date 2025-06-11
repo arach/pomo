@@ -78,24 +78,14 @@
       }
     },
     {
-      "type": "progress",
-      "id": "countdown-sweep",
+      "type": "custom",
+      "id": "chronograph-sweep",
       "position": {
         "x": "center",
         "y": "center"
       },
-      "style": {
-        "strokeWidth": 4,
-        "radius": 75,
-        "strokeColor": "hsl(217.2, 91.2%, 59.8%)",
-        "backgroundColor": "rgba(255, 255, 255, 0.1)",
-        "transform": "rotate(-90deg)",
-        "strokeLinecap": "round"
-      },
-      "props": {
-        "showElapsed": false,
-        "showRemaining": true,
-        "startAngle": 0
+      "properties": {
+        "component": "chronograph-sweep"
       }
     },
     {

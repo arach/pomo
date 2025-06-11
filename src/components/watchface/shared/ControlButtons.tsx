@@ -1,4 +1,4 @@
-import { Play, Pause, Square, RotateCcw } from 'lucide-react';
+import { Play, Pause, RotateCcw } from 'lucide-react';
 
 interface ControlButtonsProps {
   isRunning: boolean;
@@ -6,7 +6,7 @@ interface ControlButtonsProps {
   onStart: () => void;
   onPause: () => void;
   onStop: () => void;
-  onReset: () => void;
+  onReset?: () => void;
   style?: React.CSSProperties;
   buttonStyle?: 'gradient' | 'terminal' | 'minimal' | React.CSSProperties;
   showLabels?: boolean;
@@ -23,7 +23,6 @@ export function ControlButtons({
   onStart,
   onPause,
   onStop,
-  onReset,
   style,
   buttonStyle = 'gradient',
   showLabels = false,
@@ -110,13 +109,12 @@ export function ControlButtons({
   return (
     <div className={`flex ${gapSize} ${justifyClass}`} style={{ ...positionStyle, ...style }}>
       {!isRunning || isPaused ? (
-        renderButton(onStart, <Play className={iconSize} />, 'Start', true)
+        renderButton(onStart, <Play className={iconSize} />, showLabels ? 'Start' : 'Play', true)
       ) : (
         renderButton(onPause, <Pause className={iconSize} />, 'Pause', true)
       )}
       
-      {renderButton(onStop, <Square className={iconSize} />, 'Stop')}
-      {renderButton(onReset, <RotateCcw className={iconSize} />, 'Reset')}
+      {renderButton(onStop, <RotateCcw className={iconSize} />, showLabels ? 'Reset' : 'Stop')}
     </div>
   );
 }

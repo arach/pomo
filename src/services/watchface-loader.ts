@@ -1,6 +1,6 @@
 import { WatchFaceConfig } from '../types/watchface';
 import defaultConfig from '../watchfaces/default.json';
-import chronographConfig from '../watchfaces/chronograph.json';
+import rolodexConfig from '../watchfaces/rolodex.json';
 import terminalConfig from '../watchfaces/terminal.json';
 import retroDigitalConfig from '../watchfaces/retro-digital.json';
 import retroLcdConfig from '../watchfaces/retro-lcd.json';
@@ -15,7 +15,7 @@ export class WatchFaceLoader {
   static async loadBuiltInFaces() {
     // Load built-in watch faces
     this.watchFaces.set('default', defaultConfig as WatchFaceConfig);
-    this.watchFaces.set('chronograph', chronographConfig as WatchFaceConfig);
+    this.watchFaces.set('rolodex', rolodexConfig as WatchFaceConfig);
     this.watchFaces.set('terminal', terminalConfig as WatchFaceConfig);
     this.watchFaces.set('retro-digital', retroDigitalConfig as WatchFaceConfig);
     this.watchFaces.set('retro-lcd', retroLcdConfig as WatchFaceConfig);

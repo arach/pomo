@@ -89,7 +89,7 @@ export function DurationInput({ isVisible = true, onDismiss }: DurationInputProp
   const presets = [
     { label: '5m', value: 5, icon: Coffee, desc: 'Quick break' },
     { label: '15m', value: 15, icon: Zap, desc: 'Short focus' },
-    { label: '25m', value: 25, icon: Target, desc: 'Pomodoro' },
+    { label: '25m', value: 25, icon: Target, desc: 'Focus' },
     { label: '45m', value: 45, icon: Brain, desc: 'Deep work' },
   ];
   
@@ -98,33 +98,30 @@ export function DurationInput({ isVisible = true, onDismiss }: DurationInputProp
   return (
     <div 
       ref={containerRef}
-      className={`px-4 pb-4 transition-all duration-200 ${
-        isAnimating 
-          ? 'opacity-100 transform translate-y-0' 
-          : 'opacity-0 transform translate-y-2'
-      }`}
+      className="px-3 pb-3"
       style={{
-        animation: isAnimating ? 'slideInFromBottom 0.3s ease-out' : 'slideOutToBottom 0.2s ease-in'
+        opacity: isAnimating ? 1 : 0,
+        transform: isAnimating ? 'translateY(0)' : 'translateY(10px)',
+        transition: 'all 0.3s cubic-bezier(0.4, 0, 0.2, 1)',
+        background: 'linear-gradient(to top, rgba(0,0,0,0.95) 0%, rgba(0,0,0,0.90) 100%)',
+        backdropFilter: 'blur(20px)',
+        WebkitBackdropFilter: 'blur(20px)',
+        willChange: 'transform, opacity'
       }}
     >
-      <div className="relative">
+      <div className="relative pt-2">
         <button
           onClick={dismiss}
-          className="absolute -top-2 -right-2 p-1 rounded-full bg-black/40 backdrop-blur-sm border border-white/10 hover:bg-white/20 hover:border-white/20 transition-all"
+          className="absolute -top-0.5 -right-0.5 p-0.5 rounded-full bg-black/40 backdrop-blur-sm border border-white/10 hover:bg-white/20 hover:border-white/20 transition-all z-10"
           title="Close (Esc)"
         >
           <X className="w-3 h-3 text-white/70" />
         </button>
         
-        {/* Session Type Selector */}
-        <div className="mb-3">
-          <div className="text-xs text-muted-foreground/70 mb-2 text-center">Session Type</div>
-          <SessionTypeSelector compact />
-        </div>
-        
-        <form onSubmit={handleSubmit} className="mb-3">
-          <div className="flex items-center gap-3 p-3 bg-black/40 backdrop-blur-sm rounded-lg border border-white/10">
-            <Clock className="w-4 h-4 text-muted-foreground/70" />
+        {/* Time Input - First Priority */}
+        <form onSubmit={handleSubmit} className="mb-2">
+          <div className="flex items-center gap-2 p-2 bg-black/40 backdrop-blur-sm rounded-md border border-white/10">
+            <Clock className="w-3.5 h-3.5 text-muted-foreground/70" />
             <div className="flex items-baseline gap-1 flex-1">
               <input
                 type="number"
@@ -135,11 +132,11 @@ export function DurationInput({ isVisible = true, onDismiss }: DurationInputProp
                 }}
                 min="0"
                 max="999"
-                className="w-14 px-2 py-1.5 bg-white/20 backdrop-blur-sm rounded-md text-sm focus:outline-none focus:ring-2 focus:ring-white/30 text-center font-mono font-medium transition-all hover:bg-white/25"
+                className="w-12 px-1.5 py-1 bg-white/20 backdrop-blur-sm rounded text-sm focus:outline-none focus:ring-1 focus:ring-white/30 text-center font-mono font-medium transition-all hover:bg-white/25"
                 placeholder="25"
                 autoFocus
               />
-              <span className="text-muted-foreground/50 text-lg font-light">:</span>
+              <span className="text-muted-foreground/50 text-base font-light">:</span>
               <input
                 type="number"
                 value={seconds}
@@ -149,13 +146,13 @@ export function DurationInput({ isVisible = true, onDismiss }: DurationInputProp
                 }}
                 min="0"
                 max="59"
-                className="w-14 px-2 py-1.5 bg-white/20 backdrop-blur-sm rounded-md text-sm focus:outline-none focus:ring-2 focus:ring-white/30 text-center font-mono font-medium transition-all hover:bg-white/25"
+                className="w-12 px-1.5 py-1 bg-white/20 backdrop-blur-sm rounded text-sm focus:outline-none focus:ring-1 focus:ring-white/30 text-center font-mono font-medium transition-all hover:bg-white/25"
                 placeholder="00"
               />
             </div>
             <button
               type="submit"
-              className="px-4 py-1.5 bg-white/30 backdrop-blur-sm text-white rounded-md text-sm hover:bg-white/40 active:bg-white/50 transition-all font-medium border border-white/20 hover:border-white/30 shadow-sm"
+              className="px-3 py-1 bg-white/30 backdrop-blur-sm text-white rounded text-sm hover:bg-white/40 active:bg-white/50 transition-all font-medium border border-white/20 hover:border-white/30"
             >
               Set Timer
             </button>
@@ -163,7 +160,8 @@ export function DurationInput({ isVisible = true, onDismiss }: DurationInputProp
         </form>
       </div>
       
-      <div className="grid grid-cols-4 gap-2">
+      {/* Presets - Second Priority */}
+      <div className="grid grid-cols-4 gap-1.5 mb-2">
         {presets.map((preset) => {
           const Icon = preset.icon;
           const isSelected = selectedPreset === preset.value;
@@ -173,42 +171,44 @@ export function DurationInput({ isVisible = true, onDismiss }: DurationInputProp
               key={preset.value}
               onClick={() => handlePreset(preset.value)}
               className={`
-                relative group flex flex-col items-center p-3 rounded-lg
-                transition-all duration-200 transform
+                relative group flex flex-col items-center py-2 px-1 rounded-md
+                transition-all duration-200
                 ${isSelected 
-                  ? 'bg-white/30 border-white/40 shadow-lg scale-105' 
-                  : 'bg-black/40 border-white/10 hover:bg-white/20 hover:border-white/20 hover:scale-105'
+                  ? 'bg-white/25 border-white/40' 
+                  : 'bg-black/30 border-white/10 hover:bg-white/15 hover:border-white/20'
                 }
                 border backdrop-blur-sm
                 active:scale-95
               `}
             >
               <Icon className={`
-                w-5 h-5 mb-1 transition-colors
+                w-4 h-4 mb-0.5 transition-colors
                 ${isSelected ? 'text-white' : 'text-muted-foreground/70 group-hover:text-white/90'}
               `} />
               <span className={`
-                text-sm font-medium transition-colors
+                text-xs font-medium transition-colors
                 ${isSelected ? 'text-white' : 'text-white/80 group-hover:text-white'}
               `}>
                 {preset.label}
               </span>
               <span className={`
-                text-[10px] mt-0.5 transition-all
-                ${isSelected ? 'opacity-70' : 'opacity-0 group-hover:opacity-50'}
+                text-[9px] leading-tight transition-all whitespace-nowrap
+                ${isSelected ? 'opacity-60' : 'opacity-0 group-hover:opacity-40'}
               `}>
                 {preset.desc}
               </span>
-              {isSelected && (
-                <div className="absolute inset-0 rounded-lg ring-2 ring-white/30 ring-offset-2 ring-offset-transparent" />
-              )}
             </button>
           );
         })}
       </div>
       
-      <div className="mt-3 text-center text-[10px] text-muted-foreground/50">
-        Press <kbd className="px-1 py-0.5 bg-white/20 rounded text-white/70">Esc</kbd> or click outside to close
+      {/* Session Type - Third Priority */}
+      <div className="border-t border-white/10 pt-2">
+        <SessionTypeSelector compact iconOnly />
+      </div>
+      
+      <div className="mt-2 text-center text-[9px] text-muted-foreground/40">
+        Press <kbd className="px-0.5 py-0.25 bg-white/15 rounded text-[8px] text-white/60">Esc</kbd> or click outside to close
       </div>
     </div>
   );

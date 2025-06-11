@@ -27,10 +27,8 @@ import { MinimalCompact } from './watchfaces/minimal/MinimalCompact';
 import { NeonRing } from './watchfaces/neon/NeonRing';
 import { NeonProgress } from './watchfaces/neon/NeonProgress';
 
-// Chronograph watchface components
-import { ChronographFace } from './watchfaces/chronograph/ChronographFace';
-import { ChronographMarkings } from './watchfaces/chronograph/ChronographMarkings';
-import { ChronographSweep } from './watchfaces/chronograph/ChronographSweep';
+// Rolodex watchface components
+import { RolodexDisplay } from './watchfaces/rolodex/RolodexDisplay';
 
 // Default watchface components
 import { DefaultProgress } from './watchfaces/default/DefaultProgress';
@@ -42,9 +40,10 @@ import { TopProgressBar } from './unused/TopProgressBar';
 interface WatchFaceRendererProps extends WatchFaceProps {
   config: WatchFaceConfig;
   onTimeClick?: () => void;
+  hideControls?: boolean;
 }
 
-export function WatchFaceRenderer({ config, onTimeClick, ...props }: WatchFaceRendererProps) {
+export function WatchFaceRenderer({ config, onTimeClick, hideControls = false, ...props }: WatchFaceRendererProps) {
   const { theme, layout, components } = config;
   
   const formatTime = (seconds: number): string => {
@@ -116,6 +115,7 @@ export function WatchFaceRenderer({ config, onTimeClick, ...props }: WatchFaceRe
         );
       
       case 'controls':
+        if (hideControls) return null;
         return (
           <ControlButtons
             key={component.id}
@@ -239,29 +239,15 @@ export function WatchFaceRenderer({ config, onTimeClick, ...props }: WatchFaceRe
               />
             );
           
-          case 'chronograph-face':
+          case 'rolodex-display':
             return (
-              <ChronographFace
-                key={component.id}
-                style={component.properties?.style}
-              />
-            );
-          
-          case 'chronograph-markings':
-            return (
-              <ChronographMarkings
-                key={component.id}
-                style={component.properties?.style}
-              />
-            );
-          
-          case 'chronograph-sweep':
-            return (
-              <ChronographSweep
-                key={component.id}
-                progress={props.progress}
-                style={component.properties?.style}
-              />
+              <div key={component.id} style={component.style}>
+                <RolodexDisplay
+                  remaining={props.remaining}
+                  isRunning={props.isRunning}
+                  onTimeClick={onTimeClick}
+                />
+              </div>
             );
           
           case 'default-progress':
@@ -304,6 +290,7 @@ export function WatchFaceRenderer({ config, onTimeClick, ...props }: WatchFaceRe
             );
           
           case 'terminal-controls':
+            if (hideControls) return null;
             return (
               <TerminalControls
                 key={component.id}

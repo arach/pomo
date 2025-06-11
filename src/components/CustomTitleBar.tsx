@@ -2,6 +2,7 @@ import { getCurrentWebviewWindow } from '@tauri-apps/api/webviewWindow';
 import { invoke } from '@tauri-apps/api/core';
 import { useTimerStore } from '../stores/timer-store';
 import { SessionTypeIndicator } from './SessionTypeIndicator';
+import { LogicalSize } from '@tauri-apps/api/window';
 
 interface CustomTitleBarProps {
   isCollapsed?: boolean;
@@ -58,11 +59,25 @@ export function CustomTitleBar({ isCollapsed = false, title, showCollapseButton 
           <SessionTypeIndicator type={sessionType} size="sm" />
         )}
         <span className="text-xs text-muted-foreground">
-          {title || (isCollapsed ? 'Pomo' : 'Pomodoro Timer')}
+          {title || 'Pomo'}
         </span>
       </div>
       
-      <div className="w-[54px]" />
+      <div className="flex items-center">
+        {/* Reset window size button - only in dev mode */}
+        {import.meta.env.DEV && (
+          <button
+            onClick={async () => {
+              await appWindow.setSize(new LogicalSize(320, 280));
+              await appWindow.center();
+            }}
+            className="text-[10px] px-1.5 py-0.5 rounded bg-muted/20 hover:bg-muted/30 text-muted-foreground transition-colors"
+            title="Reset window size"
+          >
+            Reset
+          </button>
+        )}
+      </div>
     </div>
   );
 }

@@ -1,0 +1,98 @@
+{
+  "id": "rolodex",
+  "name": "Rolodex",
+  "description": "Vintage flip clock with satisfying digit animations",
+  "author": "Pomo Team",
+  "version": "1.0.0",
+  "progressBar": {
+    "height": "3px",
+    "background": "#2a2a2a",
+    "color": "#ff6b6b",
+    "glow": "rgba(255, 107, 107, 0.3)"
+  },
+  "theme": {
+    "colors": {
+      "background": "#1a1a1a",
+      "foreground": "#f0f0f0",
+      "accent": "#ff6b6b",
+      "success": "#4ecdc4",
+      "warning": "#ffe66d",
+      "error": "#ff6b6b"
+    },
+    "fonts": {
+      "primary": "'Bebas Neue', 'Impact', sans-serif",
+      "accent": "'Roboto Mono', monospace"
+    },
+    "customStyles": {
+      "@import": "@import url('https://fonts.googleapis.com/css2?family=Bebas+Neue&family=Roboto+Mono:wght@400;700&display=swap');",
+      ".container": {
+        "background": "radial-gradient(ellipse at center, #2a2a2a 0%, #1a1a1a 100%)",
+        "position": "relative"
+      }
+    }
+  },
+  "layout": {
+    "type": "rectangular",
+    "size": {
+      "width": "100%",
+      "height": "100%"
+    },
+    "padding": 20
+  },
+  "components": [
+    {
+      "id": "rolodex-display",
+      "type": "custom",
+      "position": {
+        "x": "center",
+        "y": "center"
+      },
+      "style": {
+        "position": "absolute",
+        "top": "0",
+        "left": "0",
+        "right": "0",
+        "bottom": "80px",
+        "display": "flex",
+        "justifyContent": "center",
+        "alignItems": "center"
+      },
+      "properties": {
+        "component": "rolodex-display"
+      }
+    },
+    {
+      "type": "controls",
+      "id": "control-buttons",
+      "position": {
+        "x": "center",
+        "y": "bottom"
+      },
+      "style": {
+        "gap": "12px",
+        "position": "absolute",
+        "bottom": "30px",
+        "left": "50%",
+        "transform": "translateX(-50%)"
+      },
+      "properties": {
+        "showLabels": false,
+        "buttonStyle": {
+          "background": "rgba(255, 255, 255, 0.1)",
+          "border": "1px solid rgba(255, 255, 255, 0.2)",
+          "borderRadius": "6px",
+          "color": "#f0f0f0",
+          "width": "36px",
+          "height": "36px",
+          "transition": "all 0.2s",
+          "hover": {
+            "background": "#ff6b6b",
+            "borderColor": "#ff6b6b",
+            "transform": "scale(1.05)"
+          }
+        },
+        "size": "medium"
+      }
+    }
+  ]
+}

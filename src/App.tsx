@@ -20,7 +20,7 @@ interface TimerUpdate {
 
 function App() {
   const [isCollapsed, setIsCollapsed] = useState(false);
-  const [showDurationInput, setShowDurationInput] = useState(true);
+  const [showDurationInput, setShowDurationInput] = useState(false);
   const [currentWatchFaceConfig, setCurrentWatchFaceConfig] = useState<any>(null);
   const { duration, remaining, isRunning, isPaused, updateState, start, pause, stop, reset, setDuration } = useTimerStore((state) => ({
     duration: state.duration,
@@ -211,7 +211,7 @@ function App() {
       // Cycle through themes
       case 't':
         e.preventDefault();
-        const themes = ['terminal', 'minimal', 'neon'];
+        const themes = ['terminal', 'minimal', 'neon', 'rolodex'];
         const currentIndex = themes.indexOf(watchFace);
         const nextIndex = (currentIndex + 1) % themes.length;
         updateSettings({ watchFace: themes[nextIndex] });
@@ -226,6 +226,14 @@ function App() {
           const currentIdx = types.indexOf(sessionType);
           const nextIdx = (currentIdx + 1) % types.length;
           setSessionType(types[nextIdx]);
+        }
+        break;
+        
+      // Open duration input panel
+      case 'd':
+        if (!isRunning) {
+          e.preventDefault();
+          setShowDurationInput(true);
         }
         break;
     }
@@ -272,12 +280,15 @@ function App() {
         <TimerDisplay 
           isCollapsed={isCollapsed} 
           onTimeClick={() => !isRunning && setShowDurationInput(true)}
+          showDurationInput={showDurationInput}
         />
-        {!isCollapsed && !isRunning && showDurationInput && (
-          <DurationInput onDismiss={() => setShowDurationInput(false)} />
-        )}
       </div>
       {!isCollapsed && <StatusFooter />}
+      {!isCollapsed && !isRunning && showDurationInput && (
+        <div className="absolute inset-x-0 bottom-0 z-50">
+          <DurationInput onDismiss={() => setShowDurationInput(false)} />
+        </div>
+      )}
     </WindowWrapper>
   );
 }

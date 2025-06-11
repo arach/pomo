@@ -28,6 +28,9 @@ You carefully provide accurate, factual, and thoughtful answers, and excel at re
 - If you suggest to create new code, configuration files or folders, ensure to include the bash or terminal script to create those files or folders.
 
 - When you finish a feature, ask yourself if there's an opportunity to clean up some more (the architecture) and specifically to ensure business logic is consolidated in the Typescript layer as much as possible
+- ALWAYS run `npm run type-check` before committing to ensure no TypeScript errors
+- Test the feature manually if possible before committing
+- After developing new features, ask for my feedback before suggesting a commit. We always want to iterate outside of git because it's faster.
 
 ## Git Commit Style
 

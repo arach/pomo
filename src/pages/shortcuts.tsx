@@ -21,6 +21,7 @@ function ShortcutsWindow() {
         { keys: ['Space'], description: 'Pause/Resume timer' },
         { keys: ['R'], description: 'Reset timer' },
         { keys: ['Esc'], description: 'Stop timer' },
+        { keys: ['D'], description: 'Open duration panel' },
       ]
     },
     {

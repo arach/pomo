@@ -13,7 +13,7 @@ export function StatusFooter() {
   };
 
   // Only show for certain watchfaces that don't have their own status
-  const watchFacesWithFooter = ['minimal', 'default', 'chronograph'];
+  const watchFacesWithFooter = ['minimal', 'default', 'rolodex'];
   if (!watchFacesWithFooter.includes(watchFace)) {
     return null;
   }

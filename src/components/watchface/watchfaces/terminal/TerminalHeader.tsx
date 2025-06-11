@@ -46,7 +46,7 @@ export function TerminalHeader({ text = '$ pomo --duration=25m', style }: Termin
       alignItems: 'center',
       animation: 'textShadow 4s ease-in-out infinite'
     }} className="font-mono">
-      <span style={{ color: '#00ff00', marginRight: '0.5em' }}>user@pomo:~$</span>
+      <span style={{ color: '#00ff00', marginRight: '0.5em' }}>user@home:~$</span>
       <span>{typedText}</span>
       <span style={cursorStyle} />
     </div>

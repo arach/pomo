@@ -12,13 +12,9 @@ export function LCDProgress({ progress, style }: LCDProgressProps) {
   return (
     <div style={{
       ...style,
-      position: 'absolute',
-      bottom: '40px',
-      left: '50%',
-      transform: 'translateX(-50%)',
       display: 'flex',
       gap: '8px',
-      padding: '12px 20px',
+      padding: '10px 16px',
       background: 'rgba(0, 0, 0, 0.8)',
       borderRadius: '8px',
       boxShadow: 'inset 0 2px 4px rgba(0, 0, 0, 0.5), 0 1px 0 rgba(255, 204, 0, 0.1)'
@@ -29,8 +25,8 @@ export function LCDProgress({ progress, style }: LCDProgressProps) {
           <div
             key={i}
             style={{
-              width: '16px',
-              height: '32px',
+              width: '14px',
+              height: '28px',
               background: isActive 
                 ? 'linear-gradient(to bottom, #ffcc00, #ff9900)' 
                 : 'rgba(100, 80, 40, 0.2)',
@@ -47,7 +43,7 @@ export function LCDProgress({ progress, style }: LCDProgressProps) {
       })}
       <div style={{
         marginLeft: '12px',
-        fontSize: '18px',
+        fontSize: '16px',
         fontFamily: "'Orbitron', monospace",
         fontWeight: '700',
         color: '#ffcc00',

@@ -8,9 +8,10 @@ import { invoke } from '@tauri-apps/api/core';
 
 interface TimerDisplayProps {
   isCollapsed?: boolean;
+  onTimeClick?: () => void;
 }
 
-export function TimerDisplay({ isCollapsed = false }: TimerDisplayProps) {
+export function TimerDisplay({ isCollapsed = false, onTimeClick }: TimerDisplayProps) {
   const { duration, remaining, isRunning, isPaused, start, pause, stop, reset } = useTimerStore();
   const { watchFace } = useSettingsStore();
   const [currentWatchFaceConfig, setCurrentWatchFaceConfig] = useState<any>(null);
@@ -115,6 +116,7 @@ export function TimerDisplay({ isCollapsed = false }: TimerDisplayProps) {
             onPause={pause}
             onStop={stop}
             onReset={reset}
+            onTimeClick={onTimeClick}
           />
         ) : (
           // Fallback while loading

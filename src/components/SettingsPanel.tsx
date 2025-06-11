@@ -286,9 +286,13 @@ export function SettingsPanel({ isStandalone = false }: SettingsPanelProps) {
                   >
                     <div className="w-16 h-16 rounded-md overflow-hidden bg-background/50 border border-border/30 flex-shrink-0">
                       <img 
-                        src="/watchface-placeholder.png" 
+                        src={`/watchface-previews/${face.id}.png`} 
                         alt={face.name}
                         className="w-full h-full object-cover"
+                        onError={(e) => {
+                          // Fallback to placeholder if preview doesn't exist
+                          (e.target as HTMLImageElement).src = '/watchface-placeholder.png';
+                        }}
                       />
                     </div>
                     <div className="flex flex-col gap-1 min-w-0">

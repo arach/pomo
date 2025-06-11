@@ -4,6 +4,7 @@ import { ProgressRing } from './shared/ProgressRing';
 import { TimeDisplay } from './shared/TimeDisplay';
 import { StatusDisplay } from './shared/StatusDisplay';
 import { ControlButtons } from './shared/ControlButtons';
+import { ClickableTimeWrapper } from './shared/ClickableTimeWrapper';
 
 // Terminal watchface components
 import { TerminalProgress } from './watchfaces/terminal/TerminalProgress';
@@ -40,9 +41,10 @@ import { TopProgressBar } from './unused/TopProgressBar';
 
 interface WatchFaceRendererProps extends WatchFaceProps {
   config: WatchFaceConfig;
+  onTimeClick?: () => void;
 }
 
-export function WatchFaceRenderer({ config, ...props }: WatchFaceRendererProps) {
+export function WatchFaceRenderer({ config, onTimeClick, ...props }: WatchFaceRendererProps) {
   const { theme, layout, components } = config;
   
   const formatTime = (seconds: number): string => {
@@ -87,12 +89,17 @@ export function WatchFaceRenderer({ config, ...props }: WatchFaceRendererProps) 
       
       case 'time':
         return (
-          <TimeDisplay
+          <ClickableTimeWrapper 
             key={component.id}
-            remaining={props.remaining}
-            style={component.style}
-            position={component.position}
-          />
+            onClick={onTimeClick}
+            isRunning={props.isRunning}
+          >
+            <TimeDisplay
+              remaining={props.remaining}
+              style={component.style}
+              position={component.position}
+            />
+          </ClickableTimeWrapper>
         );
       
       case 'status':
@@ -150,11 +157,16 @@ export function WatchFaceRenderer({ config, ...props }: WatchFaceRendererProps) 
           
           case 'digital-display':
             return (
-              <DigitalDisplay
+              <ClickableTimeWrapper 
                 key={component.id}
-                value={formatTime(props.remaining)}
-                style={component.style}
-              />
+                onClick={onTimeClick}
+                isRunning={props.isRunning}
+              >
+                <DigitalDisplay
+                  value={formatTime(props.remaining)}
+                  style={component.style}
+                />
+              </ClickableTimeWrapper>
             );
           
           case 'retro-progress':

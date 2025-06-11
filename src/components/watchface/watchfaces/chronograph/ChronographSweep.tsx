@@ -6,9 +6,9 @@ interface ChronographSweepProps {
 }
 
 export function ChronographSweep({ progress, style }: ChronographSweepProps) {
-  const radius = 110;
-  const centerX = 120;
-  const centerY = 120;
+  const radius = 85;
+  const centerX = 100;
+  const centerY = 100;
   
   // Calculate angle for sweep hand (-90deg = 12 o'clock start position)
   const angle = -90 + (progress * 3.6); // 360deg / 100 = 3.6deg per percent
@@ -31,10 +31,10 @@ export function ChronographSweep({ progress, style }: ChronographSweepProps) {
       top: '50%',
       left: '50%',
       transform: 'translate(-50%, -50%)',
-      width: '240px',
-      height: '240px'
+      width: '200px',
+      height: '200px'
     }}>
-      <svg width="240" height="240" style={{ position: 'absolute' }}>
+      <svg width="200" height="200" style={{ position: 'absolute' }}>
         {/* Progress arc trail */}
         <circle
           cx={centerX}
@@ -113,10 +113,10 @@ export function ChronographSweep({ progress, style }: ChronographSweepProps) {
       {/* Progress percentage */}
       <div style={{
         position: 'absolute',
-        bottom: '60px',
+        bottom: '40px',
         left: '50%',
         transform: 'translateX(-50%)',
-        fontSize: '14px',
+        fontSize: '12px',
         fontWeight: '500',
         color: '#64748b',
         fontFamily: "'Inter', sans-serif",

@@ -72,15 +72,15 @@
       "type": "time",
       "position": {
         "x": "center",
-        "y": 110
+        "y": 130
       },
       "style": {
-        "fontSize": "32px",
+        "fontSize": "28px",
         "fontWeight": "700",
         "color": "#ff00ff",
         "fontFamily": "'Orbitron', monospace",
         "textAlign": "center",
-        "textShadow": "0 0 10px #ff00ff, 0 0 20px #ff00ff, 0 0 30px #ff00ff"
+        "textShadow": "0 0 8px #ff00ff, 0 0 16px #ff00ff, 0 0 24px #ff00ff"
       }
     },
     {
@@ -88,10 +88,10 @@
       "type": "status",
       "position": {
         "x": "center",
-        "y": 160
+        "y": 165
       },
       "style": {
-        "fontSize": "12px",
+        "fontSize": "11px",
         "color": "#00ffff",
         "textTransform": "uppercase",
         "letterSpacing": "0.3em",
@@ -116,13 +116,13 @@
           "border": "1px solid #ff00ff",
           "borderRadius": "50%",
           "color": "#ff00ff",
-          "width": "32px",
-          "height": "32px",
+          "width": "28px",
+          "height": "28px",
           "display": "flex",
           "alignItems": "center",
           "justifyContent": "center",
           "transition": "all 0.3s",
-          "fontSize": "12px",
+          "fontSize": "10px",
           "hover": {
             "background": "#ff00ff",
             "color": "#0a0a0f",

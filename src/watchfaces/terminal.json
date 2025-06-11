@@ -58,22 +58,22 @@
       "width": "100%",
       "height": "100%"
     },
-    "padding": 30
+    "padding": 20
   },
   "components": [
     {
       "type": "custom",
       "id": "terminal-header",
       "position": {
-        "x": 30,
-        "y": 30
+        "x": 20,
+        "y": 20
       },
       "props": {
-        "text": "pomo --duration={duration} --energy=focused"
+        "text": "pomo --duration={duration}"
       },
       "style": {
-        "fontSize": "11px",
-        "opacity": 0.9,
+        "fontSize": "10px",
+        "opacity": 0.8,
         "fontFamily": "'SF Mono', monospace",
         "letterSpacing": "0.05em",
         "color": "#00ff00"
@@ -83,16 +83,16 @@
       "type": "time",
       "id": "main-time",
       "position": {
-        "x": 30,
-        "y": 80
+        "x": 20,
+        "y": 50
       },
       "style": {
-        "fontSize": "48px",
-        "fontWeight": "200",
-        "letterSpacing": "0.2em",
+        "fontSize": "36px",
+        "fontWeight": "300",
+        "letterSpacing": "0.15em",
         "textAlign": "left",
         "fontFamily": "'SF Mono', monospace",
-        "textShadow": "0 0 8px currentColor, 0 0 15px currentColor",
+        "textShadow": "0 0 6px currentColor, 0 0 12px currentColor",
         "color": "#00ff00",
         "animation": "textShadow 4s ease-in-out infinite"
       }
@@ -101,14 +101,14 @@
       "type": "custom",
       "id": "ascii-progress",
       "position": {
-        "x": 30,
-        "y": 150
+        "x": 20,
+        "y": 100
       },
       "properties": {
         "component": "ascii-progress"
       },
       "style": {
-        "fontSize": "11px",
+        "fontSize": "10px",
         "fontFamily": "'SF Mono', monospace",
         "color": "#00ff00"
       }
@@ -117,13 +117,13 @@
       "type": "custom",
       "id": "terminal-controls",
       "position": {
-        "x": 30,
-        "y": 280
+        "x": 20,
+        "y": 190
       },
       "properties": {
         "component": "terminal-controls",
         "style": {
-          "fontSize": "11px",
+          "fontSize": "10px",
           "fontFamily": "'SF Mono', monospace",
           "color": "#00ff00"
         }
@@ -138,14 +138,14 @@
       },
       "style": {
         "position": "absolute",
-        "bottom": "20px",
-        "right": "30px",
-        "fontSize": "10px",
+        "bottom": "8px",
+        "right": "20px",
+        "fontSize": "9px",
         "textAlign": "right",
         "textTransform": "uppercase",
         "letterSpacing": "0.05em",
         "fontFamily": "'SF Mono', monospace",
-        "opacity": 0.6,
+        "opacity": 0.5,
         "color": "#00ff00"
       },
       "props": {

@@ -19,6 +19,7 @@ interface TimerUpdate {
 
 function App() {
   const [isCollapsed, setIsCollapsed] = useState(false);
+  const [showDurationInput, setShowDurationInput] = useState(true);
   const { duration, remaining, isRunning, updateState } = useTimerStore((state) => ({
     duration: state.duration,
     remaining: state.remaining,
@@ -36,6 +37,11 @@ function App() {
         isRunning: event.payload.is_running,
         isPaused: event.payload.is_paused,
       });
+      
+      // Show duration input again when timer is stopped
+      if (!event.payload.is_running) {
+        setShowDurationInput(true);
+      }
     });
     
     // Listen for timer completion
@@ -100,8 +106,13 @@ function App() {
         />
       </div>
       <div className="flex-1 flex flex-col min-h-0">
-        <TimerDisplay isCollapsed={isCollapsed} />
-        {!isCollapsed && !isRunning && <DurationInput />}
+        <TimerDisplay 
+          isCollapsed={isCollapsed} 
+          onTimeClick={() => !isRunning && setShowDurationInput(true)}
+        />
+        {!isCollapsed && !isRunning && showDurationInput && (
+          <DurationInput onDismiss={() => setShowDurationInput(false)} />
+        )}
       </div>
       {!isCollapsed && <StatusFooter />}
     </WindowWrapper>

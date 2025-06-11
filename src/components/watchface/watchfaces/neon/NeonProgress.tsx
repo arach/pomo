@@ -15,8 +15,8 @@ export function NeonProgress({ progress, style }: NeonProgressProps) {
     return () => clearInterval(interval);
   }, []);
 
-  const radius = 120;
-  const strokeWidth = 3;
+  const radius = 90;
+  const strokeWidth = 2;
   const normalizedRadius = radius - strokeWidth * 2;
   const circumference = normalizedRadius * 2 * Math.PI;
   const strokeDashoffset = circumference - (progress / 100) * circumference;
@@ -109,9 +109,9 @@ export function NeonProgress({ progress, style }: NeonProgressProps) {
         position: 'absolute',
         top: '50%',
         left: '50%',
-        transform: 'translate(-50%, -50%)',
-        fontSize: '32px',
-        fontWeight: '100',
+        transform: 'translate(-30%, 30%)',
+        fontSize: '24px',
+        fontWeight: '200',
         fontFamily: 'monospace',
         color: '#00ffff',
         textShadow: `0 0 10px #00ffff, 0 0 20px #ff00ff`,

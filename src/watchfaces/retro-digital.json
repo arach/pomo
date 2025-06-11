@@ -27,7 +27,7 @@
       ".container::before": {
         "content": "''",
         "position": "absolute",
-        "top": "50%",
+        "top": "30%",
         "left": "50%",
         "transform": "translate(-50%, -50%)",
         "width": "90%",
@@ -68,7 +68,7 @@
       "type": "custom",
       "position": {
         "x": "center",
-        "y": 100
+        "y": 80
       },
       "properties": {
         "component": "digital-display"
@@ -76,6 +76,7 @@
       "style": {
         "position": "absolute",
         "left": "50%",
+        "top": "80px",
         "transform": "translateX(-50%)"
       }
     },
@@ -84,14 +85,14 @@
       "type": "status",
       "position": {
         "x": "center",
-        "y": 175
+        "y": 150
       },
       "style": {
-        "fontSize": "14px",
+        "fontSize": "12px",
         "color": "#ff3333",
         "textTransform": "uppercase",
-        "letterSpacing": "0.3em",
-        "textShadow": "0 0 15px currentColor, 0 0 30px currentColor",
+        "letterSpacing": "0.2em",
+        "textShadow": "0 0 10px currentColor, 0 0 20px currentColor",
         "fontFamily": "'Orbitron', monospace",
         "fontWeight": "700"
       }
@@ -123,31 +124,31 @@
       "type": "controls",
       "position": {
         "x": "center",
-        "y": 220
+        "y": 190
       },
       "style": {
-        "gap": "15px"
+        "gap": "12px"
       },
       "properties": {
         "buttonStyle": {
           "background": "linear-gradient(135deg, #2a1a0a, #1a0a00)",
-          "border": "2px solid #ffcc00",
-          "borderRadius": "6px",
+          "border": "1px solid #ffcc00",
+          "borderRadius": "4px",
           "color": "#ffcc00",
-          "padding": "8px 16px",
+          "padding": "6px 12px",
           "transition": "all 0.3s",
           "fontFamily": "'Orbitron', monospace",
           "fontWeight": "700",
-          "fontSize": "11px",
+          "fontSize": "10px",
           "letterSpacing": "0.1em",
           "boxShadow": "inset 0 1px 3px rgba(0,0,0,0.5), 0 0 10px rgba(255,204,0,0.2)",
           "hover": {
             "background": "#ffcc00",
             "color": "#1a0f0a",
-            "boxShadow": "0 0 20px #ffcc00, 0 0 40px #ff9900"
+            "boxShadow": "0 0 15px #ffcc00, 0 0 30px #ff9900"
           }
         },
-        "size": "medium"
+        "size": "small"
       }
     }
   ]

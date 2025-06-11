@@ -22,7 +22,7 @@ const Segment: React.FC<SegmentProps> = ({ on, type, position }) => {
 
   const horizontalStyle: React.CSSProperties = {
     ...baseStyle,
-    width: '20px',
+    width: '16px',
     height: '3px',
     clipPath: 'polygon(15% 0%, 85% 0%, 100% 50%, 85% 100%, 15% 100%, 0% 50%)'
   };
@@ -30,18 +30,18 @@ const Segment: React.FC<SegmentProps> = ({ on, type, position }) => {
   const verticalStyle: React.CSSProperties = {
     ...baseStyle,
     width: '3px',
-    height: '25px',
+    height: '20px',
     clipPath: 'polygon(0% 15%, 50% 0%, 100% 15%, 100% 85%, 50% 100%, 0% 85%)'
   };
 
   const positions: Record<string, React.CSSProperties> = {
-    top: { top: 0, left: '4px' },
-    middle: { top: '25px', left: '4px' },
-    bottom: { top: '50px', left: '4px' },
+    top: { top: 0, left: '3px' },
+    middle: { top: '21px', left: '3px' },
+    bottom: { top: '42px', left: '3px' },
     topLeft: { top: '2px', left: '1px' },
     topRight: { top: '2px', right: '1px' },
-    bottomLeft: { top: '27px', left: '1px' },
-    bottomRight: { top: '27px', right: '1px' }
+    bottomLeft: { top: '23px', left: '1px' },
+    bottomRight: { top: '23px', right: '1px' }
   };
 
   return (
@@ -73,8 +73,8 @@ const SevenSegmentDigit: React.FC<{ digit: string }> = ({ digit }) => {
   return (
     <div style={{
       position: 'relative',
-      width: '28px',
-      height: '55px',
+      width: '24px',
+      height: '45px',
       margin: '0 2px',
       display: 'inline-block'
     }}>
@@ -95,8 +95,8 @@ const SevenSegmentDigit: React.FC<{ digit: string }> = ({ digit }) => {
             borderRadius: '50%',
             background: '#ffcc00',
             boxShadow: '0 0 10px #ffcc00',
-            top: '15px',
-            left: '11px'
+            top: '12px',
+            left: '9px'
           }} />
           <div style={{
             position: 'absolute',
@@ -105,8 +105,8 @@ const SevenSegmentDigit: React.FC<{ digit: string }> = ({ digit }) => {
             borderRadius: '50%',
             background: '#ffcc00',
             boxShadow: '0 0 10px #ffcc00',
-            bottom: '15px',
-            left: '11px'
+            bottom: '12px',
+            left: '9px'
           }} />
         </>
       )}

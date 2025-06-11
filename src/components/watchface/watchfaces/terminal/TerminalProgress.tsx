@@ -10,7 +10,7 @@ interface TerminalProgressProps {
 
 export function TerminalProgress({
   progress,
-  width = 40,
+  width = 42,
   fillChar = '█',
   emptyChar = '░',
   style
@@ -31,41 +31,40 @@ export function TerminalProgress({
   const progressBar = fillChar.repeat(Math.max(0, filled)) + emptyChar.repeat(Math.max(0, empty));
   const percentage = `${Math.round(progress)}%`.padStart(4, ' ');
   
-  const progressColor = progress < 33 ? '#ff6b6b' : progress < 66 ? '#ffd93d' : '#00ff00';
-  
+  const progressColor = progress < 33 ? '#00ff00' : progress < 66 ? '#ffd93d' : '#00ff00';
   return (
     <div style={{
       ...style,
       fontFamily: 'monospace',
       lineHeight: 1.4
     }}>
-      <div style={{ marginBottom: '12px', opacity: 0.7, fontSize: '10px' }}>
-        ┌─ Progress ───────────────────────────────┐
+      <div style={{ marginBottom: '8px', opacity: 0.7, fontSize: '9px' }}>
+        ┌─ Progress ───────────────────────────────────────┐
       </div>
       <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
         <span style={{ opacity: 0.5 }}>│</span>
-        <span style={{ color: progressColor }}>
-          {spinners[animFrame]}
-        </span>
         <span style={{ 
           color: progressColor,
           textShadow: `0 0 5px ${progressColor}`,
           letterSpacing: '-1px'
         }}>
-          [{progressBar}]
+          {progressBar}
+        </span>
+        <span style={{ color: progressColor }}>
+          {spinners[animFrame]}
         </span>
         <span style={{ 
           color: progressColor,
           fontWeight: 'bold',
-          minWidth: '45px',
+          minWidth: '5px',
           textAlign: 'right'
         }}>
           {percentage}
         </span>
-        <span style={{ opacity: 0.5 }}>│</span>
+        <span style={{ opacity: 0.5, paddingLeft: percentage.length === 4 ? '3px' : '8px' }}>│</span>
       </div>
-      <div style={{ marginTop: '12px', opacity: 0.7, fontSize: '10px' }}>
-        └──────────────────────────────────────────┘
+      <div style={{ marginTop: '8px', opacity: 0.7, fontSize: '9px' }}>
+        └──────────────────────────────────────────────────┘
       </div>
       <div style={{ 
         marginTop: '8px', 

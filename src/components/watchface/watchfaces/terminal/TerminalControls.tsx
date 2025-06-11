@@ -47,8 +47,8 @@ export function TerminalControls({
     if (!isRunning || isPaused) {
       return (
         <>
-          <div style={{ marginBottom: '8px', opacity: 0.7, fontSize: '10px' }}>
-            ┌─ Available Commands ─────────────┐
+          <div style={{ marginBottom: '6px', opacity: 0.7, fontSize: '9px' }}>
+            ┌─ Commands ───────────────────┐
           </div>
           <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
             <span style={{ opacity: 0.5 }}>│</span>
@@ -71,8 +71,8 @@ export function TerminalControls({
             </span>
             <span style={{ opacity: 0.5 }}>│</span>
           </div>
-          <div style={{ marginTop: '8px', opacity: 0.7, fontSize: '10px' }}>
-            └──────────────────────────────────┘
+          <div style={{ marginTop: '6px', opacity: 0.7, fontSize: '9px' }}>
+            └──────────────────────────────┘
           </div>
         </>
       );
@@ -80,8 +80,8 @@ export function TerminalControls({
 
     return (
       <>
-        <div style={{ marginBottom: '8px', opacity: 0.7, fontSize: '10px' }}>
-          ┌─ Running ────────────────────────┐
+        <div style={{ marginBottom: '6px', opacity: 0.7, fontSize: '9px' }}>
+          ┌─ Running ───────────────────┐
         </div>
         <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
           <span style={{ opacity: 0.5 }}>│</span>
@@ -104,8 +104,8 @@ export function TerminalControls({
           </span>
           <span style={{ opacity: 0.5 }}>│</span>
         </div>
-        <div style={{ marginTop: '8px', opacity: 0.7, fontSize: '10px' }}>
-          └──────────────────────────────────┘
+        <div style={{ marginTop: '6px', opacity: 0.7, fontSize: '9px' }}>
+          └─────────────────────────────┘
         </div>
       </>
     );

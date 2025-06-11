@@ -54,10 +54,10 @@
       "type": "time",
       "position": {
         "x": "center",
-        "y": 100
+        "y": 20
       },
       "style": {
-        "fontSize": "72px",
+        "fontSize": "56px",
         "fontWeight": "900",
         "color": "#ffcc00",
         "fontFamily": "'Orbitron', monospace",
@@ -72,10 +72,10 @@
       "type": "status",
       "position": {
         "x": "center",
-        "y": 185
+        "y": 100
       },
       "style": {
-        "fontSize": "14px",
+        "fontSize": "12px",
         "color": "#ff3333",
         "textTransform": "uppercase",
         "letterSpacing": "0.3em",
@@ -89,10 +89,16 @@
       "type": "custom",
       "position": {
         "x": "center",
-        "y": "bottom"
+        "y": "180px"
       },
       "properties": {
-        "component": "lcd-progress"
+        "component": "lcd-progress",
+        "style": {
+          "position": "absolute",
+          "top": "125px",
+          "left": "50%",
+          "transform": "translateX(-50%)"
+        }
       }
     },
     {
@@ -100,7 +106,7 @@
       "type": "controls",
       "position": {
         "x": "center",
-        "y": 230
+        "y": 190
       },
       "style": {
         "gap": "15px"

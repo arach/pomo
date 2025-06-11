@@ -116,27 +116,62 @@ The built application will be in `src-tauri/target/release/bundle/`.
 - **Theme** - Press `T` to cycle through watchfaces
 - **Settings** - Press `⌘,` to open preferences
 
-### Watchfaces
+## Watchfaces Gallery 🎨
 
-**Default** ⚪
-- Minimalist design with clear visual hierarchy
-- Progress ring with session type display
-- Clean, professional aesthetic that fits any workspace
+Pomo features a beautiful collection of watchfaces, each designed for different moods and workflows. Switch between them instantly with the `T` key.
 
-**Terminal** 🖥️
-- Retro terminal aesthetic with green-on-black display
-- ASCII art progress indicators
-- Command-line inspired interface
+<div align="center">
 
-**Rolodex** 🔢
-- Flip clock style with smooth transitions
-- Nostalgic design with modern functionality
-- Perfect for focused work sessions
+### **Default** - Clean & Professional ⚪
+<img src="./public/watchface-previews/default.png" alt="Default Watchface" width="300" />
 
-**Neon** 🌆
-- Cyberpunk-inspired with glowing effects
-- Animated progress rings
-- Perfect for night coding sessions
+*Minimalist design with clear visual hierarchy, progress ring with session type display*
+
+---
+
+### **Terminal** - Hacker Aesthetic 🖥️
+<img src="./public/watchface-previews/terminal.png" alt="Terminal Watchface" width="300" />
+
+*Retro terminal aesthetic with green-on-black display and ASCII art progress indicators*
+
+---
+
+### **Rolodex** - Nostalgic Flip Clock 🔢
+<img src="./public/watchface-previews/rolodex.png" alt="Rolodex Watchface" width="300" />
+
+*Flip clock style with smooth transitions and nostalgic design*
+
+---
+
+### **Neon** - Cyberpunk Vibes 🌆
+<img src="./public/watchface-previews/neon.png" alt="Neon Watchface" width="300" />
+
+*Cyberpunk-inspired with glowing effects and animated progress rings*
+
+---
+
+### **Retro Digital** - Classic LCD 📟
+<img src="./public/watchface-previews/retro-digital.png" alt="Retro Digital Watchface" width="300" />
+
+*Classic digital clock aesthetic with LCD-style display*
+
+---
+
+### **Retro LCD** - Vintage Display 📺
+<img src="./public/watchface-previews/retro-lcd.png" alt="Retro LCD Watchface" width="300" />
+
+*Vintage LCD display with authentic retro styling*
+
+---
+
+### **Chronograph** - Precision Timing ⏱️
+<img src="./public/watchface-previews/chronograph.png" alt="Chronograph Watchface" width="300" />
+
+*Professional chronograph design with precision timing display*
+
+</div>
+
+> **Tip:** Press `T` to cycle through all available watchfaces instantly!
 
 ## Development
 

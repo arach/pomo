@@ -27,21 +27,38 @@ You carefully provide accurate, factual, and thoughtful answers, and excel at re
 - If there might not be a correct answer, state so. If you do not know the answer, admit it instead of guessing.
 - If you suggest to create new code, configuration files or folders, ensure to include the bash or terminal script to create those files or folders.
 
-- When you finish a feature, ask yourelf if there's an opportunity to clean up some more (the architecture) and specfically to ensure business logic is consolidated in the Typescript layer as much as possible
+- When you finish a feature, ask yourself if there's an opportunity to clean up some more (the architecture) and specifically to ensure business logic is consolidated in the Typescript layer as much as possible
+
+## Git Commit Style
+
+Always use [gitmoji](https://gitmoji.dev/) for commit messages. Start each commit with an appropriate emoji:
+
+- ✨ `:sparkles:` - New feature
+- 🐛 `:bug:` - Bug fix
+- 📝 `:memo:` - Documentation
+- 💄 `:lipstick:` - UI/style updates
+- ♻️ `:recycle:` - Refactoring
+- 🎨 `:art:` - Improving structure/format
+- ⚡️ `:zap:` - Performance improvements
+- 🔧 `:wrench:` - Configuration files
+- 🚀 `:rocket:` - Deployments
+- ✅ `:white_check_mark:` - Tests
+- 🔒 `:lock:` - Security fixes
+- ⬆️ `:arrow_up:` - Upgrading dependencies
+- 🏗️ `:building_construction:` - Architectural changes
+- 💚 `:green_heart:` - Fixing CI
+
+Example: `✨ Add comprehensive keyboard shortcuts system`
 
 ## Project Status
 
-This is currently an empty project directory. The project has not been initialized with any specific framework or language yet.
-
-## Getting Started
-
-Since this project is not yet initialized, you'll need to:
-
-1. Determine the intended project type and programming language
-2. Initialize the project with appropriate tools and frameworks
-3. Set up the basic project structure
-
-The directory name "pomo" suggests this might be intended as a Pomodoro timer application, but this should be confirmed with the user.
+Pomo is a fully functional Pomodoro timer application built with:
+- Tauri 2.0 for the desktop framework
+- React + TypeScript for the UI
+- Multiple watchfaces (Terminal, Minimal, Neon)
+- Comprehensive keyboard shortcuts
+- Settings persistence
+- Floating always-on-top window design
 
 ## Permissions
 

@@ -95,7 +95,7 @@
         "minHeight": 100,
         "resizable": true,
         "fullscreen": false,
-        "transparent": false,
+        "transparent": true,
         "decorations": false,
         "alwaysOnTop": true,
         "titleBarStyle": "Overlay",

@@ -49,11 +49,14 @@
   margin: 0;
   padding: 0;
   box-sizing: border-box;
+  border: none;
+  outline: none;
 }
 
 html, body, #root {
   height: 100%;
   overflow: hidden;
+  background: transparent;
 }
 
 body {
@@ -62,6 +65,8 @@ body {
     sans-serif;
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
+  background: transparent;
+  font-size: 14px;
 }
 
 /* Custom animations */
@@ -139,5 +144,27 @@ body {
   }
   100% {
     background-position: 0 10px;
+  }
+}
+
+@keyframes slideInFromBottom {
+  from {
+    opacity: 0;
+    transform: translateY(10px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@keyframes slideOutToBottom {
+  from {
+    opacity: 1;
+    transform: translateY(0);
+  }
+  to {
+    opacity: 0;
+    transform: translateY(10px);
   }
 }

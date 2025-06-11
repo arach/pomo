@@ -18,10 +18,37 @@
       "accent": "'SF Mono', 'Monaco', 'Cascadia Code', 'Consolas', monospace"
     },
     "customStyles": {
+      "@import": "@keyframes flicker { 0% { opacity: 0.97; } 50% { opacity: 1; } 100% { opacity: 0.98; } } @keyframes scanline { 0% { transform: translateY(-100%); } 100% { transform: translateY(100%); } } @keyframes textShadow { 0% { text-shadow: 0 0 4px currentColor, 0 0 8px currentColor; } 50% { text-shadow: 0 0 5px currentColor, 0 0 10px currentColor; } 100% { text-shadow: 0 0 4px currentColor, 0 0 8px currentColor; } }",
       ".container": {
-        "background": "rgba(0, 0, 0, 0.95)",
-        "backgroundImage": "repeating-linear-gradient(0deg, rgba(0, 255, 0, 0.02), rgba(0, 255, 0, 0.02) 1px, transparent 1px, transparent 2px)",
-        "boxShadow": "inset 0 0 30px rgba(0, 255, 0, 0.05)"
+        "background": "radial-gradient(ellipse at center, rgba(0, 0, 0, 0.9) 0%, rgba(0, 0, 0, 0.98) 100%)",
+        "backgroundImage": "repeating-linear-gradient(0deg, rgba(0, 255, 0, 0.03), rgba(0, 255, 0, 0.03) 1px, transparent 1px, transparent 2px)",
+        "boxShadow": "inset 0 0 100px rgba(0, 255, 0, 0.05), inset 0 0 20px rgba(0, 255, 0, 0.05)",
+        "position": "relative",
+        "overflow": "hidden",
+        "animation": "flicker 0.15s infinite"
+      },
+      ".container::before": {
+        "content": "''",
+        "position": "absolute",
+        "top": "-100%",
+        "left": 0,
+        "right": 0,
+        "height": "200%",
+        "background": "linear-gradient(to bottom, transparent 0%, rgba(0, 255, 0, 0.02) 50%, transparent 100%)",
+        "animation": "scanline 8s linear infinite",
+        "pointerEvents": "none",
+        "zIndex": 1
+      },
+      ".container::after": {
+        "content": "''",
+        "position": "absolute",
+        "top": 0,
+        "left": 0,
+        "right": 0,
+        "bottom": 0,
+        "background": "radial-gradient(ellipse at center, transparent 0%, rgba(0, 0, 0, 0.4) 100%)",
+        "pointerEvents": "none",
+        "zIndex": 2
       }
     }
   },
@@ -31,22 +58,22 @@
       "width": "100%",
       "height": "100%"
     },
-    "padding": 30
+    "padding": 20
   },
   "components": [
     {
       "type": "custom",
       "id": "terminal-header",
       "position": {
-        "x": 30,
-        "y": 30
+        "x": 20,
+        "y": 20
       },
       "props": {
-        "text": "$ pomo --duration=25m"
+        "text": "pomo --duration={duration}"
       },
       "style": {
         "fontSize": "10px",
-        "opacity": 0.7,
+        "opacity": 0.8,
         "fontFamily": "'SF Mono', monospace",
         "letterSpacing": "0.05em",
         "color": "#00ff00"
@@ -56,8 +83,8 @@
       "type": "time",
       "id": "main-time",
       "position": {
-        "x": 30,
-        "y": 70
+        "x": 20,
+        "y": 50
       },
       "style": {
         "fontSize": "36px",
@@ -65,22 +92,38 @@
         "letterSpacing": "0.15em",
         "textAlign": "left",
         "fontFamily": "'SF Mono', monospace",
-        "textShadow": "0 0 4px currentColor",
+        "textShadow": "0 0 6px currentColor, 0 0 12px currentColor",
+        "color": "#00ff00",
+        "animation": "textShadow 4s ease-in-out infinite"
+      }
+    },
+    {
+      "type": "custom",
+      "id": "ascii-progress",
+      "position": {
+        "x": 20,
+        "y": 100
+      },
+      "properties": {
+        "component": "ascii-progress"
+      },
+      "style": {
+        "fontSize": "10px",
+        "fontFamily": "'SF Mono', monospace",
         "color": "#00ff00"
       }
     },
     {
       "type": "custom",
-      "id": "npm-progress",
+      "id": "terminal-controls",
       "position": {
-        "x": 30,
-        "y": 130
+        "x": 20,
+        "y": 190
       },
       "properties": {
-        "component": "npm-loader",
-        "reverse": true,
+        "component": "terminal-controls",
         "style": {
-          "fontSize": "12px",
+          "fontSize": "10px",
           "fontFamily": "'SF Mono', monospace",
           "color": "#00ff00"
         }
@@ -88,51 +131,25 @@
     },
     {
       "type": "status",
-      "id": "status-text",
+      "id": "status-footer",
       "position": {
-        "x": 30,
-        "y": 165
+        "x": "right",
+        "y": "bottom"
       },
       "style": {
-        "fontSize": "10px",
-        "textAlign": "left",
+        "position": "absolute",
+        "bottom": "8px",
+        "right": "20px",
+        "fontSize": "9px",
+        "textAlign": "right",
         "textTransform": "uppercase",
-        "letterSpacing": "0.1em",
+        "letterSpacing": "0.05em",
         "fontFamily": "'SF Mono', monospace",
-        "opacity": 0.8,
+        "opacity": 0.5,
         "color": "#00ff00"
       },
       "props": {
-        "format": "status: {status}"
-      }
-    },
-    {
-      "type": "controls",
-      "id": "control-buttons",
-      "position": {
-        "x": 30,
-        "y": 195
-      },
-      "style": {
-        "gap": "6px",
-        "justifyContent": "flex-start"
-      },
-      "props": {
-        "showLabels": true,
-        "buttonStyle": {
-          "background": "transparent",
-          "border": "1px solid #00ff00",
-          "borderRadius": "2px",
-          "color": "#00ff00",
-          "padding": "2px 6px",
-          "fontSize": "9px",
-          "fontFamily": "'SF Mono', monospace",
-          "hover": {
-            "background": "#00ff00",
-            "color": "#000000"
-          }
-        },
-        "size": "small"
+        "format": "[{status}]"
       }
     }
   ]

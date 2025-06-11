@@ -5,6 +5,7 @@ import { WindowWrapper } from "./components/WindowWrapper";
 import { CustomTitleBar } from "./components/CustomTitleBar";
 import { TimerDisplay } from "./components/TimerDisplay";
 import { DurationInput } from "./components/DurationInput";
+import { StatusFooter } from "./components/StatusFooter";
 import { useTimerStore } from "./stores/timer-store";
 import { useSettingsStore } from "./stores/settings-store";
 import { AudioService } from "./services/audio";
@@ -18,7 +19,13 @@ interface TimerUpdate {
 
 function App() {
   const [isCollapsed, setIsCollapsed] = useState(false);
-  const updateState = useTimerStore((state) => state.updateState);
+  const [showDurationInput, setShowDurationInput] = useState(true);
+  const { duration, remaining, isRunning, updateState } = useTimerStore((state) => ({
+    duration: state.duration,
+    remaining: state.remaining,
+    isRunning: state.isRunning,
+    updateState: state.updateState
+  }));
   const { soundEnabled, volume, loadSettings } = useSettingsStore();
   
   useEffect(() => {
@@ -30,6 +37,11 @@ function App() {
         isRunning: event.payload.is_running,
         isPaused: event.payload.is_paused,
       });
+      
+      // Show duration input again when timer is stopped
+      if (!event.payload.is_running) {
+        setShowDurationInput(true);
+      }
     });
     
     // Listen for timer completion
@@ -77,11 +89,32 @@ function App() {
     };
   }, [updateState, soundEnabled, volume, loadSettings]);
   
+  const progress = duration > 0 ? ((duration - remaining) / duration) * 100 : 0;
+
   return (
     <WindowWrapper>
       <CustomTitleBar isCollapsed={isCollapsed} />
-      <TimerDisplay isCollapsed={isCollapsed} />
-      {!isCollapsed && <DurationInput />}
+      <div 
+        className="absolute top-7 left-0 right-0 h-[2px] bg-black/20 z-40"
+      >
+        <div 
+          className="h-full bg-green-500 transition-all duration-300"
+          style={{ 
+            width: `${progress}%`,
+            boxShadow: progress > 0 ? '0 0 4px rgba(34, 197, 94, 0.5)' : 'none'
+          }}
+        />
+      </div>
+      <div className="flex-1 flex flex-col min-h-0">
+        <TimerDisplay 
+          isCollapsed={isCollapsed} 
+          onTimeClick={() => !isRunning && setShowDurationInput(true)}
+        />
+        {!isCollapsed && !isRunning && showDurationInput && (
+          <DurationInput onDismiss={() => setShowDurationInput(false)} />
+        )}
+      </div>
+      {!isCollapsed && <StatusFooter />}
     </WindowWrapper>
   );
 }

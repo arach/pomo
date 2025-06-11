@@ -11,7 +11,6 @@ interface TerminalBootMessagesProps {
 
 export function TerminalBootMessages({ isRunning, style, position }: TerminalBootMessagesProps) {
   const [messages, setMessages] = useState<string[]>([]);
-  const [currentMessage, setCurrentMessage] = useState(0);
 
   const bootMessages = [
     'Initializing focus protocol...',
@@ -28,14 +27,12 @@ export function TerminalBootMessages({ isRunning, style, position }: TerminalBoo
       const interval = setInterval(() => {
         if (messageIndex < bootMessages.length) {
           setMessages(prev => [...prev, bootMessages[messageIndex]]);
-          setCurrentMessage(messageIndex);
           messageIndex++;
         } else {
           clearInterval(interval);
           // Clear messages after showing them all
           setTimeout(() => {
             setMessages([]);
-            setCurrentMessage(0);
           }, 2000);
         }
       }, 400);
@@ -44,7 +41,6 @@ export function TerminalBootMessages({ isRunning, style, position }: TerminalBoo
     } else if (!isRunning) {
       // Reset when timer stops
       setMessages([]);
-      setCurrentMessage(0);
     }
   }, [isRunning]);
 

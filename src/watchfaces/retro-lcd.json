@@ -1,0 +1,137 @@
+{
+  "id": "retro-lcd",
+  "name": "Retro LCD",
+  "description": "Classic LCD display with Orbitron font",
+  "author": "Pomo Team",
+  "version": "1.0.0",
+  "theme": {
+    "colors": {
+      "background": "linear-gradient(135deg, #1a0f0a 0%, #2a1f1a 100%)",
+      "foreground": "#ffcc00",
+      "accent": "#ff3333",
+      "success": "#00ff00",
+      "warning": "#ffff00",
+      "error": "#ff0000"
+    },
+    "fonts": {
+      "primary": "'Orbitron', monospace",
+      "accent": "'Orbitron', monospace"
+    },
+    "customStyles": {
+      ".container": {
+        "backgroundImage": "linear-gradient(135deg, #1a0f0a 0%, #2a1f1a 100%), radial-gradient(circle at 20% 50%, rgba(255, 204, 0, 0.05), transparent 50%)",
+        "backgroundSize": "cover",
+        "backgroundPosition": "center"
+      },
+      ".time-display": {
+        "fontFamily": "'Orbitron', monospace",
+        "fontWeight": "700",
+        "textShadow": "0 0 20px #ffcc00, 0 0 40px #ffcc00, inset 0 0 10px rgba(255, 204, 0, 0.5)",
+        "letterSpacing": "0.15em",
+        "background": "linear-gradient(to bottom, #ffcc00, #ff9900)",
+        "backgroundClip": "text",
+        "webkitBackgroundClip": "text",
+        "webkitTextFillColor": "transparent",
+        "filter": "brightness(1.2)"
+      },
+      ".progress": {
+        "filter": "drop-shadow(0 0 10px #ffcc00)"
+      },
+      "@import": "@import url('https://fonts.googleapis.com/css2?family=Orbitron:wght@400;700;900&display=swap');"
+    }
+  },
+  "layout": {
+    "type": "rectangular",
+    "size": {
+      "width": "100%",
+      "height": "100%"
+    },
+    "padding": 0
+  },
+  "components": [
+    {
+      "id": "time",
+      "type": "time",
+      "position": {
+        "x": "center",
+        "y": 20
+      },
+      "style": {
+        "fontSize": "56px",
+        "fontWeight": "900",
+        "color": "#ffcc00",
+        "fontFamily": "'Orbitron', monospace",
+        "textShadow": "0 0 30px #ffcc00, 0 0 60px #ff9900, 0 2px 4px rgba(0,0,0,0.8)",
+        "letterSpacing": "0.2em",
+        "textAlign": "center",
+        "filter": "brightness(1.3)"
+      }
+    },
+    {
+      "id": "status",
+      "type": "status",
+      "position": {
+        "x": "center",
+        "y": 100
+      },
+      "style": {
+        "fontSize": "12px",
+        "color": "#ff3333",
+        "textTransform": "uppercase",
+        "letterSpacing": "0.3em",
+        "textShadow": "0 0 15px currentColor, 0 0 30px currentColor",
+        "fontFamily": "'Orbitron', monospace",
+        "fontWeight": "700"
+      }
+    },
+    {
+      "id": "lcd-progress",
+      "type": "custom",
+      "position": {
+        "x": "center",
+        "y": "180px"
+      },
+      "properties": {
+        "component": "lcd-progress",
+        "style": {
+          "position": "absolute",
+          "top": "125px",
+          "left": "50%",
+          "transform": "translateX(-50%)"
+        }
+      }
+    },
+    {
+      "id": "controls",
+      "type": "controls",
+      "position": {
+        "x": "center",
+        "y": 190
+      },
+      "style": {
+        "gap": "15px"
+      },
+      "properties": {
+        "buttonStyle": {
+          "background": "linear-gradient(135deg, #2a1a0a, #1a0a00)",
+          "border": "2px solid #ffcc00",
+          "borderRadius": "6px",
+          "color": "#ffcc00",
+          "padding": "8px 16px",
+          "transition": "all 0.3s",
+          "fontFamily": "'Orbitron', monospace",
+          "fontWeight": "700",
+          "fontSize": "11px",
+          "letterSpacing": "0.1em",
+          "boxShadow": "inset 0 1px 3px rgba(0,0,0,0.5), 0 0 10px rgba(255,204,0,0.2)",
+          "hover": {
+            "background": "#ffcc00",
+            "color": "#1a0f0a",
+            "boxShadow": "0 0 20px #ffcc00, 0 0 40px #ff9900"
+          }
+        },
+        "size": "medium"
+      }
+    }
+  ]
+}

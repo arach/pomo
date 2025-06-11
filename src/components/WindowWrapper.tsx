@@ -10,9 +10,11 @@ export function WindowWrapper({ children, className = '' }: WindowWrapperProps) 
     <div 
       className={`w-full h-full text-foreground flex flex-col ${className}`}
       style={{ 
-        background: 'rgba(18, 19, 23, 0.95)',
+        background: 'rgb(18, 19, 23)',
         borderRadius: '10px',
-        overflow: 'hidden'
+        overflow: 'hidden',
+        border: 'none',
+        outline: 'none'
       }}
     >
       {children}

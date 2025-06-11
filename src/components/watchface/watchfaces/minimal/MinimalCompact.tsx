@@ -1,4 +1,4 @@
-import { RotateCcw } from 'lucide-react';
+import { Play, Pause, RotateCcw } from 'lucide-react';
 
 interface MinimalCompactProps {
   remaining: number;
@@ -25,7 +25,7 @@ export function MinimalCompact({
     return `${mins.toString().padStart(2, '0')}:${secs.toString().padStart(2, '0')}`;
   };
 
-  const handleAction = () => {
+  const handlePlayPause = () => {
     if (!isRunning || isPaused) {
       onStart();
     } else {
@@ -33,87 +33,141 @@ export function MinimalCompact({
     }
   };
 
+  // Use CSS variables for theme-aware colors
+  const isDark = window.matchMedia('(prefers-color-scheme: dark)').matches;
+  const backgroundColor = isDark ? 'rgba(255, 255, 255, 0.05)' : 'rgba(0, 0, 0, 0.03)';
+  const borderColor = isDark ? 'rgba(255, 255, 255, 0.1)' : 'rgba(0, 0, 0, 0.08)';
+  const textColor = isDark ? 'rgba(255, 255, 255, 0.9)' : 'rgba(0, 0, 0, 0.9)';
+  const mutedColor = isDark ? 'rgba(255, 255, 255, 0.5)' : 'rgba(0, 0, 0, 0.5)';
+  const progressBg = isDark ? 'rgba(255, 255, 255, 0.1)' : 'rgba(0, 0, 0, 0.06)';
+  const progressFill = isDark ? 'rgba(255, 255, 255, 0.3)' : 'rgba(0, 0, 0, 0.2)';
+
   return (
     <div style={{ 
       display: 'flex', 
       flexDirection: 'column', 
-      gap: '12px',
-      width: '140px'
+      gap: '10px',
+      padding: '16px',
+      background: backgroundColor,
+      border: `1px solid ${borderColor}`,
+      borderRadius: '12px',
+      width: '180px',
+      backdropFilter: 'blur(10px)'
     }}>
-      {/* Time and controls in one line */}
-      <div style={{ 
-        display: 'flex', 
-        alignItems: 'center', 
-        justifyContent: 'space-between',
-        gap: '12px'
+      {/* Timer display */}
+      <div style={{
+        fontSize: '36px',
+        fontWeight: '500',
+        letterSpacing: '-0.03em',
+        fontFeatureSettings: "'tnum'",
+        color: textColor,
+        fontFamily: '-apple-system, BlinkMacSystemFont, "SF Pro Display", sans-serif',
+        textAlign: 'center',
+        lineHeight: 1
       }}>
-        <div 
-          onClick={handleAction}
+        {formatTime(remaining)}
+      </div>
+      
+      {/* Progress bar */}
+      <div style={{
+        width: '100%',
+        height: '3px',
+        background: progressBg,
+        borderRadius: '1.5px',
+        overflow: 'hidden',
+        position: 'relative'
+      }}>
+        <div style={{
+          width: `${progress}%`,
+          height: '100%',
+          background: progressFill,
+          transition: 'width 0.5s cubic-bezier(0.4, 0, 0.2, 1)',
+          borderRadius: '1.5px',
+          position: 'absolute',
+          left: 0,
+          top: 0
+        }} />
+      </div>
+      
+      {/* Controls */}
+      <div style={{
+        display: 'flex',
+        alignItems: 'center',
+        justifyContent: 'center',
+        gap: '12px',
+        marginTop: '4px'
+      }}>
+        <button
+          onClick={handlePlayPause}
           style={{
-            fontSize: '32px',
-            fontWeight: '300',
-            letterSpacing: '-0.02em',
-            fontFeatureSettings: "'tnum'",
+            background: 'transparent',
+            border: `1px solid ${borderColor}`,
+            borderRadius: '50%',
+            width: '32px',
+            height: '32px',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
             cursor: 'pointer',
-            userSelect: 'none',
-            opacity: 0.9,
-            transition: 'opacity 0.2s',
-            minWidth: '90px'
+            color: textColor,
+            transition: 'all 0.2s ease',
+            padding: 0
           }}
-          onMouseEnter={(e) => e.currentTarget.style.opacity = '1'}
-          onMouseLeave={(e) => e.currentTarget.style.opacity = '0.9'}
+          onMouseEnter={(e) => {
+            e.currentTarget.style.background = isDark ? 'rgba(255, 255, 255, 0.1)' : 'rgba(0, 0, 0, 0.05)';
+            e.currentTarget.style.transform = 'scale(1.05)';
+          }}
+          onMouseLeave={(e) => {
+            e.currentTarget.style.background = 'transparent';
+            e.currentTarget.style.transform = 'scale(1)';
+          }}
+          aria-label={!isRunning || isPaused ? "Start" : "Pause"}
         >
-          {formatTime(remaining)}
-        </div>
+          {!isRunning || isPaused ? (
+            <Play className="w-3 h-3" style={{ marginLeft: '1px' }} />
+          ) : (
+            <Pause className="w-3 h-3" />
+          )}
+        </button>
         
         <button
           onClick={onStop}
           style={{
             background: 'transparent',
             border: 'none',
-            padding: '4px',
+            padding: '6px',
             cursor: 'pointer',
-            opacity: 0.4,
-            transition: 'opacity 0.2s',
+            color: mutedColor,
+            transition: 'all 0.2s ease',
             display: 'flex',
             alignItems: 'center',
-            justifyContent: 'center'
+            justifyContent: 'center',
+            borderRadius: '50%'
           }}
-          onMouseEnter={(e) => e.currentTarget.style.opacity = '0.7'}
-          onMouseLeave={(e) => e.currentTarget.style.opacity = '0.4'}
+          onMouseEnter={(e) => {
+            e.currentTarget.style.color = textColor;
+            e.currentTarget.style.transform = 'scale(1.1)';
+          }}
+          onMouseLeave={(e) => {
+            e.currentTarget.style.color = mutedColor;
+            e.currentTarget.style.transform = 'scale(1)';
+          }}
           aria-label="Reset"
         >
-          <RotateCcw className="w-3 h-3" />
+          <RotateCcw className="w-3.5 h-3.5" />
         </button>
       </div>
       
-      {/* Progress bar */}
+      {/* Status text */}
       <div style={{
-        width: '100%',
-        height: '2px',
-        background: 'currentColor',
-        opacity: 0.1,
-        borderRadius: '1px',
-        overflow: 'hidden'
-      }}>
-        <div style={{
-          width: `${progress}%`,
-          height: '100%',
-          background: 'currentColor',
-          opacity: 0.4,
-          transition: 'width 0.3s ease-out',
-          borderRadius: '1px'
-        }} />
-      </div>
-      
-      {/* Status indicator */}
-      <div style={{
-        fontSize: '9px',
-        opacity: 0.5,
+        fontSize: '10px',
+        color: mutedColor,
         letterSpacing: '0.05em',
-        textTransform: 'uppercase'
+        textTransform: 'uppercase',
+        textAlign: 'center',
+        fontWeight: '500'
       }}>
-        {!isRunning ? 'Ready' : isPaused ? 'Paused' : 'Focus'}
+        {remaining <= 0 ? 'Complete' : !isRunning ? 'Ready' : isPaused ? 'Paused' : 'Focus'}
       </div>
     </div>
   );

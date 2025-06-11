@@ -1,9 +1,12 @@
 {
   "id": "minimal",
   "name": "Minimal",
-  "description": "Ultra-compact design for maximum focus",
+  "description": "Clean, refined design that respects your system theme",
   "author": "Pomo Team",
-  "version": "3.0.0",
+  "version": "4.0.0",
+  "progressBar": {
+    "hidden": true
+  },
   "theme": {
     "colors": {
       "background": "transparent",
@@ -14,13 +17,13 @@
       "error": "#ef4444"
     },
     "fonts": {
-      "primary": "-apple-system, BlinkMacSystemFont, sans-serif",
-      "accent": "-apple-system, BlinkMacSystemFont, sans-serif"
+      "primary": "-apple-system, BlinkMacSystemFont, 'SF Pro Display', sans-serif",
+      "accent": "-apple-system, BlinkMacSystemFont, 'SF Pro Display', sans-serif"
     },
     "customStyles": {
-      "@import": "@keyframes fadeIn { from { opacity: 0; } to { opacity: 1; } } @keyframes subtlePulse { 0%, 100% { opacity: 0.4; } 50% { opacity: 0.7; } }",
+      "@import": "@keyframes fadeIn { from { opacity: 0; } to { opacity: 1; } }",
       ".container": {
-        "background": "var(--background)",
+        "background": "transparent",
         "animation": "fadeIn 0.4s ease-out"
       }
     }

@@ -1,7 +1,7 @@
 import { Play, RotateCcw, Pause } from 'lucide-react';
 import { SessionType } from '../../../../stores/timer-store';
 
-interface CleanLayoutProps {
+interface DefaultLayoutProps {
   remaining: number;
   duration: number;
   progress: number;
@@ -22,7 +22,7 @@ const sessionLabels: Record<SessionType, string> = {
   learning: 'LEARNING'
 };
 
-export function CleanLayout({
+export function DefaultLayout({
   remaining,
   duration: _duration,
   progress,
@@ -33,7 +33,7 @@ export function CleanLayout({
   onReset,
   onTimeClick,
   sessionType
-}: CleanLayoutProps) {
+}: DefaultLayoutProps) {
   const formatTime = (seconds: number): string => {
     const mins = Math.floor(seconds / 60);
     const secs = seconds % 60;

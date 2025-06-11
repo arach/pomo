@@ -19,10 +19,6 @@ import { DigitalDisplay } from './watchfaces/retro-digital/DigitalDisplay';
 import { RetroProgress } from './watchfaces/retro-digital/RetroProgress';
 import { LCDProgress } from './watchfaces/retro-digital/LCDProgress';
 
-// Minimal watchface components
-import { MinimalProgress } from './watchfaces/minimal/MinimalProgress';
-import { MinimalProgressDot } from './watchfaces/minimal/MinimalProgressDot';
-import { MinimalCompact } from './watchfaces/minimal/MinimalCompact';
 
 // Neon watchface components
 import { NeonRing } from './watchfaces/neon/NeonRing';
@@ -31,8 +27,8 @@ import { NeonProgress } from './watchfaces/neon/NeonProgress';
 // Rolodex watchface components
 import { RolodexDisplay } from './watchfaces/rolodex/RolodexDisplay';
 
-// Clean watchface components
-import { CleanLayout } from './watchfaces/clean/CleanLayout';
+// Default watchface components (new clean design)
+import { DefaultLayout } from './watchfaces/default/DefaultLayout';
 
 // Default watchface components
 import { DefaultProgress } from './watchfaces/default/DefaultProgress';
@@ -183,46 +179,12 @@ export function WatchFaceRenderer({ config, onTimeClick, hideControls = false, .
               />
             );
           
-          case 'minimal-progress':
-            return (
-              <MinimalProgress
-                key={component.id}
-                progress={props.progress}
-                style={component.properties?.style}
-              />
-            );
-          
           case 'lcd-progress':
             return (
               <LCDProgress
                 key={component.id}
                 progress={props.progress}
                 style={component.properties?.style}
-              />
-            );
-          
-          case 'minimal-progress-dot':
-            return (
-              <MinimalProgressDot
-                key={component.id}
-                progress={props.progress}
-                isRunning={props.isRunning}
-                isPaused={props.isPaused}
-                style={component.properties?.style}
-              />
-            );
-          
-          case 'minimal-compact':
-            return (
-              <MinimalCompact
-                key={component.id}
-                remaining={props.remaining}
-                progress={props.progress}
-                isRunning={props.isRunning}
-                isPaused={props.isPaused}
-                onStart={props.onStart}
-                onPause={props.onPause}
-                onStop={props.onStop}
               />
             );
           
@@ -255,9 +217,9 @@ export function WatchFaceRenderer({ config, onTimeClick, hideControls = false, .
               </div>
             );
             
-          case 'clean-layout':
+          case 'default-layout':
             return (
-              <CleanLayout
+              <DefaultLayout
                 key={component.id}
                 remaining={props.remaining}
                 duration={props.duration}

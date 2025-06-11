@@ -1,95 +1,49 @@
 {
   "id": "default",
   "name": "Default",
-  "description": "Simple, clean default timer display",
+  "description": "Minimalist design with clear visual hierarchy",
   "author": "Pomo Team",
   "version": "1.0.0",
+  "preview": "/watchface-previews/default.png",
+  "progressBar": {
+    "height": "0px"
+  },
   "theme": {
     "colors": {
-      "background": "transparent",
-      "foreground": "white",
-      "accent": "hsl(217.2, 91.2%, 59.8%)",
-      "success": "hsl(142.1, 76.2%, 36.3%)",
-      "warning": "hsl(47.9, 95.8%, 53.1%)",
-      "error": "hsl(0, 84.2%, 60.2%)"
+      "background": "#0a0a0a",
+      "foreground": "#f0f0f0",
+      "accent": "#4a9eff",
+      "muted": "#666666",
+      "success": "#4ade80",
+      "warning": "#fbbf24",
+      "error": "#ef4444"
     },
     "fonts": {
-      "primary": "system-ui, -apple-system, sans-serif",
-      "accent": "system-ui, -apple-system, sans-serif"
+      "primary": "'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif",
+      "accent": "'JetBrains Mono', 'SF Mono', Monaco, monospace"
+    },
+    "customStyles": {
+      "@import": "@import url('https://fonts.googleapis.com/css2?family=Inter:wght@200;300;400;500;600;700&family=JetBrains+Mono:wght@400;600&display=swap');"
     }
   },
   "layout": {
-    "type": "circular",
+    "type": "rectangular",
     "size": {
-      "width": 200,
-      "height": 200
+      "width": "100%",
+      "height": "100%"
     },
-    "padding": 0
+    "padding": 20
   },
   "components": [
     {
+      "id": "default-layout",
       "type": "custom",
-      "id": "default-progress",
       "position": {
         "x": "center",
         "y": "center"
       },
       "properties": {
-        "component": "default-progress"
-      }
-    },
-    {
-      "type": "time",
-      "id": "main-time",
-      "position": {
-        "x": "center",
-        "y": "center"
-      },
-      "style": {
-        "fontSize": "clamp(24px, 8vw, 32px)",
-        "fontWeight": "300",
-        "letterSpacing": "-0.025em",
-        "color": "white"
-      }
-    },
-    {
-      "type": "status",
-      "id": "status-text",
-      "position": {
-        "x": "center",
-        "y": 130
-      },
-      "style": {
-        "fontSize": "10px",
-        "opacity": 0.6,
-        "textTransform": "capitalize",
-        "textAlign": "center",
-        "color": "white"
-      }
-    },
-    {
-      "type": "controls",
-      "id": "control-buttons",
-      "position": {
-        "x": "center",
-        "y": 150
-      },
-      "style": {
-        "gap": "8px"
-      },
-      "props": {
-        "showLabels": false,
-        "buttonStyle": {
-          "background": "hsl(217.2, 91.2%, 59.8%)",
-          "color": "white",
-          "borderRadius": "50%",
-          "padding": "8px",
-          "border": "none",
-          "hover": {
-            "background": "hsl(217.2, 91.2%, 69.8%)"
-          }
-        },
-        "size": "small"
+        "component": "default-layout"
       }
     }
   ]

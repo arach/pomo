@@ -1,5 +1,7 @@
 import { getCurrentWebviewWindow } from '@tauri-apps/api/webviewWindow';
 import { invoke } from '@tauri-apps/api/core';
+import { useTimerStore } from '../stores/timer-store';
+import { SessionTypeIndicator } from './SessionTypeIndicator';
 
 interface CustomTitleBarProps {
   isCollapsed?: boolean;
@@ -9,6 +11,7 @@ interface CustomTitleBarProps {
 
 export function CustomTitleBar({ isCollapsed = false, title, showCollapseButton = true }: CustomTitleBarProps) {
   const appWindow = getCurrentWebviewWindow();
+  const sessionType = useTimerStore(state => state.sessionType);
 
   const handleClose = async () => {
     await appWindow.close();
@@ -50,9 +53,14 @@ export function CustomTitleBar({ isCollapsed = false, title, showCollapseButton 
         <div className="w-3 h-3 rounded-full bg-gray-600 cursor-not-allowed" />
       </div>
       
-      <span className="text-xs text-muted-foreground">
-        {title || (isCollapsed ? 'Pomo' : 'Pomodoro Timer')}
-      </span>
+      <div className="flex items-center gap-2">
+        {isCollapsed && (
+          <SessionTypeIndicator type={sessionType} size="sm" />
+        )}
+        <span className="text-xs text-muted-foreground">
+          {title || (isCollapsed ? 'Pomo' : 'Pomodoro Timer')}
+        </span>
+      </div>
       
       <div className="w-[54px]" />
     </div>

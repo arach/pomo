@@ -39,6 +39,7 @@ function ShortcutsWindow() {
         { keys: ['H'], description: 'Hide/Show window' },
         { keys: ['M'], description: 'Toggle mute' },
         { keys: ['T'], description: 'Cycle through themes' },
+        { keys: ['C'], description: 'Cycle session types' },
       ]
     }
   ];

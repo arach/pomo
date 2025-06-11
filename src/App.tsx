@@ -6,7 +6,7 @@ import { CustomTitleBar } from "./components/CustomTitleBar";
 import { TimerDisplay } from "./components/TimerDisplay";
 import { DurationInput } from "./components/DurationInput";
 import { StatusFooter } from "./components/StatusFooter";
-import { useTimerStore } from "./stores/timer-store";
+import { useTimerStore, SessionType } from "./stores/timer-store";
 import { useSettingsStore } from "./stores/settings-store";
 import { AudioService } from "./services/audio";
 import { WatchFaceLoader } from "./services/watchface-loader";
@@ -215,6 +215,18 @@ function App() {
         const currentIndex = themes.indexOf(watchFace);
         const nextIndex = (currentIndex + 1) % themes.length;
         updateSettings({ watchFace: themes[nextIndex] });
+        break;
+        
+      // Cycle through session types
+      case 'c':
+        if (!isRunning) {
+          e.preventDefault();
+          const { sessionType, setSessionType } = useTimerStore.getState();
+          const types: SessionType[] = ['focus', 'break', 'planning', 'review', 'learning'];
+          const currentIdx = types.indexOf(sessionType);
+          const nextIdx = (currentIdx + 1) % types.length;
+          setSessionType(types[nextIdx]);
+        }
         break;
     }
   }, [isRunning, isPaused, start, pause, stop, reset, duration, setDuration, soundEnabled, updateSettings, watchFace]);

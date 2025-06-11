@@ -1,11 +1,14 @@
 import { create } from 'zustand';
 import { invoke } from '@tauri-apps/api/core';
 
+export type SessionType = 'focus' | 'break' | 'planning' | 'review' | 'learning';
+
 interface TimerState {
   duration: number;
   remaining: number;
   isRunning: boolean;
   isPaused: boolean;
+  sessionType: SessionType;
   
   setDuration: (duration: number) => Promise<void>;
   start: () => Promise<void>;
@@ -13,6 +16,7 @@ interface TimerState {
   stop: () => Promise<void>;
   reset: () => Promise<void>;
   updateState: (state: Partial<TimerState>) => void;
+  setSessionType: (type: SessionType) => void;
 }
 
 export const useTimerStore = create<TimerState>((set) => ({
@@ -20,6 +24,7 @@ export const useTimerStore = create<TimerState>((set) => ({
   remaining: 25 * 60,
   isRunning: false,
   isPaused: false,
+  sessionType: 'focus',
   
   setDuration: async (duration: number) => {
     await invoke('set_duration', { duration });
@@ -56,5 +61,9 @@ export const useTimerStore = create<TimerState>((set) => ({
   
   updateState: (newState: Partial<TimerState>) => {
     set(newState);
+  },
+  
+  setSessionType: (type: SessionType) => {
+    set({ sessionType: type });
   },
 }));

@@ -1,6 +1,7 @@
 import { useState, useEffect, useRef } from 'react';
 import { useTimerStore } from '../stores/timer-store';
 import { Clock, Coffee, Target, Brain, Zap, X } from 'lucide-react';
+import { SessionTypeSelector } from './SessionTypeSelector';
 
 interface DurationInputProps {
   isVisible?: boolean;
@@ -114,6 +115,12 @@ export function DurationInput({ isVisible = true, onDismiss }: DurationInputProp
         >
           <X className="w-3 h-3 text-white/70" />
         </button>
+        
+        {/* Session Type Selector */}
+        <div className="mb-3">
+          <div className="text-xs text-muted-foreground/70 mb-2 text-center">Session Type</div>
+          <SessionTypeSelector compact />
+        </div>
         
         <form onSubmit={handleSubmit} className="mb-3">
           <div className="flex items-center gap-3 p-3 bg-black/40 backdrop-blur-sm rounded-lg border border-white/10">

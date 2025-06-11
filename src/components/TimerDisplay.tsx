@@ -5,6 +5,7 @@ import { useEffect, useState } from 'react';
 import { WatchFaceRenderer } from './watchface/WatchFaceRenderer';
 import { WatchFaceLoader } from '../services/watchface-loader';
 import { invoke } from '@tauri-apps/api/core';
+import { SessionTypeIndicator } from './SessionTypeIndicator';
 
 interface TimerDisplayProps {
   isCollapsed?: boolean;
@@ -12,7 +13,7 @@ interface TimerDisplayProps {
 }
 
 export function TimerDisplay({ isCollapsed = false, onTimeClick }: TimerDisplayProps) {
-  const { duration, remaining, isRunning, isPaused, start, pause, stop, reset } = useTimerStore();
+  const { duration, remaining, isRunning, isPaused, start, pause, stop, reset, sessionType } = useTimerStore();
   const { watchFace } = useSettingsStore();
   const [currentWatchFaceConfig, setCurrentWatchFaceConfig] = useState<any>(null);
   const [showHint, setShowHint] = useState(false);
@@ -101,6 +102,11 @@ export function TimerDisplay({ isCollapsed = false, onTimeClick }: TimerDisplayP
           </div>
         )}
       </button>
+      
+      {/* Session Type Indicator - top left */}
+      <div className="absolute top-2 left-2 z-20">
+        <SessionTypeIndicator type={sessionType} size="md" showLabel />
+      </div>
       
       {/* Watch Face */}
       <div className="flex items-center justify-center w-full flex-1">

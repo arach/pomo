@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useState, useCallback } from "react";
 import { listen } from "@tauri-apps/api/event";
 import { invoke } from "@tauri-apps/api/core";
 import { WindowWrapper } from "./components/WindowWrapper";
@@ -22,13 +22,19 @@ function App() {
   const [isCollapsed, setIsCollapsed] = useState(false);
   const [showDurationInput, setShowDurationInput] = useState(true);
   const [currentWatchFaceConfig, setCurrentWatchFaceConfig] = useState<any>(null);
-  const { duration, remaining, isRunning, updateState } = useTimerStore((state) => ({
+  const { duration, remaining, isRunning, isPaused, updateState, start, pause, stop, reset, setDuration } = useTimerStore((state) => ({
     duration: state.duration,
     remaining: state.remaining,
     isRunning: state.isRunning,
-    updateState: state.updateState
+    isPaused: state.isPaused,
+    updateState: state.updateState,
+    start: state.start,
+    pause: state.pause,
+    stop: state.stop,
+    reset: state.reset,
+    setDuration: state.setDuration
   }));
-  const { soundEnabled, volume, loadSettings, watchFace } = useSettingsStore();
+  const { soundEnabled, volume, loadSettings, watchFace, updateSettings } = useSettingsStore();
   
   useEffect(() => {
     // Listen for timer updates
@@ -98,6 +104,126 @@ function App() {
       setCurrentWatchFaceConfig(config);
     });
   }, [watchFace]);
+  
+  // Keyboard shortcuts handler
+  const handleKeyPress = useCallback((e: KeyboardEvent) => {
+    // Don't handle shortcuts if user is typing in an input
+    if (e.target instanceof HTMLInputElement || e.target instanceof HTMLTextAreaElement) {
+      return;
+    }
+    
+    // Check for meta key (Cmd on Mac)
+    const isCmd = e.metaKey || e.ctrlKey;
+    
+    // Show shortcuts window
+    if (e.key === '?') {
+      e.preventDefault();
+      invoke('open_shortcuts_window');
+      return;
+    }
+    
+    // Settings (Cmd+,)
+    if (isCmd && e.key === ',') {
+      e.preventDefault();
+      invoke('open_settings_window');
+      return;
+    }
+    
+    switch (e.key.toLowerCase()) {
+      // Start timer
+      case 's':
+        if (!isRunning) {
+          e.preventDefault();
+          start();
+          setShowDurationInput(false);
+        }
+        break;
+        
+      // Pause/Resume with space
+      case ' ':
+        e.preventDefault();
+        if (isRunning) {
+          if (isPaused) {
+            start();
+          } else {
+            pause();
+          }
+        }
+        break;
+        
+      // Reset timer
+      case 'r':
+        e.preventDefault();
+        reset();
+        setShowDurationInput(true);
+        break;
+        
+      // Stop timer (Escape)
+      case 'escape':
+        if (isRunning) {
+          e.preventDefault();
+          stop();
+          setShowDurationInput(true);
+        }
+        break;
+        
+      // Hide/Show window
+      case 'h':
+        e.preventDefault();
+        invoke('toggle_visibility');
+        break;
+        
+      // Toggle mute
+      case 'm':
+        e.preventDefault();
+        updateSettings({ soundEnabled: !soundEnabled });
+        break;
+        
+      // Quick duration set (1-9 for 5-45 minutes)
+      case '1': case '2': case '3': case '4': case '5': 
+      case '6': case '7': case '8': case '9':
+        if (!isRunning) {
+          e.preventDefault();
+          const minutes = parseInt(e.key) * 5;
+          setDuration(minutes * 60);
+        }
+        break;
+        
+      // Adjust duration with arrow keys
+      case 'arrowup':
+        if (!isRunning) {
+          e.preventDefault();
+          const increment = e.shiftKey ? 5 : 1;
+          const newDuration = Math.min(duration + increment * 60, 99 * 60);
+          setDuration(newDuration);
+        }
+        break;
+        
+      case 'arrowdown':
+        if (!isRunning) {
+          e.preventDefault();
+          const decrement = e.shiftKey ? 5 : 1;
+          const newDuration = Math.max(duration - decrement * 60, 60);
+          setDuration(newDuration);
+        }
+        break;
+        
+      // Cycle through themes
+      case 't':
+        e.preventDefault();
+        const themes = ['terminal', 'minimal', 'neon'];
+        const currentIndex = themes.indexOf(watchFace);
+        const nextIndex = (currentIndex + 1) % themes.length;
+        updateSettings({ watchFace: themes[nextIndex] });
+        break;
+    }
+  }, [isRunning, isPaused, start, pause, stop, reset, duration, setDuration, soundEnabled, updateSettings, watchFace]);
+  
+  // Add keyboard event listener
+  useEffect(() => {
+    window.addEventListener('keydown', handleKeyPress);
+    return () => window.removeEventListener('keydown', handleKeyPress);
+  }, [handleKeyPress]);
   
   const progress = duration > 0 ? ((duration - remaining) / duration) * 100 : 0;
   

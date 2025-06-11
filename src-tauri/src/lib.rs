@@ -345,6 +345,48 @@ async fn open_settings_window(app_handle: tauri::AppHandle) -> Result<(), String
 }
 
 #[tauri::command]
+async fn open_shortcuts_window(app_handle: tauri::AppHandle) -> Result<(), String> {
+    // Check if shortcuts window already exists
+    if let Some(window) = app_handle.get_webview_window("shortcuts") {
+        // If it exists, just show and focus it
+        window.show().ok();
+        window.set_focus().ok();
+    } else {
+        // Create new shortcuts window
+        let shortcuts_window = tauri::WebviewWindowBuilder::new(
+            &app_handle,
+            "shortcuts",
+            tauri::WebviewUrl::App("/shortcuts".into()),
+        )
+        .title("Keyboard Shortcuts")
+        .inner_size(700.0, 450.0)
+        .resizable(true)
+        .fullscreen(false)
+        .transparent(true)
+        .decorations(false)
+        .always_on_top(true)
+        .build()
+        .map_err(|e| e.to_string())?;
+        
+        // Set transparency on macOS
+        #[cfg(target_os = "macos")]
+        {
+            #[allow(deprecated)]
+            use cocoa::base::id;
+            #[allow(unexpected_cfgs)]
+            use objc::{msg_send, sel, sel_impl};
+            
+            let ns_window = shortcuts_window.ns_window().unwrap() as id;
+            unsafe {
+                #[allow(unexpected_cfgs)]
+                let _: () = msg_send![ns_window, setOpaque: false];
+            }
+        }
+    }
+    Ok(())
+}
+
+#[tauri::command]
 async fn save_custom_watchfaces(
     watchfaces: Vec<(String, serde_json::Value)>,
     app_handle: tauri::AppHandle,
@@ -433,6 +475,7 @@ pub fn run() {
             set_window_opacity,
             set_always_on_top,
             open_settings_window,
+            open_shortcuts_window,
             save_custom_watchfaces,
             load_custom_watchfaces,
         ])

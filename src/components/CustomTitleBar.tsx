@@ -1,6 +1,5 @@
 import { getCurrentWebviewWindow } from '@tauri-apps/api/webviewWindow';
 import { invoke } from '@tauri-apps/api/core';
-import { X, Minus } from 'lucide-react';
 
 interface CustomTitleBarProps {
   isCollapsed?: boolean;

@@ -8,6 +8,12 @@ interface Settings {
   alwaysOnTop: boolean;
   defaultDuration: number;
   theme: 'dark' | 'light';
+  notificationSound: string;
+  customShortcut: {
+    toggleVisibility: string;
+    modifiers: string[];
+    key: string;
+  };
 }
 
 interface SettingsStore extends Settings {
@@ -26,6 +32,12 @@ const defaultSettings: Settings = {
   alwaysOnTop: true,
   defaultDuration: 25 * 60,
   theme: 'dark',
+  notificationSound: 'default',
+  customShortcut: {
+    toggleVisibility: 'Hyperkey+P',
+    modifiers: ['Super', 'Control', 'Alt', 'Shift'],
+    key: 'P',
+  },
 };
 
 export const useSettingsStore = create<SettingsStore>((set, get) => ({
@@ -52,6 +64,8 @@ export const useSettingsStore = create<SettingsStore>((set, get) => ({
       alwaysOnTop: currentSettings.alwaysOnTop,
       defaultDuration: currentSettings.defaultDuration,
       theme: currentSettings.theme,
+      notificationSound: currentSettings.notificationSound,
+      customShortcut: currentSettings.customShortcut,
       ...updates,
     };
     

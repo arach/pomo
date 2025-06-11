@@ -1,3 +1,5 @@
+#![allow(deprecated)] // Allow deprecated warnings for cocoa::base::id until migration to objc2
+
 use serde::{Deserialize, Serialize};
 use std::sync::Arc;
 use tauri::{Emitter, Manager, State};
@@ -39,8 +41,47 @@ impl Default for WindowState {
     }
 }
 
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct Settings {
+    pub sound_enabled: bool,
+    pub volume: f64,
+    pub opacity: f64,
+    pub always_on_top: bool,
+    pub default_duration: u32,
+    pub theme: String,
+    pub notification_sound: String,
+    pub custom_shortcut: ShortcutConfig,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct ShortcutConfig {
+    pub toggle_visibility: String,
+    pub modifiers: Vec<String>,
+    pub key: String,
+}
+
+impl Default for Settings {
+    fn default() -> Self {
+        Self {
+            sound_enabled: true,
+            volume: 0.5,
+            opacity: 0.95,
+            always_on_top: true,
+            default_duration: 25 * 60,
+            theme: "dark".to_string(),
+            notification_sound: "default".to_string(),
+            custom_shortcut: ShortcutConfig {
+                toggle_visibility: "Hyperkey+P".to_string(),
+                modifiers: vec!["Super".to_string(), "Control".to_string(), "Alt".to_string(), "Shift".to_string()],
+                key: "P".to_string(),
+            },
+        }
+    }
+}
+
 type SharedTimerState = Arc<Mutex<TimerState>>;
 type SharedWindowState = Arc<Mutex<WindowState>>;
+type SharedSettings = Arc<Mutex<Settings>>;
 
 #[tauri::command]
 async fn get_timer_state(state: State<'_, SharedTimerState>) -> Result<TimerState, String> {
@@ -157,10 +198,62 @@ async fn toggle_visibility(app_handle: tauri::AppHandle) -> Result<(), String> {
     Ok(())
 }
 
+#[tauri::command]
+async fn load_settings(
+    state: State<'_, SharedSettings>,
+) -> Result<Settings, String> {
+    Ok(state.lock().await.clone())
+}
+
+#[tauri::command]
+async fn save_settings(
+    settings: Settings,
+    state: State<'_, SharedSettings>,
+) -> Result<(), String> {
+    let mut current = state.lock().await;
+    *current = settings;
+    Ok(())
+}
+
+#[tauri::command]
+async fn set_window_opacity(
+    opacity: f64,
+    app_handle: tauri::AppHandle,
+) -> Result<(), String> {
+    if let Some(window) = app_handle.get_webview_window("main") {
+        #[cfg(target_os = "macos")]
+        {
+            #[allow(deprecated)]
+            use cocoa::base::id;
+            #[allow(unexpected_cfgs)]
+            use objc::{msg_send, sel, sel_impl};
+            
+            let ns_window = window.ns_window().map_err(|e| e.to_string())? as id;
+            unsafe {
+                #[allow(unexpected_cfgs)]
+                let _: () = msg_send![ns_window, setAlphaValue: opacity];
+            }
+        }
+    }
+    Ok(())
+}
+
+#[tauri::command]
+async fn set_always_on_top(
+    always_on_top: bool,
+    app_handle: tauri::AppHandle,
+) -> Result<(), String> {
+    if let Some(window) = app_handle.get_webview_window("main") {
+        window.set_always_on_top(always_on_top).map_err(|e| e.to_string())?;
+    }
+    Ok(())
+}
+
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
     let timer_state = Arc::new(Mutex::new(TimerState::default()));
     let window_state = Arc::new(Mutex::new(WindowState::default()));
+    let settings = Arc::new(Mutex::new(Settings::default()));
 
     tauri::Builder::default()
         .plugin(tauri_plugin_shell::init())
@@ -182,6 +275,7 @@ pub fn run() {
         )
         .manage(timer_state)
         .manage(window_state)
+        .manage(settings)
         .invoke_handler(tauri::generate_handler![
             get_timer_state,
             set_duration,
@@ -190,6 +284,10 @@ pub fn run() {
             stop_timer,
             toggle_collapse,
             toggle_visibility,
+            load_settings,
+            save_settings,
+            set_window_opacity,
+            set_always_on_top,
         ])
         .setup(|app| {
             let app_handle = app.handle().clone();
@@ -211,11 +309,14 @@ pub fn run() {
                 // Set transparency on macOS
                 #[cfg(target_os = "macos")]
                 {
+                    #[allow(deprecated)]
                     use cocoa::base::id;
+                    #[allow(unexpected_cfgs)]
                     use objc::{msg_send, sel, sel_impl};
                     
                     let ns_window = window.ns_window().unwrap() as id;
                     unsafe {
+                        #[allow(unexpected_cfgs)]
                         let _: () = msg_send![ns_window, setAlphaValue: 0.95f64];
                     }
                 }

@@ -2,17 +2,46 @@
 
 A simple, floating Pomodoro timer application designed to overlay on your desktop with minimal UI and maximum functionality. Built with Tauri, React, and TypeScript.
 
-![Pomo App Screenshot](./screenshots/app-screenshot.png)
+<div align="center">
+  <img src="./screenshots/expanded-view.png" alt="Pomo Timer - Expanded View" width="320" />
+  <img src="./screenshots/collapsed-view.png" alt="Pomo Timer - Collapsed View" width="320" />
+</div>
+
+<p align="center">
+  <em>Beautiful, minimal design that stays out of your way while keeping you productive</em>
+</p>
+
+## Why Pomo? 🍅
+
+Stop letting timers interrupt your flow. Pomo floats elegantly above your work, collapsing to a tiny bar when you need space, expanding when you need control. It's the Pomodoro timer that finally respects your workspace.
+
+- **Stays out of your way** - Collapse to a minimal 25:00 display with one middle-click
+- **Always accessible** - Hyperkey+P brings it back instantly, no dock diving needed
+- **Beautifully minimal** - Gradient progress rings and smooth animations make time tracking a pleasure
+- **Your timer, your rules** - Set any duration, pick your sound, customize your shortcut
 
 ## Features
 
 - 🪟 **Floating Window** - Always-on-top transparent window that floats above other applications
-- ⌨️ **Global Shortcut** - Toggle visibility with Hyperkey+P (Cmd+Ctrl+Alt+Shift+P on macOS)
+- ⌨️ **Customizable Shortcuts** - Set your own keyboard shortcut for toggle visibility
 - ⏱️ **Custom Timer** - Set any duration with MM:SS format or use quick presets
 - 🎯 **Minimal UI** - Clean, distraction-free interface with visual countdown
 - 🔄 **Collapsible Design** - Middle-click the title bar to collapse/expand
-- 🔊 **Audio Alerts** - Sound notification when timer completes
-- 🎨 **Modern Design** - Beautiful dark theme with subtle transparency and shadows
+- 🔊 **Sound Library** - Choose from multiple notification sounds with volume control
+- ⚙️ **Advanced Settings** - Customize opacity, sounds, shortcuts, and window behavior
+- 🎨 **Modern Design** - Beautiful dark theme with gradients, animations, and glass effects
+
+## Quick Start 🚀
+
+```bash
+# Clone and enter
+git clone git@github.com:arach/pomo.git && cd pomo
+
+# Install and run
+pnpm install && pnpm tauri:dev
+
+# That's it! Press Hyperkey+P to toggle visibility
+```
 
 ## Getting Started
 

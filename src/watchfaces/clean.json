@@ -1,0 +1,50 @@
+{
+  "id": "clean",
+  "name": "Clean",
+  "description": "Minimalist design with clear visual hierarchy",
+  "author": "Pomo Team",
+  "version": "1.0.0",
+  "preview": "/watchface-previews/clean.png",
+  "progressBar": {
+    "height": "0px"
+  },
+  "theme": {
+    "colors": {
+      "background": "#0a0a0a",
+      "foreground": "#f0f0f0",
+      "accent": "#4a9eff",
+      "muted": "#666666",
+      "success": "#4ade80",
+      "warning": "#fbbf24",
+      "error": "#ef4444"
+    },
+    "fonts": {
+      "primary": "'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif",
+      "accent": "'JetBrains Mono', 'SF Mono', Monaco, monospace"
+    },
+    "customStyles": {
+      "@import": "@import url('https://fonts.googleapis.com/css2?family=Inter:wght@200;300;400;500;600;700&family=JetBrains+Mono:wght@400;600&display=swap');"
+    }
+  },
+  "layout": {
+    "type": "rectangular",
+    "size": {
+      "width": "100%",
+      "height": "100%"
+    },
+    "padding": 20
+  },
+  "components": [
+    {
+      "id": "clean-layout",
+      "type": "custom",
+      "position": {
+        "x": "center",
+        "y": "center"
+      },
+      "properties": {
+        "component": "clean-layout"
+      }
+    }
+  ]
+}

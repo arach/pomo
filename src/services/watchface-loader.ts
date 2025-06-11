@@ -6,6 +6,7 @@ import retroDigitalConfig from '../watchfaces/retro-digital.json';
 import retroLcdConfig from '../watchfaces/retro-lcd.json';
 import minimalConfig from '../watchfaces/minimal.json';
 import neonConfig from '../watchfaces/neon.json';
+import cleanConfig from '../watchfaces/clean.json';
 import { invoke } from '@tauri-apps/api/core';
 
 export class WatchFaceLoader {
@@ -21,6 +22,7 @@ export class WatchFaceLoader {
     this.watchFaces.set('retro-lcd', retroLcdConfig as WatchFaceConfig);
     this.watchFaces.set('minimal', minimalConfig as WatchFaceConfig);
     this.watchFaces.set('neon', neonConfig as WatchFaceConfig);
+    this.watchFaces.set('clean', cleanConfig as WatchFaceConfig);
   }
   
   static getWatchFace(id: string): WatchFaceConfig | null {

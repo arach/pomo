@@ -1,4 +1,5 @@
 import { WatchFaceConfig, WatchFaceProps } from '../../types/watchface';
+import { useTimerStore } from '../../stores/timer-store';
 // Shared components
 import { ProgressRing } from './shared/ProgressRing';
 import { TimeDisplay } from './shared/TimeDisplay';
@@ -30,6 +31,9 @@ import { NeonProgress } from './watchfaces/neon/NeonProgress';
 // Rolodex watchface components
 import { RolodexDisplay } from './watchfaces/rolodex/RolodexDisplay';
 
+// Clean watchface components
+import { CleanLayout } from './watchfaces/clean/CleanLayout';
+
 // Default watchface components
 import { DefaultProgress } from './watchfaces/default/DefaultProgress';
 
@@ -45,6 +49,7 @@ interface WatchFaceRendererProps extends WatchFaceProps {
 
 export function WatchFaceRenderer({ config, onTimeClick, hideControls = false, ...props }: WatchFaceRendererProps) {
   const { theme, layout, components } = config;
+  const sessionType = useTimerStore(state => state.sessionType);
   
   const formatTime = (seconds: number): string => {
     const mins = Math.floor(seconds / 60);
@@ -248,6 +253,23 @@ export function WatchFaceRenderer({ config, onTimeClick, hideControls = false, .
                   onTimeClick={onTimeClick}
                 />
               </div>
+            );
+            
+          case 'clean-layout':
+            return (
+              <CleanLayout
+                key={component.id}
+                remaining={props.remaining}
+                duration={props.duration}
+                progress={props.progress}
+                isRunning={props.isRunning}
+                isPaused={props.isPaused}
+                onStart={props.onStart}
+                onPause={props.onPause}
+                onReset={props.onReset}
+                onTimeClick={onTimeClick}
+                sessionType={sessionType}
+              />
             );
           
           case 'default-progress':

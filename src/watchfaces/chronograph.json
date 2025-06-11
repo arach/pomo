@@ -1,0 +1,160 @@
+{
+  "id": "chronograph",
+  "name": "Chronograph",
+  "description": "Classic chronograph stopwatch with countdown sweep",
+  "author": "Pomo Team",
+  "version": "1.0.0",
+  "theme": {
+    "colors": {
+      "background": "transparent",
+      "foreground": "white",
+      "accent": "hsl(217.2, 91.2%, 59.8%)",
+      "success": "hsl(142.1, 76.2%, 36.3%)",
+      "warning": "hsl(47.9, 95.8%, 53.1%)",
+      "error": "hsl(0, 84.2%, 60.2%)"
+    },
+    "fonts": {
+      "primary": "system-ui, -apple-system, sans-serif",
+      "accent": "'SF Mono', Monaco, 'Cascadia Code', monospace"
+    },
+    "customStyles": {
+      ".chronograph-face": {
+        "position": "relative",
+        "background": "radial-gradient(circle, rgba(255,255,255,0.05) 0%, transparent 70%)",
+        "border": "2px solid rgba(255,255,255,0.1)",
+        "borderRadius": "50%"
+      },
+      ".chronograph-markings": {
+        "position": "absolute",
+        "inset": "4px",
+        "borderRadius": "50%",
+        "background": "conic-gradient(from 0deg, transparent 357deg, rgba(255,255,255,0.3) 357deg 360deg, transparent 360deg)"
+      }
+    }
+  },
+  "layout": {
+    "type": "circular",
+    "size": {
+      "width": "100%",
+      "height": "100%"
+    },
+    "padding": 10
+  },
+  "components": [
+    {
+      "type": "custom",
+      "id": "chronograph-face",
+      "position": {
+        "x": "center",
+        "y": "center"
+      },
+      "properties": {
+        "component": "chronograph-face",
+        "style": {
+          "width": "160px",
+          "height": "160px",
+          "background": "radial-gradient(circle, rgba(255,255,255,0.05) 0%, transparent 70%)",
+          "border": "2px solid rgba(255,255,255,0.1)",
+          "borderRadius": "50%",
+          "position": "relative"
+        }
+      }
+    },
+    {
+      "type": "custom",
+      "id": "chronograph-markings",
+      "position": {
+        "x": "center",
+        "y": "center"
+      },
+      "properties": {
+        "component": "chronograph-markings",
+        "style": {
+          "width": "156px",
+          "height": "156px",
+          "position": "absolute",
+          "borderRadius": "50%"
+        }
+      }
+    },
+    {
+      "type": "progress",
+      "id": "countdown-sweep",
+      "position": {
+        "x": "center",
+        "y": "center"
+      },
+      "style": {
+        "strokeWidth": 4,
+        "radius": 75,
+        "strokeColor": "hsl(217.2, 91.2%, 59.8%)",
+        "backgroundColor": "rgba(255, 255, 255, 0.1)",
+        "transform": "rotate(-90deg)",
+        "strokeLinecap": "round"
+      },
+      "props": {
+        "showElapsed": false,
+        "showRemaining": true,
+        "startAngle": 0
+      }
+    },
+    {
+      "type": "time",
+      "id": "main-time",
+      "position": {
+        "x": "center",
+        "y": "center"
+      },
+      "style": {
+        "fontSize": "28px",
+        "fontWeight": "300",
+        "fontFamily": "'SF Mono', Monaco, 'Cascadia Code', monospace",
+        "color": "white",
+        "textAlign": "center"
+      }
+    },
+    {
+      "type": "status",
+      "id": "status-text",
+      "position": {
+        "x": "center",
+        "y": 140
+      },
+      "style": {
+        "fontSize": "10px",
+        "opacity": 0.7,
+        "color": "white",
+        "textAlign": "center",
+        "textTransform": "uppercase",
+        "letterSpacing": "0.1em"
+      }
+    },
+    {
+      "type": "controls",
+      "id": "control-buttons",
+      "position": {
+        "x": "center",
+        "y": 170
+      },
+      "style": {
+        "gap": "12px"
+      },
+      "props": {
+        "showLabels": false,
+        "buttonStyle": {
+          "background": "rgba(255, 255, 255, 0.1)",
+          "border": "1px solid rgba(255, 255, 255, 0.2)",
+          "borderRadius": "50%",
+          "color": "white",
+          "padding": "8px",
+          "transition": "all 0.2s",
+          "hover": {
+            "background": "hsl(217.2, 91.2%, 59.8%)",
+            "borderColor": "hsl(217.2, 91.2%, 59.8%)"
+          }
+        },
+        "size": "small"
+      }
+    }
+  ]
+}

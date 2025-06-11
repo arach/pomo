@@ -6,6 +6,7 @@ use tauri::{Emitter, Manager, State};
 use tauri_plugin_global_shortcut::{GlobalShortcutExt, Code, Modifiers, Shortcut, ShortcutState};
 use tokio::sync::Mutex;
 use std::time::Duration;
+use std::fs;
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct TimerState {
@@ -51,6 +52,7 @@ pub struct Settings {
     pub theme: String,
     pub notification_sound: String,
     pub custom_shortcut: ShortcutConfig,
+    pub watch_face: String,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -75,6 +77,7 @@ impl Default for Settings {
                 modifiers: vec!["Super".to_string(), "Control".to_string(), "Alt".to_string(), "Shift".to_string()],
                 key: "P".to_string(),
             },
+            watch_face: "default".to_string(),
         }
     }
 }
@@ -169,13 +172,13 @@ async fn toggle_collapse(
     if let Some(window) = app_handle.get_webview_window("main") {
         if window_state.is_collapsed {
             window.set_size(tauri::Size::Physical(tauri::PhysicalSize {
-                width: 300,
-                height: 60,
+                width: 320,
+                height: 80,
             })).ok();
         } else {
             window.set_size(tauri::Size::Physical(tauri::PhysicalSize {
-                width: 300,
-                height: 200,
+                width: 320,
+                height: 280,
             })).ok();
         }
     }
@@ -249,6 +252,95 @@ async fn set_always_on_top(
     Ok(())
 }
 
+#[tauri::command]
+async fn open_settings_window(app_handle: tauri::AppHandle) -> Result<(), String> {
+    // Check if settings window already exists
+    if let Some(window) = app_handle.get_webview_window("settings") {
+        // If it exists, just show and focus it
+        window.show().ok();
+        window.set_focus().ok();
+    } else {
+        // Create new settings window
+        let settings_window = tauri::WebviewWindowBuilder::new(
+            &app_handle,
+            "settings",
+            tauri::WebviewUrl::App("/settings".into()),
+        )
+        .title("Pomo Settings")
+        .inner_size(400.0, 600.0)
+        .resizable(true)
+        .fullscreen(false)
+        .transparent(true)
+        .decorations(false)
+        .always_on_top(true)
+        .build()
+        .map_err(|e| e.to_string())?;
+        
+        // Set transparency on macOS
+        #[cfg(target_os = "macos")]
+        {
+            #[allow(deprecated)]
+            use cocoa::base::id;
+            #[allow(unexpected_cfgs)]
+            use objc::{msg_send, sel, sel_impl};
+            
+            let ns_window = settings_window.ns_window().unwrap() as id;
+            unsafe {
+                #[allow(unexpected_cfgs)]
+                let _: () = msg_send![ns_window, setAlphaValue: 0.98f64];
+            }
+        }
+    }
+    Ok(())
+}
+
+#[tauri::command]
+async fn save_custom_watchfaces(
+    watchfaces: Vec<(String, serde_json::Value)>,
+    app_handle: tauri::AppHandle,
+) -> Result<(), String> {
+    let app_dir = app_handle.path().app_data_dir()
+        .map_err(|e| format!("Failed to get app data dir: {}", e))?;
+    
+    let watchfaces_path = app_dir.join("custom_watchfaces.json");
+    
+    // Ensure directory exists
+    if let Some(parent) = watchfaces_path.parent() {
+        fs::create_dir_all(parent)
+            .map_err(|e| format!("Failed to create directory: {}", e))?;
+    }
+    
+    let json = serde_json::to_string_pretty(&watchfaces)
+        .map_err(|e| format!("Failed to serialize watchfaces: {}", e))?;
+    
+    fs::write(&watchfaces_path, json)
+        .map_err(|e| format!("Failed to write watchfaces file: {}", e))?;
+    
+    Ok(())
+}
+
+#[tauri::command]
+async fn load_custom_watchfaces(
+    app_handle: tauri::AppHandle,
+) -> Result<Vec<(String, serde_json::Value)>, String> {
+    let app_dir = app_handle.path().app_data_dir()
+        .map_err(|e| format!("Failed to get app data dir: {}", e))?;
+    
+    let watchfaces_path = app_dir.join("custom_watchfaces.json");
+    
+    if !watchfaces_path.exists() {
+        return Ok(Vec::new());
+    }
+    
+    let content = fs::read_to_string(&watchfaces_path)
+        .map_err(|e| format!("Failed to read watchfaces file: {}", e))?;
+    
+    let watchfaces: Vec<(String, serde_json::Value)> = serde_json::from_str(&content)
+        .map_err(|e| format!("Failed to parse watchfaces: {}", e))?;
+    
+    Ok(watchfaces)
+}
+
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
     let timer_state = Arc::new(Mutex::new(TimerState::default()));
@@ -257,6 +349,8 @@ pub fn run() {
 
     tauri::Builder::default()
         .plugin(tauri_plugin_shell::init())
+        .plugin(tauri_plugin_dialog::init())
+        .plugin(tauri_plugin_fs::init())
         .plugin(
             tauri_plugin_global_shortcut::Builder::new()
                 .with_handler(|app, shortcut, event| {
@@ -288,6 +382,9 @@ pub fn run() {
             save_settings,
             set_window_opacity,
             set_always_on_top,
+            open_settings_window,
+            save_custom_watchfaces,
+            load_custom_watchfaces,
         ])
         .setup(|app| {
             let app_handle = app.handle().clone();

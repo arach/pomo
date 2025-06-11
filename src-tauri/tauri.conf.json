@@ -62,8 +62,25 @@
             "global-shortcut:allow-register",
             "global-shortcut:allow-unregister",
             "global-shortcut:allow-is-registered",
-            "core:event:allow-listen",
-            "core:event:allow-emit"
+            "core:event:default"
+          ]
+        },
+        {
+          "identifier": "settings-capability",
+          "description": "Capability for the settings window",
+          "windows": ["settings"],
+          "permissions": [
+            "core:window:allow-start-dragging",
+            "core:window:allow-show",
+            "core:window:allow-hide",
+            "core:window:allow-set-focus",
+            "core:window:allow-is-visible",
+            "core:window:allow-center",
+            "core:window:allow-minimize",
+            "core:window:allow-close",
+            "core:window:allow-set-size",
+            "core:window:allow-set-position",
+            "core:event:default"
           ]
         }
       ]
@@ -72,19 +89,20 @@
       {
         "label": "main",
         "title": "Pomo",
-        "width": 300,
-        "height": 200,
+        "width": 320,
+        "height": 280,
         "minWidth": 200,
         "minHeight": 100,
         "resizable": true,
         "fullscreen": false,
-        "transparent": true,
+        "transparent": false,
         "decorations": false,
         "alwaysOnTop": true,
         "titleBarStyle": "Overlay",
         "hiddenTitle": true,
         "visible": true,
-        "center": true
+        "center": true,
+        "shadow": true
       }
     ]
   },

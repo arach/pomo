@@ -3,9 +3,11 @@ import { invoke } from '@tauri-apps/api/core';
 
 interface CustomTitleBarProps {
   isCollapsed?: boolean;
+  title?: string;
+  showCollapseButton?: boolean;
 }
 
-export function CustomTitleBar({ isCollapsed = false }: CustomTitleBarProps) {
+export function CustomTitleBar({ isCollapsed = false, title, showCollapseButton = true }: CustomTitleBarProps) {
   const appWindow = getCurrentWebviewWindow();
 
   const handleClose = async () => {
@@ -17,7 +19,7 @@ export function CustomTitleBar({ isCollapsed = false }: CustomTitleBarProps) {
   };
 
   const handleMiddleClick = async (e: React.MouseEvent) => {
-    if (e.button === 1) {
+    if (e.button === 1 && showCollapseButton) {
       e.preventDefault();
       await invoke('toggle_collapse');
     }
@@ -25,7 +27,7 @@ export function CustomTitleBar({ isCollapsed = false }: CustomTitleBarProps) {
 
   return (
     <div 
-      className="h-10 flex items-center justify-between px-3 border-b border-border/30"
+      className="h-7 flex items-center justify-between px-3 border-b border-border/30"
       data-tauri-drag-region
       style={{ 
         userSelect: 'none', 
@@ -49,7 +51,7 @@ export function CustomTitleBar({ isCollapsed = false }: CustomTitleBarProps) {
       </div>
       
       <span className="text-xs text-muted-foreground">
-        {isCollapsed ? 'Pomo' : 'Pomodoro Timer'}
+        {title || (isCollapsed ? 'Pomo' : 'Pomodoro Timer')}
       </span>
       
       <div className="w-[54px]" />

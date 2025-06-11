@@ -1,0 +1,98 @@
+{
+  "id": "default",
+  "name": "Default",
+  "description": "Simple, clean default timer display",
+  "author": "Pomo Team",
+  "version": "1.0.0",
+  "theme": {
+    "colors": {
+      "background": "transparent",
+      "foreground": "white",
+      "accent": "hsl(217.2, 91.2%, 59.8%)",
+      "success": "hsl(142.1, 76.2%, 36.3%)",
+      "warning": "hsl(47.9, 95.8%, 53.1%)",
+      "error": "hsl(0, 84.2%, 60.2%)"
+    },
+    "fonts": {
+      "primary": "system-ui, -apple-system, sans-serif",
+      "accent": "system-ui, -apple-system, sans-serif"
+    }
+  },
+  "layout": {
+    "type": "circular",
+    "size": {
+      "width": 200,
+      "height": 200
+    },
+    "padding": 0
+  },
+  "components": [
+    {
+      "type": "progress",
+      "id": "main-progress",
+      "position": {
+        "x": "center",
+        "y": "center"
+      },
+      "style": {
+        "strokeWidth": 4,
+        "radius": 80,
+        "gradient": true
+      }
+    },
+    {
+      "type": "time",
+      "id": "main-time",
+      "position": {
+        "x": "center",
+        "y": "center"
+      },
+      "style": {
+        "fontSize": "30px",
+        "fontWeight": "300",
+        "letterSpacing": "-0.025em",
+        "color": "white"
+      }
+    },
+    {
+      "type": "status",
+      "id": "status-text",
+      "position": {
+        "x": "center",
+        "y": 135
+      },
+      "style": {
+        "fontSize": "10px",
+        "opacity": 0.6,
+        "textTransform": "capitalize",
+        "textAlign": "center",
+        "color": "white"
+      }
+    },
+    {
+      "type": "controls",
+      "id": "control-buttons",
+      "position": {
+        "x": "center",
+        "y": 160
+      },
+      "style": {
+        "gap": "8px"
+      },
+      "props": {
+        "showLabels": false,
+        "buttonStyle": {
+          "background": "hsl(217.2, 91.2%, 59.8%)",
+          "color": "white",
+          "borderRadius": "50%",
+          "padding": "8px",
+          "border": "none",
+          "hover": {
+            "background": "hsl(217.2, 91.2%, 69.8%)"
+          }
+        },
+        "size": "small"
+      }
+    }
+  ]
+}

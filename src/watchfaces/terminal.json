@@ -1,0 +1,139 @@
+{
+  "id": "terminal",
+  "name": "Terminal",
+  "description": "Retro terminal-style watch face with ASCII progress bar",
+  "author": "Pomo Team",
+  "version": "1.0.0",
+  "theme": {
+    "colors": {
+      "background": "rgba(0, 0, 0, 0.98)",
+      "foreground": "#00ff00",
+      "accent": "#00ff00",
+      "success": "#00ff00",
+      "warning": "#ffff00",
+      "error": "#ff0000"
+    },
+    "fonts": {
+      "primary": "'SF Mono', 'Monaco', 'Cascadia Code', 'Consolas', monospace",
+      "accent": "'SF Mono', 'Monaco', 'Cascadia Code', 'Consolas', monospace"
+    },
+    "customStyles": {
+      ".container": {
+        "background": "rgba(0, 0, 0, 0.95)",
+        "backgroundImage": "repeating-linear-gradient(0deg, rgba(0, 255, 0, 0.02), rgba(0, 255, 0, 0.02) 1px, transparent 1px, transparent 2px)",
+        "boxShadow": "inset 0 0 30px rgba(0, 255, 0, 0.05)"
+      }
+    }
+  },
+  "layout": {
+    "type": "rectangular",
+    "size": {
+      "width": "100%",
+      "height": "100%"
+    },
+    "padding": 30
+  },
+  "components": [
+    {
+      "type": "custom",
+      "id": "terminal-header",
+      "position": {
+        "x": 30,
+        "y": 30
+      },
+      "props": {
+        "text": "$ pomo --duration=25m"
+      },
+      "style": {
+        "fontSize": "10px",
+        "opacity": 0.7,
+        "fontFamily": "'SF Mono', monospace",
+        "letterSpacing": "0.05em",
+        "color": "#00ff00"
+      }
+    },
+    {
+      "type": "time",
+      "id": "main-time",
+      "position": {
+        "x": 30,
+        "y": 70
+      },
+      "style": {
+        "fontSize": "36px",
+        "fontWeight": "300",
+        "letterSpacing": "0.15em",
+        "textAlign": "left",
+        "fontFamily": "'SF Mono', monospace",
+        "textShadow": "0 0 4px currentColor",
+        "color": "#00ff00"
+      }
+    },
+    {
+      "type": "custom",
+      "id": "npm-progress",
+      "position": {
+        "x": 30,
+        "y": 130
+      },
+      "properties": {
+        "component": "npm-loader",
+        "reverse": true,
+        "style": {
+          "fontSize": "12px",
+          "fontFamily": "'SF Mono', monospace",
+          "color": "#00ff00"
+        }
+      }
+    },
+    {
+      "type": "status",
+      "id": "status-text",
+      "position": {
+        "x": 30,
+        "y": 165
+      },
+      "style": {
+        "fontSize": "10px",
+        "textAlign": "left",
+        "textTransform": "uppercase",
+        "letterSpacing": "0.1em",
+        "fontFamily": "'SF Mono', monospace",
+        "opacity": 0.8,
+        "color": "#00ff00"
+      },
+      "props": {
+        "format": "status: {status}"
+      }
+    },
+    {
+      "type": "controls",
+      "id": "control-buttons",
+      "position": {
+        "x": 30,
+        "y": 195
+      },
+      "style": {
+        "gap": "6px",
+        "justifyContent": "flex-start"
+      },
+      "props": {
+        "showLabels": true,
+        "buttonStyle": {
+          "background": "transparent",
+          "border": "1px solid #00ff00",
+          "borderRadius": "2px",
+          "color": "#00ff00",
+          "padding": "2px 6px",
+          "fontSize": "9px",
+          "fontFamily": "'SF Mono', monospace",
+          "hover": {
+            "background": "#00ff00",
+            "color": "#000000"
+          }
+        },
+        "size": "small"
+      }
+    }
+  ]
+}

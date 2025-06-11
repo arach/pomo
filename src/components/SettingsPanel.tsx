@@ -1,6 +1,9 @@
-import { X, Volume2, Eye, Pin, Keyboard, Music } from 'lucide-react';
+import { X, Volume2, Eye, Pin, Keyboard, Music, Watch, Upload } from 'lucide-react';
 import { useSettingsStore } from '../stores/settings-store';
 import { useEffect, useState } from 'react';
+import { WatchFaceLoader } from '../services/watchface-loader';
+import { open } from '@tauri-apps/plugin-dialog';
+import { readTextFile } from '@tauri-apps/plugin-fs';
 
 const SOUND_OPTIONS = [
   { value: 'default', label: 'Default Beep', preview: '🔔' },
@@ -31,6 +34,7 @@ export function SettingsPanel({ isStandalone = false }: SettingsPanelProps) {
     alwaysOnTop,
     notificationSound,
     customShortcut,
+    watchFace,
     updateSettings,
     loadSettings 
   } = useSettingsStore();
@@ -38,9 +42,22 @@ export function SettingsPanel({ isStandalone = false }: SettingsPanelProps) {
   const [selectedModifiers, setSelectedModifiers] = useState<string[]>(customShortcut.modifiers);
   const [selectedKey, setSelectedKey] = useState(customShortcut.key);
   const [isRecordingShortcut, setIsRecordingShortcut] = useState(false);
+  const [availableWatchFaces, setAvailableWatchFaces] = useState<Array<{ id: string; name: string; description?: string }>>([]);
   
   useEffect(() => {
     loadSettings();
+    // Load available watch faces
+    const loadWatchFaces = async () => {
+      await WatchFaceLoader.loadBuiltInFaces();
+      await WatchFaceLoader.loadCustomFacesFromStorage();
+      const faces = WatchFaceLoader.getAllWatchFaces();
+      setAvailableWatchFaces(faces.map(f => ({ 
+        id: f.id, 
+        name: f.name, 
+        description: f.description 
+      })));
+    };
+    loadWatchFaces();
   }, [loadSettings]);
   
   useEffect(() => {
@@ -91,9 +108,9 @@ export function SettingsPanel({ isStandalone = false }: SettingsPanelProps) {
   
   const content = (
     <>
-      <div className="flex items-center justify-between p-4 border-b border-border/50">
-        <h2 className="text-lg font-medium">Settings</h2>
-        {!isStandalone && (
+      {!isStandalone && (
+        <div className="flex items-center justify-between p-4 border-b border-border/50">
+          <h2 className="text-lg font-medium">Settings</h2>
           <button
             onClick={toggleSettings}
             className="p-1.5 hover:bg-white/10 rounded-lg transition-colors"
@@ -101,10 +118,10 @@ export function SettingsPanel({ isStandalone = false }: SettingsPanelProps) {
           >
             <X className="w-4 h-4" />
           </button>
-        )}
-      </div>
+        </div>
+      )}
         
-        <div className="p-4 space-y-6 max-h-[calc(100vh-8rem)] overflow-y-auto">
+        <div className={`p-4 space-y-6 ${isStandalone ? 'h-[calc(100vh-40px)]' : 'max-h-[calc(100vh-8rem)]'} overflow-y-auto`}>
           {/* Sound Settings */}
           <div className="space-y-3">
             <div className="flex items-center justify-between">
@@ -245,6 +262,147 @@ export function SettingsPanel({ isStandalone = false }: SettingsPanelProps) {
               <p className="text-xs text-muted-foreground">
                 Click the button and press your desired key combination
               </p>
+            </div>
+          </div>
+          
+          {/* Watch Face */}
+          <div className="space-y-3">
+            <div className="flex items-center gap-2">
+              <Watch className="w-4 h-4 text-muted-foreground" />
+              <span className="text-sm font-medium">Watch Face</span>
+            </div>
+            
+            <div className="pl-6">
+              <div className="grid grid-cols-3 gap-2">
+                {availableWatchFaces.map((face) => (
+                  <button
+                    key={face.id}
+                    onClick={() => updateSettings({ watchFace: face.id })}
+                    className={`relative flex flex-col gap-1 p-2 rounded-lg transition-all ${
+                      watchFace === face.id
+                        ? 'ring-2 ring-primary bg-primary/10'
+                        : 'bg-secondary hover:bg-secondary/80'
+                    }`}
+                  >
+                    <div className="aspect-[3/2] bg-black/20 rounded-md flex items-center justify-center overflow-hidden relative">
+                      <div className="watchface-preview" data-face={face.id}>
+                        {/* Preview representations */}
+                        {face.id === 'default' && (
+                          <div className="relative">
+                            <div className="w-8 h-8 rounded-full border-2 border-blue-500 relative">
+                              <div className="absolute inset-0 rounded-full" style={{
+                                background: `conic-gradient(from 0deg, #3b82f6 0deg 120deg, transparent 120deg 360deg)`
+                              }} />
+                            </div>
+                            <div className="absolute inset-0 flex items-center justify-center text-xs text-white font-mono">25</div>
+                          </div>
+                        )}
+                        {face.id === 'chronograph' && (
+                          <div className="relative">
+                            <div className="w-8 h-8 rounded-full border-2 border-gradient-to-r from-blue-400 to-purple-500 relative bg-gradient-to-br from-blue-500 to-purple-600">
+                              <div className="absolute inset-0 rounded-full border border-white/20" />
+                            </div>
+                            <div className="absolute inset-0 flex items-center justify-center text-xs text-white font-mono">25</div>
+                          </div>
+                        )}
+                        {face.id === 'terminal' && (
+                          <div className="bg-black/90 p-2 rounded text-green-400 font-mono text-xs">
+                            <div>$ pomo --duration=25m</div>
+                            <div className="text-center">25:00</div>
+                            <div className="text-center">████████████</div>
+                          </div>
+                        )}
+                        {face.id === 'retro-digital' && (
+                          <div className="bg-gray-900 border border-green-400 p-2 rounded text-green-400 font-mono text-xs text-center">
+                            <div className="text-lg font-bold" style={{ textShadow: '0 0 5px currentColor' }}>25:00</div>
+                            <div className="mt-1 bg-green-400 h-1 rounded"></div>
+                          </div>
+                        )}
+                        {face.id === 'minimal' && (
+                          <div className="text-center bg-background/80 backdrop-blur-sm border border-border/20 rounded p-2">
+                            <div className="text-lg font-light text-foreground">25:00</div>
+                            <div className="w-12 h-0.5 bg-muted mx-auto mt-1"></div>
+                          </div>
+                        )}
+                        {face.id === 'neon' && (
+                          <div className="relative">
+                            <div className="w-8 h-8 rounded-full border-2 border-pink-500 relative" style={{
+                              boxShadow: '0 0 10px #ff00ff'
+                            }}>
+                              <div className="absolute inset-1 rounded-full border border-cyan-400" style={{
+                                boxShadow: '0 0 5px #00ffff'
+                              }} />
+                            </div>
+                            <div className="absolute inset-0 flex items-center justify-center text-xs text-pink-500 font-bold" style={{
+                              textShadow: '0 0 5px currentColor'
+                            }}>25</div>
+                          </div>
+                        )}
+                        {face.id.startsWith('custom_') && (
+                          <div className="text-xs text-muted-foreground flex flex-col items-center">
+                            <div className="text-lg">✦</div>
+                            <div>Custom</div>
+                          </div>
+                        )}
+                      </div>
+                    </div>
+                    <div className="text-left">
+                      <span className="text-xs font-medium block truncate">{face.name}</span>
+                      {watchFace === face.id && (
+                        <span className="text-xs text-primary">Active</span>
+                      )}
+                    </div>
+                  </button>
+                ))}
+              
+                <button
+                  onClick={async () => {
+                    try {
+                      const selected = await open({
+                        multiple: false,
+                        filters: [{
+                          name: 'Watch Face',
+                          extensions: ['json']
+                        }]
+                      });
+                      
+                      if (selected && typeof selected === 'string') {
+                        // Read the file content
+                        const content = await readTextFile(selected);
+                        const config = JSON.parse(content);
+                        
+                        // Validate and load the watchface
+                        if (!WatchFaceLoader.validateWatchFace(config)) {
+                          throw new Error('Invalid watch face configuration');
+                        }
+                        
+                        await WatchFaceLoader.loadCustomFace(config);
+                        
+                        // Refresh available watch faces
+                        const faces = WatchFaceLoader.getAllWatchFaces();
+                        setAvailableWatchFaces(faces.map(f => ({ 
+                          id: f.id, 
+                          name: f.name, 
+                          description: f.description 
+                        })));
+                        
+                        // Select the newly loaded face (with custom_ prefix)
+                        updateSettings({ watchFace: `custom_${config.id}` });
+                        
+                        // Save custom faces to storage
+                        await WatchFaceLoader.saveCustomFacesToStorage();
+                      }
+                    } catch (error) {
+                      console.error('Failed to load watch face:', error);
+                      alert(`Failed to load watch face: ${error}`);
+                    }
+                  }}
+                  className="col-span-3 flex items-center justify-center gap-2 px-3 py-3 mt-2 rounded-lg bg-secondary hover:bg-secondary/80 transition-all border-2 border-dashed border-border"
+                >
+                  <Upload className="w-4 h-4" />
+                  <span className="text-sm">Load Custom Watch Face</span>
+                </button>
+              </div>
             </div>
           </div>
           

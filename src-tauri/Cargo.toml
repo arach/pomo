@@ -20,6 +20,8 @@ serde = { version = "1.0", features = ["derive"] }
 serde_json = "1.0"
 tokio = { version = "1.0", features = ["full"] }
 chrono = { version = "0.4", features = ["serde"] }
+tauri-plugin-dialog = "2.2.2"
+tauri-plugin-fs = "2.3.0"
 
 [target.'cfg(target_os = "macos")'.dependencies]
 cocoa = "0.26"

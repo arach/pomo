@@ -1,5 +1,6 @@
 import { create } from 'zustand';
 import { invoke } from '@tauri-apps/api/core';
+import { emit } from '@tauri-apps/api/event';
 
 interface Settings {
   soundEnabled: boolean;
@@ -14,6 +15,7 @@ interface Settings {
     modifiers: string[];
     key: string;
   };
+  watchFace: string;
 }
 
 interface SettingsStore extends Settings {
@@ -38,6 +40,7 @@ const defaultSettings: Settings = {
     modifiers: ['Super', 'Control', 'Alt', 'Shift'],
     key: 'P',
   },
+  watchFace: 'default',
 };
 
 export const useSettingsStore = create<SettingsStore>((set, get) => ({
@@ -47,7 +50,18 @@ export const useSettingsStore = create<SettingsStore>((set, get) => ({
   
   loadSettings: async () => {
     try {
-      const settings = await invoke<Settings>('load_settings');
+      const rustSettings = await invoke<any>('load_settings');
+      const settings = {
+        soundEnabled: rustSettings.sound_enabled,
+        volume: rustSettings.volume,
+        opacity: rustSettings.opacity,
+        alwaysOnTop: rustSettings.always_on_top,
+        defaultDuration: rustSettings.default_duration,
+        theme: rustSettings.theme,
+        notificationSound: rustSettings.notification_sound,
+        customShortcut: rustSettings.custom_shortcut,
+        watchFace: rustSettings.watch_face,
+      };
       set({ ...settings, isLoading: false });
     } catch (error) {
       console.error('Failed to load settings:', error);
@@ -57,20 +71,25 @@ export const useSettingsStore = create<SettingsStore>((set, get) => ({
   
   updateSettings: async (updates: Partial<Settings>) => {
     const currentSettings = get();
-    const newSettings = {
-      soundEnabled: currentSettings.soundEnabled,
-      volume: currentSettings.volume,
-      opacity: currentSettings.opacity,
-      alwaysOnTop: currentSettings.alwaysOnTop,
-      defaultDuration: currentSettings.defaultDuration,
-      theme: currentSettings.theme,
-      notificationSound: currentSettings.notificationSound,
-      customShortcut: currentSettings.customShortcut,
-      ...updates,
+    
+    // Apply updates to current settings
+    const updatedSettings = { ...currentSettings, ...updates };
+    
+    // Convert to Rust format for saving
+    const rustSettings = {
+      sound_enabled: updatedSettings.soundEnabled,
+      volume: updatedSettings.volume,
+      opacity: updatedSettings.opacity,
+      always_on_top: updatedSettings.alwaysOnTop,
+      default_duration: updatedSettings.defaultDuration,
+      theme: updatedSettings.theme,
+      notification_sound: updatedSettings.notificationSound,
+      custom_shortcut: updatedSettings.customShortcut,
+      watch_face: updatedSettings.watchFace,
     };
     
     try {
-      await invoke('save_settings', { settings: newSettings });
+      await invoke('save_settings', { settings: rustSettings });
       set(updates);
       
       // Apply window settings immediately
@@ -80,6 +99,9 @@ export const useSettingsStore = create<SettingsStore>((set, get) => ({
       if ('alwaysOnTop' in updates) {
         await invoke('set_always_on_top', { alwaysOnTop: updates.alwaysOnTop });
       }
+      
+      // Emit settings changed event for other windows
+      await emit('settings-changed', updates);
     } catch (error) {
       console.error('Failed to save settings:', error);
     }

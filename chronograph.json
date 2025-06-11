@@ -1,0 +1,236 @@
+{
+  "timerFace": {
+    "meta": {
+      "name": "Precision Chronograph",
+      "version": "1.0.0",
+      "author": "Pomo",
+      "description": "Swiss chronograph-inspired timer with precise markings",
+      "category": "chronograph",
+      "tags": ["precision", "elegant", "watch", "professional"]
+    },
+    "layout": {
+      "type": "circular",
+      "dimensions": {
+        "width": 400,
+        "height": 400,
+        "aspectRatio": "1:1"
+      },
+      "centerPoint": [200, 200]
+    },
+    "display": {
+      "timeFormat": {
+        "primary": "MM:SS",
+        "secondary": "mm:ss.f",
+        "showMilliseconds": true
+      },
+      "font": {
+        "family": "SF Pro Display, Helvetica Neue, Arial, sans-serif",
+        "size": {
+          "time": 36,
+          "label": 12,
+          "markers": 10
+        },
+        "weight": "medium"
+      },
+      "colors": {
+        "background": "#f8f9fa",
+        "primary": "#1a1a1a",
+        "secondary": "#6c757d",
+        "accent": "#dc3545",
+        "warning": "#fd7e14",
+        "danger": "#dc3545",
+        "muted": "#adb5bd",
+        "chrome": "#e9ecef"
+      },
+      "animations": {
+        "enabled": true,
+        "duration": 500,
+        "easing": "ease-out",
+        "effects": ["smooth_sweep", "spring"]
+      }
+    },
+    "components": {
+      "outerRing": {
+        "type": "circle",
+        "position": {
+          "x": 200,
+          "y": 200,
+          "radius": 180
+        },
+        "style": {
+          "stroke": "chrome",
+          "strokeWidth": 8,
+          "fill": "none"
+        }
+      },
+      "minuteMarkers": {
+        "type": "markers",
+        "position": {
+          "x": 200,
+          "y": 200,
+          "radius": 165
+        },
+        "style": {
+          "count": 60,
+          "majorEvery": 5,
+          "majorLength": 15,
+          "minorLength": 8,
+          "color": "secondary",
+          "majorColor": "primary",
+          "strokeWidth": 2
+        }
+      },
+      "progressIndicator": {
+        "type": "arc",
+        "position": {
+          "x": 200,
+          "y": 200,
+          "radius": 150
+        },
+        "style": {
+          "thickness": 12,
+          "color": "accent",
+          "backgroundColor": "chrome",
+          "caps": "round",
+          "direction": "clockwise",
+          "startAngle": -90
+        }
+      },
+      "timeDisplay": {
+        "position": {
+          "x": 200,
+          "y": 200
+        },
+        "alignment": "center",
+        "style": {
+          "color": "primary",
+          "shadow": false,
+          "border": false
+        }
+      },
+      "subdials": [
+        {
+          "type": "small_circle",
+          "position": {
+            "x": 200,
+            "y": 120,
+            "radius": 30
+          },
+          "label": "SESSION",
+          "value": "1/4",
+          "style": {
+            "stroke": "muted",
+            "strokeWidth": 2,
+            "textColor": "secondary"
+          }
+        },
+        {
+          "type": "small_circle",
+          "position": {
+            "x": 130,
+            "y": 250,
+            "radius": 25
+          },
+          "label": "CYCLE",
+          "value": "WORK",
+          "style": {
+            "stroke": "muted",
+            "strokeWidth": 2,
+            "textColor": "secondary"
+          }
+        },
+        {
+          "type": "small_circle",
+          "position": {
+            "x": 270,
+            "y": 250,
+            "radius": 25
+          },
+          "label": "NEXT",
+          "value": "BREAK",
+          "style": {
+            "stroke": "muted",
+            "strokeWidth": 2,
+            "textColor": "secondary"
+          }
+        }
+      ],
+      "crown": {
+        "type": "decoration",
+        "position": {
+          "x": 380,
+          "y": 200
+        },
+        "style": {
+          "width": 20,
+          "height": 40,
+          "color": "chrome"
+        }
+      },
+      "centerDot": {
+        "type": "circle",
+        "position": {
+          "x": 200,
+          "y": 200,
+          "radius": 8
+        },
+        "style": {
+          "fill": "accent",
+          "stroke": "primary",
+          "strokeWidth": 2
+        }
+      }
+    },
+    "states": {
+      "work": {
+        "colors": {
+          "accent": "#dc3545",
+          "primary": "#1a1a1a"
+        },
+        "subdials": {
+          "cycle": {
+            "value": "WORK",
+            "color": "accent"
+          }
+        }
+      },
+      "shortBreak": {
+        "colors": {
+          "accent": "#198754",
+          "primary": "#1a1a1a"
+        },
+        "subdials": {
+          "cycle": {
+            "value": "BREAK",
+            "color": "accent"
+          }
+        }
+      },
+      "longBreak": {
+        "colors": {
+          "accent": "#6f42c1",
+          "primary": "#1a1a1a"
+        },
+        "subdials": {
+          "cycle": {
+            "value": "LONG",
+            "color": "accent"
+          }
+        }
+      }
+    },
+    "sounds": {
+      "tick": {
+        "enabled": true,
+        "frequency": 1000,
+        "volume": 0.05,
+        "type": "mechanical"
+      },
+      "complete": {
+        "enabled": true,
+        "type": "chime",
+        "volume": 0.7
+      }
+    }
+  }
+}

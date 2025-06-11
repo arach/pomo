@@ -1,0 +1,152 @@
+{
+  "timerFace": {
+    "meta": {
+      "name": "Terminal Classic",
+      "version": "1.0.0",
+      "author": "Pomo",
+      "description": "Retro terminal aesthetic with monospace fonts",
+      "category": "terminal",
+      "tags": ["retro", "monospace", "hacker", "minimal"]
+    },
+    "layout": {
+      "type": "linear",
+      "dimensions": {
+        "width": 600,
+        "height": 200,
+        "aspectRatio": "3:1"
+      }
+    },
+    "display": {
+      "timeFormat": {
+        "primary": "MM:SS",
+        "showMilliseconds": false
+      },
+      "font": {
+        "family": "JetBrains Mono, Consolas, Monaco, monospace",
+        "size": {
+          "time": 72,
+          "label": 16,
+          "progress": 14
+        },
+        "weight": "bold"
+      },
+      "colors": {
+        "background": "#0d1117",
+        "primary": "#00ff41",
+        "secondary": "#c9d1d9",
+        "accent": "#f85149",
+        "warning": "#d29922",
+        "danger": "#f85149",
+        "muted": "#484f58"
+      },
+      "animations": {
+        "enabled": true,
+        "duration": 150,
+        "easing": "linear",
+        "effects": ["typewriter", "scan_line"]
+      }
+    },
+    "components": {
+      "progressIndicator": {
+        "type": "blocks",
+        "position": {
+          "x": 50,
+          "y": 120
+        },
+        "style": {
+          "width": 500,
+          "height": 20,
+          "color": "primary",
+          "backgroundColor": "muted",
+          "character": "█",
+          "emptyCharacter": "░"
+        },
+        "segments": {
+          "enabled": true,
+          "count": 25,
+          "gap": 1
+        }
+      },
+      "timeDisplay": {
+        "position": {
+          "x": 300,
+          "y": 60
+        },
+        "alignment": "center",
+        "style": {
+          "color": "primary",
+          "shadow": false,
+          "border": false,
+          "prefix": "> ",
+          "suffix": " <"
+        }
+      },
+      "labels": {
+        "session": {
+          "text": "[WORK_SESSION]",
+          "position": {
+            "x": 50,
+            "y": 30
+          },
+          "style": {
+            "color": "accent",
+            "size": "label"
+          }
+        },
+        "progress": {
+          "text": "PROGRESS:",
+          "position": {
+            "x": 50,
+            "y": 100
+          },
+          "style": {
+            "color": "secondary",
+            "size": "progress"
+          }
+        }
+      },
+      "decorations": [
+        {
+          "type": "ascii_border",
+          "content": "┌─────────────────────────────────┐\n│                                 │\n└─────────────────────────────────┘",
+          "position": {
+            "x": 0,
+            "y": 0
+          },
+          "style": {
+            "color": "muted"
+          }
+        }
+      ]
+    },
+    "states": {
+      "work": {
+        "colors": {
+          "primary": "#00ff41",
+          "accent": "#f85149"
+        },
+        "labels": {
+          "session": "[WORK_SESSION]"
+        }
+      },
+      "shortBreak": {
+        "colors": {
+          "primary": "#79c0ff",
+          "accent": "#56d364"
+        },
+        "labels": {
+          "session": "[SHORT_BREAK]"
+        }
+      },
+      "longBreak": {
+        "colors": {
+          "primary": "#d2a8ff",
+          "accent": "#a5a5a5"
+        },
+        "labels": {
+          "session": "[LONG_BREAK]"
+        }
+      }
+    }
+  }
+}

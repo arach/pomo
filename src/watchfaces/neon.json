@@ -1,0 +1,140 @@
+{
+  "id": "neon",
+  "name": "Neon Glow",
+  "description": "Vibrant cyberpunk-inspired design with neon effects",
+  "author": "Pomo Team",
+  "version": "1.0.0",
+  "theme": {
+    "colors": {
+      "background": "#0a0a0f",
+      "foreground": "#ff00ff",
+      "accent": "#00ffff",
+      "success": "#00ff00",
+      "warning": "#ffff00",
+      "error": "#ff0066"
+    },
+    "fonts": {
+      "primary": "'Orbitron', monospace",
+      "accent": "'Rajdhani', sans-serif"
+    },
+    "customStyles": {
+      "@import": "url('https://fonts.googleapis.com/css2?family=Orbitron:wght@400;700;900&family=Rajdhani:wght@300;500;700&display=swap')",
+      ".container": {
+        "background": "linear-gradient(135deg, #0a0a0f 0%, #1a0a2e 100%)",
+        "boxShadow": "inset 0 0 50px rgba(255,0,255,0.1)"
+      },
+      ".time-display": {
+        "textShadow": "0 0 10px currentColor, 0 0 20px currentColor, 0 0 30px currentColor, 0 0 40px currentColor"
+      }
+    }
+  },
+  "layout": {
+    "type": "circular",
+    "size": {
+      "width": "100%",
+      "height": "100%"
+    },
+    "padding": 20
+  },
+  "components": [
+    {
+      "id": "outer-ring",
+      "type": "progress",
+      "position": {
+        "x": "center",
+        "y": 110
+      },
+      "style": {
+        "radius": 90,
+        "strokeWidth": 3,
+        "strokeColor": "#ff00ff",
+        "backgroundColor": "rgba(255,0,255,0.1)",
+        "filter": "drop-shadow(0 0 10px #ff00ff) drop-shadow(0 0 20px #ff00ff)"
+      }
+    },
+    {
+      "id": "inner-ring",
+      "type": "custom",
+      "position": {
+        "x": "center",
+        "y": 110
+      },
+      "properties": {
+        "component": "neon-ring",
+        "radius": 75,
+        "style": {
+          "stroke": "#00ffff",
+          "strokeWidth": "2",
+          "fill": "none",
+          "filter": "drop-shadow(0 0 5px #00ffff)",
+          "animation": "pulse 2s ease-in-out infinite"
+        }
+      }
+    },
+    {
+      "id": "time",
+      "type": "time",
+      "position": {
+        "x": "center",
+        "y": 110
+      },
+      "style": {
+        "fontSize": "32px",
+        "fontWeight": "700",
+        "color": "#ff00ff",
+        "fontFamily": "'Orbitron', monospace",
+        "textAlign": "center",
+        "textShadow": "0 0 10px #ff00ff, 0 0 20px #ff00ff, 0 0 30px #ff00ff"
+      }
+    },
+    {
+      "id": "status",
+      "type": "status",
+      "position": {
+        "x": "center",
+        "y": 160
+      },
+      "style": {
+        "fontSize": "12px",
+        "color": "#00ffff",
+        "textTransform": "uppercase",
+        "letterSpacing": "0.3em",
+        "fontFamily": "'Rajdhani', sans-serif",
+        "fontWeight": "500",
+        "textShadow": "0 0 5px currentColor"
+      }
+    },
+    {
+      "id": "controls",
+      "type": "controls",
+      "position": {
+        "x": "center",
+        "y": 185
+      },
+      "style": {
+        "gap": "15px"
+      },
+      "properties": {
+        "buttonStyle": {
+          "background": "rgba(255,0,255,0.1)",
+          "border": "1px solid #ff00ff",
+          "borderRadius": "50%",
+          "color": "#ff00ff",
+          "width": "32px",
+          "height": "32px",
+          "display": "flex",
+          "alignItems": "center",
+          "justifyContent": "center",
+          "transition": "all 0.3s",
+          "fontSize": "12px",
+          "hover": {
+            "background": "#ff00ff",
+            "color": "#0a0a0f",
+            "boxShadow": "0 0 20px #ff00ff",
+            "transform": "scale(1.1)"
+          }
+        }
+      }
+    }
+  ]
+}

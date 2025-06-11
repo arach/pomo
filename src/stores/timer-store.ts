@@ -11,6 +11,7 @@ interface TimerState {
   start: () => Promise<void>;
   pause: () => Promise<void>;
   stop: () => Promise<void>;
+  reset: () => Promise<void>;
   updateState: (state: Partial<TimerState>) => void;
 }
 
@@ -36,6 +37,15 @@ export const useTimerStore = create<TimerState>((set) => ({
   },
   
   stop: async () => {
+    await invoke('stop_timer');
+    set((state) => ({ 
+      isRunning: false, 
+      isPaused: false, 
+      remaining: state.duration 
+    }));
+  },
+  
+  reset: async () => {
     await invoke('stop_timer');
     set((state) => ({ 
       isRunning: false, 

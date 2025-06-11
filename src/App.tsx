@@ -5,7 +5,6 @@ import { WindowWrapper } from "./components/WindowWrapper";
 import { CustomTitleBar } from "./components/CustomTitleBar";
 import { TimerDisplay } from "./components/TimerDisplay";
 import { DurationInput } from "./components/DurationInput";
-import { SettingsPanel } from "./components/SettingsPanel";
 import { useTimerStore } from "./stores/timer-store";
 import { useSettingsStore } from "./stores/settings-store";
 import { AudioService } from "./services/audio";
@@ -20,7 +19,7 @@ interface TimerUpdate {
 function App() {
   const [isCollapsed, setIsCollapsed] = useState(false);
   const updateState = useTimerStore((state) => state.updateState);
-  const { soundEnabled, volume } = useSettingsStore();
+  const { soundEnabled, volume, loadSettings } = useSettingsStore();
   
   useEffect(() => {
     // Listen for timer updates
@@ -51,6 +50,11 @@ function App() {
       await invoke('toggle_visibility');
     });
     
+    // Listen for settings changes (from settings window)
+    const unlistenSettings = listen('settings-changed', async () => {
+      await loadSettings();
+    });
+    
     // Load initial timer state
     invoke<TimerUpdate>('get_timer_state').then((state) => {
       updateState({
@@ -61,20 +65,23 @@ function App() {
       });
     });
     
+    // Load initial settings
+    loadSettings();
+    
     return () => {
       unlistenTimer.then((fn) => fn());
       unlistenComplete.then((fn) => fn());
       unlistenCollapse.then((fn) => fn());
       unlistenVisibility.then((fn) => fn());
+      unlistenSettings.then((fn) => fn());
     };
-  }, [updateState, soundEnabled, volume]);
+  }, [updateState, soundEnabled, volume, loadSettings]);
   
   return (
     <WindowWrapper>
       <CustomTitleBar isCollapsed={isCollapsed} />
       <TimerDisplay isCollapsed={isCollapsed} />
       {!isCollapsed && <DurationInput />}
-      <SettingsPanel />
     </WindowWrapper>
   );
 }

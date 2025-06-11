@@ -4,9 +4,19 @@ export interface WatchFaceConfig {
   description: string;
   author?: string;
   version?: string;
+  progressBar?: WatchFaceProgressBar;
   theme: WatchFaceTheme;
   layout: WatchFaceLayout;
   components: WatchFaceComponent[];
+}
+
+export interface WatchFaceProgressBar {
+  hidden?: boolean;
+  height?: string;
+  background?: string;
+  color?: string;
+  gradient?: string;
+  glow?: string;
 }
 
 export interface WatchFaceTheme {

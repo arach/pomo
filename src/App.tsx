@@ -9,6 +9,7 @@ import { StatusFooter } from "./components/StatusFooter";
 import { useTimerStore } from "./stores/timer-store";
 import { useSettingsStore } from "./stores/settings-store";
 import { AudioService } from "./services/audio";
+import { WatchFaceLoader } from "./services/watchface-loader";
 
 interface TimerUpdate {
   duration: number;
@@ -20,13 +21,14 @@ interface TimerUpdate {
 function App() {
   const [isCollapsed, setIsCollapsed] = useState(false);
   const [showDurationInput, setShowDurationInput] = useState(true);
+  const [currentWatchFaceConfig, setCurrentWatchFaceConfig] = useState<any>(null);
   const { duration, remaining, isRunning, updateState } = useTimerStore((state) => ({
     duration: state.duration,
     remaining: state.remaining,
     isRunning: state.isRunning,
     updateState: state.updateState
   }));
-  const { soundEnabled, volume, loadSettings } = useSettingsStore();
+  const { soundEnabled, volume, loadSettings, watchFace } = useSettingsStore();
   
   useEffect(() => {
     // Listen for timer updates
@@ -89,22 +91,45 @@ function App() {
     };
   }, [updateState, soundEnabled, volume, loadSettings]);
   
+  // Load watch face config
+  useEffect(() => {
+    WatchFaceLoader.loadBuiltInFaces().then(() => {
+      const config = WatchFaceLoader.getWatchFace(watchFace);
+      setCurrentWatchFaceConfig(config);
+    });
+  }, [watchFace]);
+  
   const progress = duration > 0 ? ((duration - remaining) / duration) * 100 : 0;
+  
+  // Get progress bar style from watchface config
+  const progressBarConfig = currentWatchFaceConfig?.progressBar || {
+    height: '1px',
+    background: 'rgba(255, 255, 255, 0.1)',
+    color: 'rgba(255, 255, 255, 0.5)',
+    glow: 'rgba(255, 255, 255, 0.3)'
+  };
 
   return (
     <WindowWrapper>
       <CustomTitleBar isCollapsed={isCollapsed} />
-      <div 
-        className="absolute top-7 left-0 right-0 h-[2px] bg-black/20 z-40"
-      >
+      {progressBarConfig.hidden !== true && (
         <div 
-          className="h-full bg-green-500 transition-all duration-300"
-          style={{ 
-            width: `${progress}%`,
-            boxShadow: progress > 0 ? '0 0 4px rgba(34, 197, 94, 0.5)' : 'none'
+          className="absolute top-7 left-0 right-0 z-40"
+          style={{
+            height: progressBarConfig.height,
+            backgroundColor: progressBarConfig.background
           }}
-        />
-      </div>
+        >
+          <div 
+            className="h-full transition-all duration-500 ease-out"
+            style={{ 
+              width: `${progress}%`,
+              background: progressBarConfig.gradient || progressBarConfig.color,
+              boxShadow: progress > 0 && progressBarConfig.glow ? `0 0 3px ${progressBarConfig.glow}` : 'none'
+            }}
+          />
+        </div>
+      )}
       <div className="flex-1 flex flex-col min-h-0">
         <TimerDisplay 
           isCollapsed={isCollapsed} 

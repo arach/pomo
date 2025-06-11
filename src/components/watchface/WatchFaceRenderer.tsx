@@ -353,21 +353,37 @@ export function WatchFaceRenderer({ config, onTimeClick, ...props }: WatchFaceRe
 
   const className = theme.customStyles?.scanlines ? 'watch-face-container scanlines' : 'watch-face-container';
   
+  // Separate edge-positioned components from regular components
+  const edgeComponents = components.filter(comp => {
+    // Components positioned at bottom edge (footers, bottom controls, etc)
+    if (comp.position?.y === 'bottom') return true;
+    // Components with explicit edge positioning in style
+    if (comp.style?.bottom && typeof comp.style.bottom === 'string' && 
+        (comp.style.bottom.includes('-') || parseInt(comp.style.bottom) < 50)) return true;
+    return false;
+  });
+  const regularComponents = components.filter(comp => 
+    !edgeComponents.includes(comp)
+  );
+  
   return (
     <div className={className} style={containerStyle}>
       <div style={contentStyle}>
         {layout.type === 'circular' && (
           <div className="flex flex-col items-center justify-center h-full relative">
-            {components.map(renderComponent)}
+            {regularComponents.map(renderComponent)}
           </div>
         )}
         
         {layout.type === 'rectangular' && (
           <div className="flex flex-col h-full w-full items-start justify-start">
-            {components.map(renderComponent)}
+            {regularComponents.map(renderComponent)}
           </div>
         )}
       </div>
+      
+      {/* Render edge-positioned components outside the padded content */}
+      {edgeComponents.map(renderComponent)}
     </div>
   );
 }

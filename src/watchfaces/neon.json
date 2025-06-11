@@ -3,7 +3,13 @@
   "name": "Neon Glow",
   "description": "Vibrant cyberpunk-inspired design with neon effects",
   "author": "Pomo Team",
-  "version": "1.0.0",
+  "version": "2.0.0",
+  "progressBar": {
+    "height": "1px",
+    "background": "rgba(255, 0, 255, 0.1)",
+    "gradient": "linear-gradient(90deg, transparent 0%, #ff00ff 50%, #00ffff 100%)",
+    "glow": "rgba(255, 0, 255, 0.5)"
+  },
   "theme": {
     "colors": {
       "background": "#0a0a0f",
@@ -14,27 +20,24 @@
       "error": "#ff0066"
     },
     "fonts": {
-      "primary": "'Orbitron', monospace",
+      "primary": "'Audiowide', 'Exo 2', sans-serif",
       "accent": "'Rajdhani', sans-serif"
     },
     "customStyles": {
-      "@import": "url('https://fonts.googleapis.com/css2?family=Orbitron:wght@400;700;900&family=Rajdhani:wght@300;500;700&display=swap')",
+      "@import": "@import url('https://fonts.googleapis.com/css2?family=Audiowide&family=Exo+2:wght@300;700;900&family=Rajdhani:wght@300;500;700&display=swap'); @keyframes subtleGlow { 0%, 100% { opacity: 0.9; } 50% { opacity: 1; } } @keyframes ringPulse { 0%, 100% { opacity: 1; filter: drop-shadow(0 0 10px rgba(255, 0, 255, 0.6)) drop-shadow(0 0 20px rgba(0, 255, 255, 0.3)); } 50% { opacity: 1; filter: drop-shadow(0 0 20px rgba(255, 0, 255, 0.8)) drop-shadow(0 0 40px rgba(0, 255, 255, 0.5)); } }",
       ".container": {
-        "background": "linear-gradient(135deg, #0a0a0f 0%, #1a0a2e 100%)",
-        "boxShadow": "inset 0 0 50px rgba(255,0,255,0.1)"
-      },
-      ".time-display": {
-        "textShadow": "0 0 10px currentColor, 0 0 20px currentColor, 0 0 30px currentColor, 0 0 40px currentColor"
+        "background": "radial-gradient(ellipse at center, #1a0a2e 0%, #0a0a0f 100%)",
+        "boxShadow": "inset 0 0 10px rgba(255,0,255,0.03), inset 0 0 20px rgba(0,255,255,0.03)"
       }
     }
   },
   "layout": {
-    "type": "circular",
+    "type": "rectangular",
     "size": {
       "width": "100%",
       "height": "100%"
     },
-    "padding": 20
+    "padding": 30
   },
   "components": [
     {
@@ -45,25 +48,13 @@
         "y": "center"
       },
       "properties": {
-        "component": "neon-progress"
-      }
-    },
-    {
-      "id": "inner-ring",
-      "type": "custom",
-      "position": {
-        "x": "center",
-        "y": 110
-      },
-      "properties": {
-        "component": "neon-ring",
-        "radius": 75,
+        "component": "neon-progress",
         "style": {
-          "stroke": "#00ffff",
-          "strokeWidth": "2",
-          "fill": "none",
-          "filter": "drop-shadow(0 0 5px #00ffff)",
-          "animation": "pulse 2s ease-in-out infinite"
+          "position": "absolute",
+          "left": "50%",
+          "top": "40%",
+          "transform": "translate(-50%, -50%)",
+          "zIndex": 5
         }
       }
     },
@@ -72,32 +63,49 @@
       "type": "time",
       "position": {
         "x": "center",
-        "y": 130
+        "y": "center"
       },
       "style": {
-        "fontSize": "28px",
+        "fontSize": "42px",
         "fontWeight": "700",
-        "color": "#ff00ff",
-        "fontFamily": "'Orbitron', monospace",
+        "color": "#ffffff",
+        "fontFamily": "'Audiowide', 'Exo 2', sans-serif",
         "textAlign": "center",
-        "textShadow": "0 0 8px #ff00ff, 0 0 16px #ff00ff, 0 0 24px #ff00ff"
+        "textShadow": "0 0 10px rgba(255, 0, 255, 0.8), 0 0 20px rgba(0, 255, 255, 0.4)",
+        "position": "absolute",
+        "left": "50%",
+        "top": "40%",
+        "transform": "translate(-50%, -50%)",
+        "zIndex": 10,
+        "letterSpacing": "0.05em"
       }
     },
     {
-      "id": "status",
+      "id": "status-display",
       "type": "status",
       "position": {
         "x": "center",
-        "y": 165
+        "y": "center"
       },
       "style": {
-        "fontSize": "11px",
+        "fontSize": "10px",
         "color": "#00ffff",
+        "textAlign": "center",
         "textTransform": "uppercase",
-        "letterSpacing": "0.3em",
+        "letterSpacing": "0.1em",
         "fontFamily": "'Rajdhani', sans-serif",
-        "fontWeight": "500",
-        "textShadow": "0 0 5px currentColor"
+        "fontWeight": "400",
+        "textShadow": "0 0 3px rgba(0, 255, 255, 0.6)",
+        "position": "absolute",
+        "left": "50%",
+        "bottom": "80px",
+        "transform": "translateX(-50%)",
+        "zIndex": 8,
+        "opacity": 0.8
+      },
+      "props": {
+        "format": "{status}",
+        "showCycle": false
       }
     },
     {
@@ -105,31 +113,64 @@
       "type": "controls",
       "position": {
         "x": "center",
-        "y": 185
+        "y": "bottom"
       },
       "style": {
-        "gap": "15px"
+        "gap": "14px",
+        "position": "absolute",
+        "left": "50%",
+        "bottom": "30px",
+        "transform": "translateX(-50%)"
       },
       "properties": {
         "buttonStyle": {
-          "background": "rgba(255,0,255,0.1)",
-          "border": "1px solid #ff00ff",
+          "background": "rgba(255,255,255,0.05)",
+          "border": "1px solid rgba(255,0,255,0.5)",
           "borderRadius": "50%",
           "color": "#ff00ff",
-          "width": "28px",
-          "height": "28px",
+          "width": "32px",
+          "height": "32px",
           "display": "flex",
           "alignItems": "center",
           "justifyContent": "center",
-          "transition": "all 0.3s",
-          "fontSize": "10px",
+          "transition": "all 0.2s cubic-bezier(0.4, 0, 0.2, 1)",
+          "fontSize": "12px",
+          "backdropFilter": "blur(4px)",
           "hover": {
-            "background": "#ff00ff",
-            "color": "#0a0a0f",
-            "boxShadow": "0 0 20px #ff00ff",
-            "transform": "scale(1.1)"
+            "background": "rgba(255,0,255,0.2)",
+            "color": "#ffffff",
+            "boxShadow": "0 0 10px #ff00ff, inset 0 0 10px rgba(255,0,255,0.2)",
+            "transform": "scale(1.05)",
+            "borderColor": "#ff00ff"
           }
-        }
+        },
+        "size": "small",
+        "showLabels": false
+      }
+    },
+    {
+      "id": "status-footer",
+      "type": "status",
+      "position": {
+        "x": "right",
+        "y": "bottom"
+      },
+      "style": {
+        "position": "absolute",
+        "bottom": "8px",
+        "right": "8px",
+        "fontSize": "9px",
+        "color": "#00ffff",
+        "textAlign": "right",
+        "textTransform": "uppercase",
+        "letterSpacing": "0.05em",
+        "fontFamily": "'Rajdhani', sans-serif",
+        "fontWeight": "500",
+        "textShadow": "0 0 1px currentColor",
+        "opacity": 0.5
+      },
+      "props": {
+        "format": "[{status}]"
       }
     }
   ]

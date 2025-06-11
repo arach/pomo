@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react';
+import React from 'react';
 
 interface NeonProgressProps {
   progress: number;
@@ -6,158 +6,189 @@ interface NeonProgressProps {
 }
 
 export function NeonProgress({ progress, style }: NeonProgressProps) {
-  const [pulse, setPulse] = useState(0);
-  
-  useEffect(() => {
-    const interval = setInterval(() => {
-      setPulse(prev => (prev + 1) % 3);
-    }, 2000);
-    return () => clearInterval(interval);
-  }, []);
-
-  const radius = 90;
-  const strokeWidth = 2;
-  const normalizedRadius = radius - strokeWidth * 2;
-  const circumference = normalizedRadius * 2 * Math.PI;
+  // Fixed size for consistent appearance
+  const size = 200;
+  const center = size / 2;
+  const strokeWidth = 3;
+  const radius = 85;
+  const circumference = radius * 2 * Math.PI;
   const strokeDashoffset = circumference - (progress / 100) * circumference;
+  
+  // Calculate progress position for end cap
+  const angle = (progress / 100) * 2 * Math.PI - Math.PI / 2;
+  const endX = center + radius * Math.cos(angle);
+  const endY = center + radius * Math.sin(angle);
   
   return (
     <div style={{
       ...style,
-      position: 'absolute',
-      top: '50%',
-      left: '50%',
-      transform: 'translate(-50%, -50%)'
+      position: 'relative',
+      width: size,
+      height: size,
+      display: 'flex',
+      alignItems: 'center',
+      justifyContent: 'center'
     }}>
-      {/* Outer glow ring */}
-      <svg
-        width={radius * 2}
-        height={radius * 2}
+      {/* Subtle outer glow */}
+      <div
         style={{
           position: 'absolute',
-          top: 0,
-          left: 0,
-          transform: 'rotate(-90deg)',
-          filter: 'blur(8px)',
-          opacity: 0.6
+          width: size,
+          height: size,
+          borderRadius: '50%',
+          background: `radial-gradient(circle at center, 
+            transparent 65%, 
+            rgba(255, 0, 255, 0.05) 75%, 
+            rgba(0, 255, 255, 0.05) 85%, 
+            transparent 100%)`,
+          filter: 'blur(10px)'
         }}
-      >
-        <circle
-          stroke="#ff00ff"
-          fill="none"
-          strokeWidth={strokeWidth + 2}
-          strokeDasharray={circumference + ' ' + circumference}
-          strokeDashoffset={strokeDashoffset}
-          r={normalizedRadius}
-          cx={radius}
-          cy={radius}
-          style={{
-            transition: 'stroke-dashoffset 0.5s ease-out',
-            strokeLinecap: 'round'
-          }}
-        />
-      </svg>
-
+      />
+      
       {/* Main progress ring */}
       <svg
-        width={radius * 2}
-        height={radius * 2}
+        width={size}
+        height={size}
         style={{
-          position: 'relative',
+          position: 'absolute',
           transform: 'rotate(-90deg)'
         }}
       >
         {/* Background track */}
         <circle
-          stroke="rgba(255, 0, 255, 0.1)"
+          stroke="rgba(255, 255, 255, 0.1)"
           fill="none"
           strokeWidth={strokeWidth}
-          r={normalizedRadius}
-          cx={radius}
-          cy={radius}
+          r={radius}
+          cx={center}
+          cy={center}
         />
         
-        {/* Progress stroke */}
+        {/* Inner glow track */}
         <circle
-          stroke="url(#neonGradient)"
+          stroke="rgba(255, 0, 255, 0.15)"
+          fill="none"
+          strokeWidth={strokeWidth - 1}
+          r={radius}
+          cx={center}
+          cy={center}
+        />
+        
+        {/* Progress glow layer */}
+        <circle
+          stroke={`url(#neonGradient-${progress})`}
+          fill="none"
+          strokeWidth={strokeWidth + 2}
+          strokeDasharray={circumference + ' ' + circumference}
+          strokeDashoffset={strokeDashoffset}
+          r={radius}
+          cx={center}
+          cy={center}
+          opacity="0.5"
+          style={{
+            transition: 'stroke-dashoffset 0.5s ease-out',
+            strokeLinecap: 'round',
+            filter: 'blur(3px)'
+          }}
+        />
+        
+        {/* Progress stroke - crisp */}
+        <circle
+          stroke={`url(#neonGradient-${progress})`}
           fill="none"
           strokeWidth={strokeWidth}
           strokeDasharray={circumference + ' ' + circumference}
           strokeDashoffset={strokeDashoffset}
-          r={normalizedRadius}
-          cx={radius}
-          cy={radius}
+          r={radius}
+          cx={center}
+          cy={center}
           style={{
             transition: 'stroke-dashoffset 0.5s ease-out',
             strokeLinecap: 'round',
-            filter: `drop-shadow(0 0 ${6 + pulse * 2}px #ff00ff) drop-shadow(0 0 ${12 + pulse * 4}px #00ffff)`
+            filter: 'drop-shadow(0 0 2px rgba(255, 0, 255, 0.8))'
           }}
         />
         
+        {/* Progress end cap */}
+        {progress > 0 && progress < 100 && (
+          <g transform={`rotate(90 ${center} ${center})`}>
+            <circle
+              fill="#fff"
+              r={strokeWidth / 2}
+              cx={endX}
+              cy={endY}
+              style={{
+                filter: 'drop-shadow(0 0 4px #fff)',
+                transition: 'all 0.5s ease-out'
+              }}
+            />
+            <circle
+              fill="rgba(255, 0, 255, 0.8)"
+              r={strokeWidth / 2 + 3}
+              cx={endX}
+              cy={endY}
+              opacity="0.6"
+              style={{
+                filter: 'blur(2px)',
+                transition: 'all 0.5s ease-out'
+              }}
+            />
+          </g>
+        )}
+        
         {/* Gradient definition */}
         <defs>
-          <linearGradient id="neonGradient" x1="0%" y1="0%" x2="100%" y2="100%">
+          <linearGradient 
+            id={`neonGradient-${progress}`} 
+            x1="0%" 
+            y1="0%" 
+            x2="100%" 
+            y2="100%"
+          >
             <stop offset="0%" stopColor="#ff00ff" />
             <stop offset="50%" stopColor="#00ffff" />
             <stop offset="100%" stopColor="#ff00ff" />
           </linearGradient>
+          
+          {/* Add some crisp patterns */}
+          <pattern id="neonDots" x="0" y="0" width="4" height="4" patternUnits="userSpaceOnUse">
+            <circle cx="2" cy="2" r="0.5" fill="rgba(255, 255, 255, 0.1)" />
+          </pattern>
         </defs>
       </svg>
       
-      {/* Progress percentage */}
-      <div style={{
-        position: 'absolute',
-        top: '50%',
-        left: '50%',
-        transform: 'translate(-30%, 30%)',
-        fontSize: '24px',
-        fontWeight: '200',
-        fontFamily: 'monospace',
-        color: '#00ffff',
-        textShadow: `0 0 10px #00ffff, 0 0 20px #ff00ff`,
-        letterSpacing: '0.1em',
-        opacity: 0.9
-      }}>
-        {Math.round(progress)}%
-      </div>
-      
-      {/* Energy particles */}
-      {progress > 0 && (
-        <div style={{
+      {/* Inner ring details */}
+      <svg
+        width={size}
+        height={size}
+        style={{
           position: 'absolute',
-          top: '50%',
-          left: '50%',
-          width: radius * 2,
-          height: radius * 2,
-          transform: 'translate(-50%, -50%)',
           pointerEvents: 'none'
-        }}>
-          {[...Array(3)].map((_, i) => (
-            <div
+        }}
+      >
+        {/* Tick marks */}
+        {[...Array(12)].map((_, i) => {
+          const tickAngle = (i * 30) * Math.PI / 180;
+          const x1 = center + (radius - 10) * Math.cos(tickAngle);
+          const y1 = center + (radius - 10) * Math.sin(tickAngle);
+          const x2 = center + (radius - 5) * Math.cos(tickAngle);
+          const y2 = center + (radius - 5) * Math.sin(tickAngle);
+          
+          return (
+            <line
               key={i}
-              style={{
-                position: 'absolute',
-                width: '4px',
-                height: '4px',
-                background: i % 2 === 0 ? '#ff00ff' : '#00ffff',
-                borderRadius: '50%',
-                boxShadow: `0 0 6px currentColor`,
-                top: '50%',
-                left: '50%',
-                transform: `rotate(${(progress * 3.6) + (i * 120)}deg) translate(${normalizedRadius}px) translate(-50%, -50%)`,
-                animation: `neonPulse ${1.5 + i * 0.3}s ease-in-out infinite`
-              }}
+              x1={x1}
+              y1={y1}
+              x2={x2}
+              y2={y2}
+              stroke="rgba(255, 255, 255, 0.2)"
+              strokeWidth="1"
             />
-          ))}
-        </div>
-      )}
+          );
+        })}
+      </svg>
       
-      <style dangerouslySetInnerHTML={{ __html: `
-        @keyframes neonPulse {
-          0%, 100% { opacity: 0.3; transform: scale(0.8); }
-          50% { opacity: 1; transform: scale(1.2); }
-        }
-      `}} />
+      {/* Progress percentage text - removed to avoid overlap */}
     </div>
   );
 }

@@ -203,18 +203,68 @@ async fn toggle_visibility(app_handle: tauri::AppHandle) -> Result<(), String> {
 
 #[tauri::command]
 async fn load_settings(
+    app_handle: tauri::AppHandle,
     state: State<'_, SharedSettings>,
 ) -> Result<Settings, String> {
+    // Try to load settings from file first
+    let app_dir = app_handle.path().app_data_dir()
+        .map_err(|e| format!("Failed to get app data dir: {}", e))?;
+    
+    let settings_path = app_dir.join("settings.json");
+    
+    if settings_path.exists() {
+        match fs::read_to_string(&settings_path) {
+            Ok(content) => {
+                match serde_json::from_str::<Settings>(&content) {
+                    Ok(loaded_settings) => {
+                        // Update the in-memory state
+                        let mut current = state.lock().await;
+                        *current = loaded_settings.clone();
+                        return Ok(loaded_settings);
+                    }
+                    Err(e) => {
+                        eprintln!("Failed to parse settings: {}", e);
+                    }
+                }
+            }
+            Err(e) => {
+                eprintln!("Failed to read settings file: {}", e);
+            }
+        }
+    }
+    
+    // Return default settings if file doesn't exist or fails to load
     Ok(state.lock().await.clone())
 }
 
 #[tauri::command]
 async fn save_settings(
     settings: Settings,
+    app_handle: tauri::AppHandle,
     state: State<'_, SharedSettings>,
 ) -> Result<(), String> {
+    // Update in-memory state
     let mut current = state.lock().await;
-    *current = settings;
+    *current = settings.clone();
+    
+    // Save to file
+    let app_dir = app_handle.path().app_data_dir()
+        .map_err(|e| format!("Failed to get app data dir: {}", e))?;
+    
+    let settings_path = app_dir.join("settings.json");
+    
+    // Ensure directory exists
+    if let Some(parent) = settings_path.parent() {
+        fs::create_dir_all(parent)
+            .map_err(|e| format!("Failed to create directory: {}", e))?;
+    }
+    
+    let json = serde_json::to_string_pretty(&settings)
+        .map_err(|e| format!("Failed to serialize settings: {}", e))?;
+    
+    fs::write(&settings_path, json)
+        .map_err(|e| format!("Failed to write settings file: {}", e))?;
+    
     Ok(())
 }
 
@@ -389,6 +439,25 @@ pub fn run() {
         .setup(|app| {
             let app_handle = app.handle().clone();
             
+            // Load settings from file on startup
+            let settings_state = app.state::<SharedSettings>();
+            let app_dir = app_handle.path().app_data_dir().ok();
+            
+            if let Some(dir) = app_dir {
+                let settings_path = dir.join("settings.json");
+                if settings_path.exists() {
+                    if let Ok(content) = fs::read_to_string(&settings_path) {
+                        if let Ok(loaded_settings) = serde_json::from_str::<Settings>(&content) {
+                            // Update the settings state with loaded settings
+                            if let Ok(mut settings) = settings_state.try_lock() {
+                                *settings = loaded_settings.clone();
+                                println!("✅ Loaded settings from file");
+                            }
+                        }
+                    }
+                }
+            }
+            
             // Register global shortcut
             let shortcut_manager = app_handle.global_shortcut();
             let hyperkey_p = Shortcut::new(
@@ -403,6 +472,13 @@ pub fn run() {
             
             // Apply initial window settings
             if let Some(window) = app.get_webview_window("main") {
+                // Get current settings (either loaded from file or defaults)
+                let opacity = if let Ok(settings) = settings_state.try_lock() {
+                    settings.opacity
+                } else {
+                    0.95
+                };
+                
                 // Set transparency on macOS
                 #[cfg(target_os = "macos")]
                 {
@@ -414,8 +490,13 @@ pub fn run() {
                     let ns_window = window.ns_window().unwrap() as id;
                     unsafe {
                         #[allow(unexpected_cfgs)]
-                        let _: () = msg_send![ns_window, setAlphaValue: 0.95f64];
+                        let _: () = msg_send![ns_window, setAlphaValue: opacity];
                     }
+                }
+                
+                // Set always on top from settings
+                if let Ok(settings) = settings_state.try_lock() {
+                    window.set_always_on_top(settings.always_on_top).ok();
                 }
             }
             

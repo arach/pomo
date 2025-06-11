@@ -32,7 +32,7 @@ export function StatusDisplay({ isRunning, isPaused, remaining, style, format, p
     positionStyle.textAlign = 'center';
   } else if (position?.x === 'right' && position?.y === 'bottom') {
     positionStyle.position = 'absolute';
-    positionStyle.bottom = '20px';
+    positionStyle.bottom = '10px';
     positionStyle.right = '30px';
   }
 

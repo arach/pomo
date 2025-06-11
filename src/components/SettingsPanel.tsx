@@ -365,9 +365,6 @@ export function SettingsPanel({ isStandalone = false }: SettingsPanelProps) {
             <p className="text-xs text-muted-foreground">
               <kbd className="px-1.5 py-0.5 text-xs bg-secondary rounded">Middle-click</kbd> title bar to collapse
             </p>
-            <p className="text-xs text-muted-foreground">
-              Drag the title bar to move the window
-            </p>
           </div>
         </div>
     </>

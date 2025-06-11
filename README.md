@@ -3,8 +3,9 @@
 A beautifully designed, floating Pomodoro timer that respects your workspace. Features multiple themes, comprehensive keyboard shortcuts, and a minimal UI that stays out of your way. Built with Tauri, React, and TypeScript.
 
 <div align="center">
-  <img src="./screenshots/expanded-view.png" alt="Pomo Timer - Expanded View" width="320" />
-  <img src="./screenshots/collapsed-view.png" alt="Pomo Timer - Collapsed View" width="320" />
+  <img src="./public/watchface-previews/default.png" alt="Default Watchface" width="280" />
+  <img src="./public/watchface-previews/terminal.png" alt="Terminal Watchface" width="280" />
+  <img src="./public/watchface-previews/rolodex.png" alt="Rolodex Watchface" width="280" />
 </div>
 
 <p align="center">
@@ -17,7 +18,7 @@ Stop letting timers interrupt your flow. Pomo floats elegantly above your work, 
 
 - **Stays out of your way** - Collapse to a minimal 25:00 display with one middle-click
 - **Always accessible** - Hyperkey+P brings it back instantly, no dock diving needed  
-- **Multiple themes** - Choose from Terminal, Minimal, or Neon watchfaces
+- **Multiple themes** - Choose from Default, Terminal, Rolodex, or Neon watchfaces
 - **Keyboard first** - Complete keyboard control for productivity enthusiasts
 - **Your timer, your rules** - Set any duration, pick your sound, customize everything
 
@@ -25,7 +26,7 @@ Stop letting timers interrupt your flow. Pomo floats elegantly above your work, 
 
 ### Core Features
 - 🪟 **Floating Window** - Always-on-top transparent window that floats above other applications
-- 🎨 **Multiple Watchfaces** - Terminal (hacker aesthetic), Minimal (ultra-clean), Neon (cyberpunk vibes)
+- 🎨 **Multiple Watchfaces** - Default (minimalist), Terminal (hacker aesthetic), Rolodex (flip clock), Neon (cyberpunk vibes)
 - ⌨️ **Comprehensive Shortcuts** - Full keyboard control with helpful overlay (press `?`)
 - ⏱️ **Flexible Timer** - Quick presets (1-9 keys) or custom duration with arrow keys
 - 🔄 **Collapsible Design** - Middle-click the title bar to collapse/expand
@@ -117,15 +118,20 @@ The built application will be in `src-tauri/target/release/bundle/`.
 
 ### Watchfaces
 
+**Default** ⚪
+- Minimalist design with clear visual hierarchy
+- Progress ring with session type display
+- Clean, professional aesthetic that fits any workspace
+
 **Terminal** 🖥️
 - Retro terminal aesthetic with green-on-black display
 - ASCII art progress indicators
 - Command-line inspired interface
 
-**Minimal** ⚪
-- Ultra-clean design for maximum focus
-- Compact 240x120px form factor
-- Just the essentials: time and progress
+**Rolodex** 🔢
+- Flip clock style with smooth transitions
+- Nostalgic design with modern functionality
+- Perfect for focused work sessions
 
 **Neon** 🌆
 - Cyberpunk-inspired with glowing effects

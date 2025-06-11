@@ -211,7 +211,7 @@ function App() {
       // Cycle through themes
       case 't':
         e.preventDefault();
-        const themes = ['terminal', 'neon', 'rolodex'];
+        const themes = ['default', 'terminal', 'rolodex', 'neon', 'retro-digital', 'retro-lcd'];
         const currentIndex = themes.indexOf(watchFace);
         const nextIndex = (currentIndex + 1) % themes.length;
         updateSettings({ watchFace: themes[nextIndex] });

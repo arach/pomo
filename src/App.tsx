@@ -10,6 +10,7 @@ import { useTimerStore, SessionType } from "./stores/timer-store";
 import { useSettingsStore } from "./stores/settings-store";
 import { AudioService } from "./services/audio";
 import { WatchFaceLoader } from "./services/watchface-loader";
+import { SplitViewComparison } from "./components/dev/SplitViewComparison";
 
 interface TimerUpdate {
   duration: number;
@@ -22,6 +23,13 @@ function App() {
   const [isCollapsed, setIsCollapsed] = useState(false);
   const [showDurationInput, setShowDurationInput] = useState(false);
   const [currentWatchFaceConfig, setCurrentWatchFaceConfig] = useState<any>(null);
+  
+  // Development mode version support
+  const urlParams = new URLSearchParams(window.location.search);
+  const version = urlParams.get('version') || 'v1';
+  const splitView = urlParams.get('split') === 'true';
+  const isDev = import.meta.env.DEV;
+  const isTauri = typeof window !== 'undefined' && window.__TAURI__ !== undefined;
   const { duration, remaining, isRunning, isPaused, updateState, start, pause, stop, reset, setDuration } = useTimerStore((state) => ({
     duration: state.duration,
     remaining: state.remaining,
@@ -37,6 +45,8 @@ function App() {
   const { soundEnabled, volume, loadSettings, watchFace, updateSettings } = useSettingsStore();
   
   useEffect(() => {
+    if (!isTauri) return;
+    
     // Listen for timer updates
     const unlistenTimer = listen<TimerUpdate>('timer-update', (event) => {
       updateState({
@@ -95,7 +105,7 @@ function App() {
       unlistenVisibility.then((fn) => fn());
       unlistenSettings.then((fn) => fn());
     };
-  }, [updateState, soundEnabled, volume, loadSettings]);
+  }, [updateState, soundEnabled, volume, loadSettings, isTauri]);
   
   // Load watch face config
   useEffect(() => {
@@ -118,14 +128,18 @@ function App() {
     // Show shortcuts window
     if (e.key === '?') {
       e.preventDefault();
-      invoke('open_shortcuts_window');
+      if (isTauri) {
+        invoke('open_shortcuts_window');
+      }
       return;
     }
     
     // Settings (Cmd+,)
     if (isCmd && e.key === ',') {
       e.preventDefault();
-      invoke('open_settings_window');
+      if (isTauri) {
+        invoke('open_settings_window');
+      }
       return;
     }
     
@@ -170,7 +184,9 @@ function App() {
       // Hide/Show window
       case 'h':
         e.preventDefault();
-        invoke('toggle_visibility');
+        if (isTauri) {
+          invoke('toggle_visibility');
+        }
         break;
         
       // Toggle mute
@@ -254,6 +270,11 @@ function App() {
     color: 'rgba(255, 255, 255, 0.5)',
     glow: 'rgba(255, 255, 255, 0.3)'
   };
+  
+  // Development mode split view
+  if (isDev && splitView) {
+    return <SplitViewComparison />;
+  }
 
   return (
     <WindowWrapper>
@@ -281,6 +302,7 @@ function App() {
           isCollapsed={isCollapsed} 
           onTimeClick={() => !isRunning && setShowDurationInput(true)}
           showDurationInput={showDurationInput}
+          version={version}
         />
       </div>
       {!isCollapsed && <StatusFooter />}

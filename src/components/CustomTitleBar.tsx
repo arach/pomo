@@ -3,6 +3,7 @@ import { invoke } from '@tauri-apps/api/core';
 import { useTimerStore } from '../stores/timer-store';
 import { SessionTypeIndicator } from './SessionTypeIndicator';
 import { LogicalSize } from '@tauri-apps/api/window';
+import { useState, useEffect } from 'react';
 
 interface CustomTitleBarProps {
   isCollapsed?: boolean;
@@ -11,21 +12,34 @@ interface CustomTitleBarProps {
 }
 
 export function CustomTitleBar({ isCollapsed = false, title, showCollapseButton = true }: CustomTitleBarProps) {
-  const appWindow = getCurrentWebviewWindow();
+  const [isTauri, setIsTauri] = useState(false);
   const sessionType = useTimerStore(state => state.sessionType);
+  
+  useEffect(() => {
+    // Check if we're running in Tauri
+    setIsTauri(typeof window !== 'undefined' && window.__TAURI__ !== undefined);
+  }, []);
+  
+  const appWindow = isTauri ? getCurrentWebviewWindow() : null;
 
   const handleClose = async () => {
-    await appWindow.close();
+    if (appWindow) {
+      await appWindow.close();
+    }
   };
 
   const handleMinimize = async () => {
-    await appWindow.minimize();
+    if (appWindow) {
+      await appWindow.minimize();
+    }
   };
 
   const handleMiddleClick = async (e: React.MouseEvent) => {
     if (e.button === 1 && showCollapseButton) {
       e.preventDefault();
-      await invoke('toggle_collapse');
+      if (isTauri) {
+        await invoke('toggle_collapse');
+      }
     }
   };
 
@@ -68,8 +82,10 @@ export function CustomTitleBar({ isCollapsed = false, title, showCollapseButton 
         {import.meta.env.DEV && (
           <button
             onClick={async () => {
-              await appWindow.setSize(new LogicalSize(320, 280));
-              await appWindow.center();
+              if (appWindow) {
+                await appWindow.setSize(new LogicalSize(320, 280));
+                await appWindow.center();
+              }
             }}
             className="text-[10px] px-1.5 py-0.5 rounded bg-muted/20 hover:bg-muted/30 text-muted-foreground transition-colors"
             title="Reset window size"

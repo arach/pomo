@@ -24,6 +24,23 @@ import { LCDProgress } from './watchfaces/retro-digital/LCDProgress';
 import { NeonRing } from './watchfaces/neon/NeonRing';
 import { NeonProgress } from './watchfaces/neon/NeonProgress';
 
+// V2 component imports
+import { NeonProgressV2 } from './watchfaces/neon/v2/NeonProgressV2';
+import { TerminalProgressV2 } from './watchfaces/terminal/v2/TerminalProgressV2';
+import { DefaultLayoutV2 } from './watchfaces/default/v2/DefaultLayoutV2';
+import { RolodexDisplayV2 } from './watchfaces/rolodex/v2/RolodexDisplayV2';
+import { LCDProgressV2 } from './watchfaces/retro-digital/v2/LCDProgressV2';
+import { DigitalDisplayV2 } from './watchfaces/retro-digital/v2/DigitalDisplayV2';
+
+const v2Components: Record<string, any> = {
+  'NeonProgressV2': NeonProgressV2,
+  'TerminalProgressV2': TerminalProgressV2,
+  'DefaultLayoutV2': DefaultLayoutV2,
+  'RolodexDisplayV2': RolodexDisplayV2,
+  'LCDProgressV2': LCDProgressV2,
+  'DigitalDisplayV2': DigitalDisplayV2
+};
+
 // Rolodex watchface components
 import { RolodexDisplay } from './watchfaces/rolodex/RolodexDisplay';
 
@@ -41,11 +58,28 @@ interface WatchFaceRendererProps extends WatchFaceProps {
   config: WatchFaceConfig;
   onTimeClick?: () => void;
   hideControls?: boolean;
+  version?: string;
 }
 
-export function WatchFaceRenderer({ config, onTimeClick, hideControls = false, ...props }: WatchFaceRendererProps) {
+export function WatchFaceRenderer({ config, onTimeClick, hideControls = false, version = 'v1', ...props }: WatchFaceRendererProps) {
   const { theme, layout, components } = config;
   const sessionType = useTimerStore(state => state.sessionType);
+  
+  // Log version for debugging
+  if (import.meta.env.DEV) {
+    console.log(`WatchFaceRenderer: ${config.id} watchface - version: ${version}`);
+  }
+  
+  // Generic v2 component renderer
+  const renderV2Component = (v2Name: string, v1Renderer: () => JSX.Element, v2Renderer: () => JSX.Element) => {
+    if (version === 'v2' && v2Components[v2Name]) {
+      if (import.meta.env.DEV) {
+        console.log(`Using ${v2Name}`);
+      }
+      return v2Renderer();
+    }
+    return v1Renderer();
+  };
   
   const formatTime = (seconds: number): string => {
     const mins = Math.floor(seconds / 60);
@@ -132,13 +166,10 @@ export function WatchFaceRenderer({ config, onTimeClick, hideControls = false, .
       case 'custom':
         switch (component.properties?.component || component.id) {
           case 'ascii-progress':
-            return (
-              <TerminalProgress
-                key={component.id}
-                progress={props.progress}
-                style={component.style}
-                {...component.props}
-              />
+            return renderV2Component(
+              'TerminalProgressV2',
+              () => <TerminalProgress key={component.id} progress={props.progress} style={component.style} {...component.props} />,
+              () => <v2Components.TerminalProgressV2 key={component.id} progress={props.progress} style={component.style} {...component.props} />
             );
           
           case 'terminal-header':
@@ -157,17 +188,32 @@ export function WatchFaceRenderer({ config, onTimeClick, hideControls = false, .
             );
           
           case 'digital-display':
-            return (
-              <ClickableTimeWrapper 
-                key={component.id}
-                onClick={onTimeClick}
-                isRunning={props.isRunning}
-              >
-                <DigitalDisplay
-                  value={formatTime(props.remaining)}
-                  style={component.style}
-                />
-              </ClickableTimeWrapper>
+            return renderV2Component(
+              'DigitalDisplayV2',
+              () => (
+                <ClickableTimeWrapper 
+                  key={component.id}
+                  onClick={onTimeClick}
+                  isRunning={props.isRunning}
+                >
+                  <DigitalDisplay
+                    value={formatTime(props.remaining)}
+                    style={component.style}
+                  />
+                </ClickableTimeWrapper>
+              ),
+              () => (
+                <ClickableTimeWrapper 
+                  key={component.id}
+                  onClick={onTimeClick}
+                  isRunning={props.isRunning}
+                >
+                  <v2Components.DigitalDisplayV2
+                    value={formatTime(props.remaining)}
+                    style={component.style}
+                  />
+                </ClickableTimeWrapper>
+              )
             );
           
           case 'retro-progress':
@@ -180,21 +226,17 @@ export function WatchFaceRenderer({ config, onTimeClick, hideControls = false, .
             );
           
           case 'lcd-progress':
-            return (
-              <LCDProgress
-                key={component.id}
-                progress={props.progress}
-                style={component.properties?.style}
-              />
+            return renderV2Component(
+              'LCDProgressV2',
+              () => <LCDProgress key={component.id} progress={props.progress} style={component.properties?.style} />,
+              () => <v2Components.LCDProgressV2 key={component.id} progress={props.progress} style={component.properties?.style} />
             );
           
           case 'neon-progress':
-            return (
-              <NeonProgress
-                key={component.id}
-                progress={props.progress}
-                style={component.properties?.style}
-              />
+            return renderV2Component(
+              'NeonProgressV2',
+              () => <NeonProgress key={component.id} progress={props.progress} style={component.properties?.style} />,
+              () => <v2Components.NeonProgressV2 key={component.id} progress={props.progress} style={component.properties?.style} />
             );
           
           case 'neon-ring':
@@ -207,31 +249,61 @@ export function WatchFaceRenderer({ config, onTimeClick, hideControls = false, .
             );
           
           case 'rolodex-display':
-            return (
-              <div key={component.id} style={component.style}>
-                <RolodexDisplay
-                  remaining={props.remaining}
-                  isRunning={props.isRunning}
-                  onTimeClick={onTimeClick}
-                />
-              </div>
+            return renderV2Component(
+              'RolodexDisplayV2',
+              () => (
+                <div key={component.id} style={component.style}>
+                  <RolodexDisplay
+                    remaining={props.remaining}
+                    isRunning={props.isRunning}
+                    onTimeClick={onTimeClick}
+                  />
+                </div>
+              ),
+              () => (
+                <div key={component.id} style={component.style}>
+                  <v2Components.RolodexDisplayV2
+                    remaining={props.remaining}
+                    isRunning={props.isRunning}
+                    onTimeClick={onTimeClick}
+                  />
+                </div>
+              )
             );
             
           case 'default-layout':
-            return (
-              <DefaultLayout
-                key={component.id}
-                remaining={props.remaining}
-                duration={props.duration}
-                progress={props.progress}
-                isRunning={props.isRunning}
-                isPaused={props.isPaused}
-                onStart={props.onStart}
-                onPause={props.onPause}
-                onReset={props.onReset}
-                onTimeClick={onTimeClick}
-                sessionType={sessionType}
-              />
+            return renderV2Component(
+              'DefaultLayoutV2',
+              () => (
+                <DefaultLayout
+                  key={component.id}
+                  remaining={props.remaining}
+                  duration={props.duration}
+                  progress={props.progress}
+                  isRunning={props.isRunning}
+                  isPaused={props.isPaused}
+                  onStart={props.onStart}
+                  onPause={props.onPause}
+                  onReset={props.onReset}
+                  onTimeClick={onTimeClick}
+                  sessionType={sessionType}
+                />
+              ),
+              () => (
+                <v2Components.DefaultLayoutV2
+                  key={component.id}
+                  remaining={props.remaining}
+                  duration={props.duration}
+                  progress={props.progress}
+                  isRunning={props.isRunning}
+                  isPaused={props.isPaused}
+                  onStart={props.onStart}
+                  onPause={props.onPause}
+                  onReset={props.onReset}
+                  onTimeClick={onTimeClick}
+                  sessionType={sessionType}
+                />
+              )
             );
           
           case 'default-progress':

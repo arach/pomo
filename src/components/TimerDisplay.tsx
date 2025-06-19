@@ -10,23 +10,41 @@ interface TimerDisplayProps {
   isCollapsed?: boolean;
   onTimeClick?: () => void;
   showDurationInput?: boolean;
+  version?: string;
 }
 
-export function TimerDisplay({ isCollapsed = false, onTimeClick, showDurationInput = false }: TimerDisplayProps) {
+export function TimerDisplay({ isCollapsed = false, onTimeClick, showDurationInput = false, version = 'v1' }: TimerDisplayProps) {
+  if (import.meta.env.DEV) {
+    console.log(`TimerDisplay: version prop = ${version}`);
+  }
   const { duration, remaining, isRunning, isPaused, start, pause, stop, reset } = useTimerStore();
-  const { watchFace } = useSettingsStore();
+  const { watchFace: settingsWatchFace } = useSettingsStore();
   const [currentWatchFaceConfig, setCurrentWatchFaceConfig] = useState<any>(null);
   const [showHint, setShowHint] = useState(false);
   
+  // Check URL params for watchface override
+  const urlParams = new URLSearchParams(window.location.search);
+  const urlWatchFace = urlParams.get('watchface');
+  const watchFace = urlWatchFace || settingsWatchFace;
+  
   const openSettings = async () => {
-    await invoke('open_settings_window');
+    const isTauri = typeof window !== 'undefined' && window.__TAURI__ !== undefined;
+    if (isTauri) {
+      await invoke('open_settings_window');
+    }
   };
   
   useEffect(() => {
     // Load watch faces and get current config
     WatchFaceLoader.loadBuiltInFaces().then(() => {
       const config = WatchFaceLoader.getWatchFace(watchFace);
-      setCurrentWatchFaceConfig(config);
+      if (config) {
+        setCurrentWatchFaceConfig(config);
+      } else {
+        console.warn(`Watchface '${watchFace}' not found, using default`);
+        const defaultConfig = WatchFaceLoader.getWatchFace('default');
+        setCurrentWatchFaceConfig(defaultConfig);
+      }
     });
   }, [watchFace]);
   
@@ -119,6 +137,7 @@ export function TimerDisplay({ isCollapsed = false, onTimeClick, showDurationInp
             onReset={reset}
             onTimeClick={onTimeClick}
             hideControls={showDurationInput}
+            version={version}
           />
         ) : (
           // Fallback while loading

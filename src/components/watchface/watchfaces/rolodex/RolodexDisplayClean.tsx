@@ -91,7 +91,7 @@ function RolodexDigit({ value }: DigitProps) {
         </>
       )}
 
-      <style jsx>{`
+      <style>{`
         @keyframes flipTop {
           from { transform: rotateX(0deg); }
           to { transform: rotateX(-90deg); }

@@ -83,7 +83,7 @@ function RolodexDigit({ value }: DigitProps) {
         </>
       )}
 
-      <style jsx>{`
+      <style>{`
         .rolodex-digit {
           position: relative;
           width: 60px;

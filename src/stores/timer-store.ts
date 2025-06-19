@@ -1,6 +1,11 @@
 import { create } from 'zustand';
 import { invoke } from '@tauri-apps/api/core';
 
+const isTauri = typeof window !== 'undefined' && window.__TAURI__ !== undefined;
+
+// Browser timer simulation
+let browserTimer: NodeJS.Timeout | null = null;
+
 export type SessionType = 'focus' | 'break' | 'planning' | 'review' | 'learning';
 
 interface TimerState {
@@ -27,22 +32,47 @@ export const useTimerStore = create<TimerState>((set) => ({
   sessionType: 'focus',
   
   setDuration: async (duration: number) => {
-    await invoke('set_duration', { duration });
+    if (isTauri) {
+      await invoke('set_duration', { duration });
+    }
     set({ duration, remaining: duration });
   },
   
   start: async () => {
-    await invoke('start_timer');
+    if (isTauri) {
+      await invoke('start_timer');
+    } else {
+      // Browser simulation
+      if (browserTimer) {
+        clearInterval(browserTimer);
+      }
+      browserTimer = setInterval(() => {
+        const state = useTimerStore.getState();
+        if (state.remaining > 0 && state.isRunning && !state.isPaused) {
+          state.updateState({ remaining: state.remaining - 1 });
+          if (state.remaining === 0) {
+            state.stop();
+          }
+        }
+      }, 1000);
+    }
     set({ isRunning: true, isPaused: false });
   },
   
   pause: async () => {
-    await invoke('pause_timer');
+    if (isTauri) {
+      await invoke('pause_timer');
+    }
     set({ isPaused: true });
   },
   
   stop: async () => {
-    await invoke('stop_timer');
+    if (isTauri) {
+      await invoke('stop_timer');
+    } else if (browserTimer) {
+      clearInterval(browserTimer);
+      browserTimer = null;
+    }
     set((state) => ({ 
       isRunning: false, 
       isPaused: false, 
@@ -51,7 +81,12 @@ export const useTimerStore = create<TimerState>((set) => ({
   },
   
   reset: async () => {
-    await invoke('stop_timer');
+    if (isTauri) {
+      await invoke('stop_timer');
+    } else if (browserTimer) {
+      clearInterval(browserTimer);
+      browserTimer = null;
+    }
     set((state) => ({ 
       isRunning: false, 
       isPaused: false, 

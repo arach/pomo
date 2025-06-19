@@ -2,8 +2,6 @@ import { create } from 'zustand';
 import { invoke } from '@tauri-apps/api/core';
 
 
-// Browser timer simulation
-let browserTimer: NodeJS.Timeout | null = null;
 
 export type SessionType = 'focus' | 'break' | 'planning' | 'review' | 'learning';
 

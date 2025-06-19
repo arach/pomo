@@ -3,7 +3,6 @@ import { invoke } from '@tauri-apps/api/core';
 import { useTimerStore } from '../stores/timer-store';
 import { SessionTypeIndicator } from './SessionTypeIndicator';
 import { LogicalSize } from '@tauri-apps/api/window';
-import { useState, useEffect } from 'react';
 
 interface CustomTitleBarProps {
   isCollapsed?: boolean;

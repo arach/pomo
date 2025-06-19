@@ -44,7 +44,6 @@ function App() {
   const { soundEnabled, volume, loadSettings, watchFace, updateSettings } = useSettingsStore();
   
   useEffect(() => {
-    if (!isTauri) return;
     
     // Listen for timer updates
     const unlistenTimer = listen<TimerUpdate>('timer-update', (event) => {
@@ -104,7 +103,7 @@ function App() {
       unlistenVisibility.then((fn) => fn());
       unlistenSettings.then((fn) => fn());
     };
-  }, [updateState, soundEnabled, volume, loadSettings, isTauri]);
+  }, [updateState, soundEnabled, volume, loadSettings]);
   
   // Load watch face config
   useEffect(() => {
@@ -259,16 +258,14 @@ function App() {
     window.addEventListener('keydown', handleKeyPress);
     
     // Ensure the window is focusable
-    if (isTauri) {
-      // Make sure the window can receive focus
-      document.body.setAttribute('tabindex', '0');
-      document.body.focus();
-    }
+    // Make sure the window can receive focus
+    document.body.setAttribute('tabindex', '0');
+    document.body.focus();
     
     return () => {
       window.removeEventListener('keydown', handleKeyPress);
     };
-  }, [handleKeyPress, isTauri]);
+  }, [handleKeyPress]);
   
   const progress = duration > 0 ? ((duration - remaining) / duration) * 100 : 0;
   

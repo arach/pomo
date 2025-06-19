@@ -1,7 +1,6 @@
 import { create } from 'zustand';
 import { invoke } from '@tauri-apps/api/core';
 
-const isTauri = typeof window !== 'undefined' && window.__TAURI__ !== undefined;
 
 // Browser timer simulation
 let browserTimer: NodeJS.Timeout | null = null;
@@ -32,46 +31,37 @@ export const useTimerStore = create<TimerState>((set) => ({
   sessionType: 'focus',
   
   setDuration: async (duration: number) => {
-    if (isTauri) {
+    try {
       await invoke('set_duration', { duration });
+    } catch (error) {
+      console.error('Failed to set duration:', error);
     }
     set({ duration, remaining: duration });
   },
   
   start: async () => {
-    if (isTauri) {
+    try {
       await invoke('start_timer');
-    } else {
-      // Browser simulation
-      if (browserTimer) {
-        clearInterval(browserTimer);
-      }
-      browserTimer = setInterval(() => {
-        const state = useTimerStore.getState();
-        if (state.remaining > 0 && state.isRunning && !state.isPaused) {
-          state.updateState({ remaining: state.remaining - 1 });
-          if (state.remaining === 0) {
-            state.stop();
-          }
-        }
-      }, 1000);
+    } catch (error) {
+      console.error('Failed to start timer:', error);
     }
     set({ isRunning: true, isPaused: false });
   },
   
   pause: async () => {
-    if (isTauri) {
+    try {
       await invoke('pause_timer');
+    } catch (error) {
+      console.error('Failed to pause timer:', error);
     }
     set({ isPaused: true });
   },
   
   stop: async () => {
-    if (isTauri) {
+    try {
       await invoke('stop_timer');
-    } else if (browserTimer) {
-      clearInterval(browserTimer);
-      browserTimer = null;
+    } catch (error) {
+      console.error('Failed to stop timer:', error);
     }
     set((state) => ({ 
       isRunning: false, 
@@ -81,11 +71,10 @@ export const useTimerStore = create<TimerState>((set) => ({
   },
   
   reset: async () => {
-    if (isTauri) {
+    try {
       await invoke('stop_timer');
-    } else if (browserTimer) {
-      clearInterval(browserTimer);
-      browserTimer = null;
+    } catch (error) {
+      console.error('Failed to reset timer:', error);
     }
     set((state) => ({ 
       isRunning: false, 

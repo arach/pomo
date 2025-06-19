@@ -12,33 +12,33 @@ interface CustomTitleBarProps {
 }
 
 export function CustomTitleBar({ isCollapsed = false, title, showCollapseButton = true }: CustomTitleBarProps) {
-  const [isTauri, setIsTauri] = useState(false);
   const sessionType = useTimerStore(state => state.sessionType);
-  
-  useEffect(() => {
-    // Check if we're running in Tauri
-    setIsTauri(typeof window !== 'undefined' && window.__TAURI__ !== undefined);
-  }, []);
-  
-  const appWindow = isTauri ? getCurrentWebviewWindow() : null;
+  const appWindow = getCurrentWebviewWindow();
 
   const handleClose = async () => {
-    if (appWindow) {
+    try {
       await appWindow.close();
+    } catch (error) {
+      console.error('Failed to close window:', error);
     }
   };
 
   const handleMinimize = async () => {
-    if (appWindow) {
+    try {
       await appWindow.minimize();
+    } catch (error) {
+      console.error('Failed to minimize window:', error);
     }
   };
 
   const handleMiddleClick = async (e: React.MouseEvent) => {
-    if (e.button === 1 && showCollapseButton) {
+    // Only handle middle click on non-button areas
+    if (e.button === 1 && showCollapseButton && !(e.target as HTMLElement).closest('button')) {
       e.preventDefault();
-      if (isTauri) {
+      try {
         await invoke('toggle_collapse');
+      } catch (error) {
+        console.error('Failed to toggle collapse:', error);
       }
     }
   };
@@ -52,18 +52,20 @@ export function CustomTitleBar({ isCollapsed = false, title, showCollapseButton 
         WebkitUserSelect: 'none',
         cursor: 'grab'
       }}
-      onMouseDown={handleMiddleClick}
+      onAuxClick={handleMiddleClick}
     >
       <div className="flex items-center gap-1.5">
         <button
           onClick={handleClose}
           className="w-3 h-3 rounded-full bg-red-500 hover:bg-red-600 transition-colors"
           aria-label="Close"
+          data-tauri-drag-region="false"
         />
         <button
           onClick={handleMinimize}
           className="w-3 h-3 rounded-full bg-yellow-500 hover:bg-yellow-600 transition-colors"
           aria-label="Minimize"
+          data-tauri-drag-region="false"
         />
         <div className="w-3 h-3 rounded-full bg-gray-600 cursor-not-allowed" />
       </div>
@@ -82,13 +84,16 @@ export function CustomTitleBar({ isCollapsed = false, title, showCollapseButton 
         {import.meta.env.DEV && (
           <button
             onClick={async () => {
-              if (appWindow) {
+              try {
                 await appWindow.setSize(new LogicalSize(320, 280));
                 await appWindow.center();
+              } catch (error) {
+                console.error('Failed to reset window size:', error);
               }
             }}
             className="text-[10px] px-1.5 py-0.5 rounded bg-muted/20 hover:bg-muted/30 text-muted-foreground transition-colors"
             title="Reset window size"
+            data-tauri-drag-region="false"
           >
             Reset
           </button>

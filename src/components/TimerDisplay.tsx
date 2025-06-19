@@ -28,9 +28,10 @@ export function TimerDisplay({ isCollapsed = false, onTimeClick, showDurationInp
   const watchFace = urlWatchFace || settingsWatchFace;
   
   const openSettings = async () => {
-    const isTauri = typeof window !== 'undefined' && window.__TAURI__ !== undefined;
-    if (isTauri) {
+    try {
       await invoke('open_settings_window');
+    } catch (error) {
+      console.error('Failed to open settings window:', error);
     }
   };
   
@@ -77,6 +78,7 @@ export function TimerDisplay({ isCollapsed = false, onTimeClick, showDurationInp
               className="p-1.5 hover:bg-white/10 rounded-lg transition-all duration-200 hover:scale-110"
               aria-label="Start"
               style={{ color: themeColors.accent || 'inherit' }}
+              data-tauri-drag-region="false"
             >
               <Play className="w-4 h-4" />
             </button>
@@ -86,6 +88,7 @@ export function TimerDisplay({ isCollapsed = false, onTimeClick, showDurationInp
               className="p-1.5 hover:bg-white/10 rounded-lg transition-all duration-200 hover:scale-110"
               aria-label="Pause"
               style={{ color: themeColors.accent || 'inherit' }}
+              data-tauri-drag-region="false"
             >
               <Pause className="w-4 h-4" />
             </button>
@@ -95,6 +98,7 @@ export function TimerDisplay({ isCollapsed = false, onTimeClick, showDurationInp
             className="p-1.5 hover:bg-white/10 rounded-lg transition-all duration-200 hover:scale-110"
             aria-label="Stop"
             style={{ color: themeColors.accent || 'inherit' }}
+            data-tauri-drag-region="false"
           >
             <Square className="w-4 h-4" />
           </button>
@@ -104,18 +108,19 @@ export function TimerDisplay({ isCollapsed = false, onTimeClick, showDurationInp
   }
   
   return (
-    <div className="flex-1 flex flex-col items-center justify-center relative">
+    <div className="flex-1 flex flex-col items-center justify-center relative z-10">
       {/* Settings button with gradual discovery */}
       <button
+        className="absolute top-2 right-2 p-1.5 opacity-20 hover:opacity-80 transition-opacity duration-300 z-50 hover:bg-white/10 rounded-lg"
         onClick={openSettings}
         onMouseEnter={() => setShowHint(true)}
         onMouseLeave={() => setShowHint(false)}
-        className="absolute top-2 right-2 p-1.5 hover:bg-white/10 rounded-lg transition-all duration-200 z-20 group"
         aria-label="Settings"
+        data-tauri-drag-region="false"
       >
-        <MoreHorizontal className="w-4 h-4 text-muted-foreground/50 group-hover:text-muted-foreground transition-colors" />
+        <MoreHorizontal className="w-4 h-4" />
         {showHint && (
-          <div className="absolute top-full right-0 mt-1 px-2 py-1 bg-black/80 text-white text-xs rounded whitespace-nowrap">
+          <div className="absolute top-full right-0 mt-1 px-2 py-1 bg-black/80 text-white text-xs whitespace-nowrap rounded">
             Settings
           </div>
         )}

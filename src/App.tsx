@@ -29,7 +29,6 @@ function App() {
   const version = urlParams.get('version') || 'v1';
   const splitView = urlParams.get('split') === 'true';
   const isDev = import.meta.env.DEV;
-  const isTauri = typeof window !== 'undefined' && window.__TAURI__ !== undefined;
   const { duration, remaining, isRunning, isPaused, updateState, start, pause, stop, reset, setDuration } = useTimerStore((state) => ({
     duration: state.duration,
     remaining: state.remaining,
@@ -128,18 +127,14 @@ function App() {
     // Show shortcuts window
     if (e.key === '?') {
       e.preventDefault();
-      if (isTauri) {
-        invoke('open_shortcuts_window');
-      }
+      invoke('open_shortcuts_window');
       return;
     }
     
     // Settings (Cmd+,)
     if (isCmd && e.key === ',') {
       e.preventDefault();
-      if (isTauri) {
-        invoke('open_settings_window');
-      }
+      invoke('open_settings_window');
       return;
     }
     
@@ -155,8 +150,8 @@ function App() {
         
       // Pause/Resume with space
       case ' ':
-        e.preventDefault();
         if (isRunning) {
+          e.preventDefault();
           if (isPaused) {
             start();
           } else {
@@ -167,9 +162,11 @@ function App() {
         
       // Reset timer
       case 'r':
-        e.preventDefault();
-        reset();
-        setShowDurationInput(true);
+        if (!isRunning) {
+          e.preventDefault();
+          reset();
+          setShowDurationInput(true);
+        }
         break;
         
       // Stop timer (Escape)
@@ -184,15 +181,15 @@ function App() {
       // Hide/Show window
       case 'h':
         e.preventDefault();
-        if (isTauri) {
-          invoke('toggle_visibility');
-        }
+        invoke('toggle_visibility');
         break;
         
       // Toggle mute
       case 'm':
-        e.preventDefault();
-        updateSettings({ soundEnabled: !soundEnabled });
+        if (!isRunning) {
+          e.preventDefault();
+          updateSettings({ soundEnabled: !soundEnabled });
+        }
         break;
         
       // Quick duration set (1-9 for 5-45 minutes)
@@ -226,11 +223,13 @@ function App() {
         
       // Cycle through themes
       case 't':
-        e.preventDefault();
-        const themes = ['default', 'terminal', 'rolodex', 'neon', 'retro-digital', 'retro-lcd'];
-        const currentIndex = themes.indexOf(watchFace);
-        const nextIndex = (currentIndex + 1) % themes.length;
-        updateSettings({ watchFace: themes[nextIndex] });
+        if (!isRunning) {
+          e.preventDefault();
+          const themes = ['default', 'terminal', 'rolodex', 'neon', 'retro-digital', 'retro-lcd'];
+          const currentIndex = themes.indexOf(watchFace);
+          const nextIndex = (currentIndex + 1) % themes.length;
+          updateSettings({ watchFace: themes[nextIndex] });
+        }
         break;
         
       // Cycle through session types
@@ -258,8 +257,18 @@ function App() {
   // Add keyboard event listener
   useEffect(() => {
     window.addEventListener('keydown', handleKeyPress);
-    return () => window.removeEventListener('keydown', handleKeyPress);
-  }, [handleKeyPress]);
+    
+    // Ensure the window is focusable
+    if (isTauri) {
+      // Make sure the window can receive focus
+      document.body.setAttribute('tabindex', '0');
+      document.body.focus();
+    }
+    
+    return () => {
+      window.removeEventListener('keydown', handleKeyPress);
+    };
+  }, [handleKeyPress, isTauri]);
   
   const progress = duration > 0 ? ((duration - remaining) / duration) * 100 : 0;
   
@@ -297,7 +306,12 @@ function App() {
           />
         </div>
       )}
-      <div className="flex-1 flex flex-col min-h-0">
+      <div className="flex-1 flex flex-col min-h-0 relative">
+        {/* Draggable background area */}
+        <div 
+          className="absolute inset-0 z-0" 
+          data-tauri-drag-region
+        />
         <TimerDisplay 
           isCollapsed={isCollapsed} 
           onTimeClick={() => !isRunning && setShowDurationInput(true)}

@@ -2,7 +2,6 @@ import { create } from 'zustand';
 import { invoke } from '@tauri-apps/api/core';
 import { emit } from '@tauri-apps/api/event';
 
-const isTauri = typeof window !== 'undefined' && window.__TAURI__ !== undefined;
 
 interface Settings {
   soundEnabled: boolean;
@@ -51,11 +50,6 @@ export const useSettingsStore = create<SettingsStore>((set, get) => ({
   showSettings: false,
   
   loadSettings: async () => {
-    if (!isTauri) {
-      set({ isLoading: false });
-      return;
-    }
-    
     try {
       const rustSettings = await invoke<any>('load_settings');
       const settings = {
@@ -96,23 +90,19 @@ export const useSettingsStore = create<SettingsStore>((set, get) => ({
     };
     
     try {
-      if (isTauri) {
-        await invoke('save_settings', { settings: rustSettings });
-      }
+      await invoke('save_settings', { settings: rustSettings });
       set(updates);
       
       // Apply window settings immediately
-      if (isTauri) {
-        if ('opacity' in updates) {
-          await invoke('set_window_opacity', { opacity: updates.opacity });
-        }
-        if ('alwaysOnTop' in updates) {
-          await invoke('set_always_on_top', { alwaysOnTop: updates.alwaysOnTop });
-        }
-        
-        // Emit settings changed event for other windows
-        await emit('settings-changed', updates);
+      if ('opacity' in updates) {
+        await invoke('set_window_opacity', { opacity: updates.opacity });
       }
+      if ('alwaysOnTop' in updates) {
+        await invoke('set_always_on_top', { alwaysOnTop: updates.alwaysOnTop });
+      }
+      
+      // Emit settings changed event for other windows
+      await emit('settings-changed', updates);
     } catch (error) {
       console.error('Failed to save settings:', error);
     }

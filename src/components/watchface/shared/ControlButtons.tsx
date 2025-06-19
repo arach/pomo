@@ -66,6 +66,7 @@ export function ControlButtons({
           style={buttonStyle}
           className={showLabels ? 'flex items-center gap-2' : ''}
           aria-label={label}
+          data-tauri-drag-region="false"
         >
           {icon}
           {showLabels && <span className="text-sm">{label}</span>}
@@ -85,6 +86,7 @@ export function ControlButtons({
         onClick={onClick}
         className={`${baseClass} ${colorClass} ${showLabels ? 'flex items-center gap-2' : ''}`}
         aria-label={label}
+        data-tauri-drag-region="false"
       >
         {icon}
         {showLabels && <span className="text-sm">{label}</span>}

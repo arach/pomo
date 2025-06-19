@@ -42,66 +42,7 @@
     "macOSPrivateApi": true,
     "security": {
       "csp": null,
-      "capabilities": [
-        {
-          "identifier": "main-capability",
-          "description": "Capability for the main window",
-          "windows": ["main"],
-          "permissions": [
-            "core:window:allow-start-dragging",
-            "core:window:allow-set-always-on-top",
-            "core:window:allow-show",
-            "core:window:allow-hide",
-            "core:window:allow-set-focus",
-            "core:window:allow-is-visible",
-            "core:window:allow-center",
-            "core:window:allow-minimize",
-            "core:window:allow-close",
-            "core:window:allow-set-size",
-            "core:window:allow-set-position",
-            "global-shortcut:allow-register",
-            "global-shortcut:allow-unregister",
-            "global-shortcut:allow-is-registered",
-            "core:event:default"
-          ]
-        },
-        {
-          "identifier": "settings-capability",
-          "description": "Capability for the settings window",
-          "windows": ["settings"],
-          "permissions": [
-            "core:window:allow-start-dragging",
-            "core:window:allow-show",
-            "core:window:allow-hide",
-            "core:window:allow-set-focus",
-            "core:window:allow-is-visible",
-            "core:window:allow-center",
-            "core:window:allow-minimize",
-            "core:window:allow-close",
-            "core:window:allow-set-size",
-            "core:window:allow-set-position",
-            "core:event:default"
-          ]
-        },
-        {
-          "identifier": "shortcuts-capability",
-          "description": "Capability for the shortcuts window",
-          "windows": ["shortcuts"],
-          "permissions": [
-            "core:window:allow-start-dragging",
-            "core:window:allow-show",
-            "core:window:allow-hide",
-            "core:window:allow-set-focus",
-            "core:window:allow-is-visible",
-            "core:window:allow-center",
-            "core:window:allow-minimize",
-            "core:window:allow-close",
-            "core:window:allow-set-size",
-            "core:window:allow-set-position",
-            "core:event:default"
-          ]
-        }
-      ]
+      "capabilities": ["default"]
     },
     "windows": [
       {
@@ -120,7 +61,8 @@
         "hiddenTitle": true,
         "visible": true,
         "center": true,
-        "shadow": true
+        "shadow": true,
+        "focus": true
       }
     ]
   },

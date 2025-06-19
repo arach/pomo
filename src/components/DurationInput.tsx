@@ -114,6 +114,7 @@ export function DurationInput({ isVisible = true, onDismiss }: DurationInputProp
           onClick={dismiss}
           className="absolute -top-0.5 -right-0.5 p-0.5 rounded-full bg-black/40 backdrop-blur-sm border border-white/10 hover:bg-white/20 hover:border-white/20 transition-all z-10"
           title="Close (Esc)"
+          data-tauri-drag-region="false"
         >
           <X className="w-3 h-3 text-white/70" />
         </button>
@@ -135,6 +136,7 @@ export function DurationInput({ isVisible = true, onDismiss }: DurationInputProp
                 className="w-12 px-1.5 py-1 bg-white/20 backdrop-blur-sm rounded text-sm focus:outline-none focus:ring-1 focus:ring-white/30 text-center font-mono font-medium transition-all hover:bg-white/25"
                 placeholder="25"
                 autoFocus
+                data-tauri-drag-region="false"
               />
               <span className="text-muted-foreground/50 text-base font-light">:</span>
               <input
@@ -148,11 +150,13 @@ export function DurationInput({ isVisible = true, onDismiss }: DurationInputProp
                 max="59"
                 className="w-12 px-1.5 py-1 bg-white/20 backdrop-blur-sm rounded text-sm focus:outline-none focus:ring-1 focus:ring-white/30 text-center font-mono font-medium transition-all hover:bg-white/25"
                 placeholder="00"
+                data-tauri-drag-region="false"
               />
             </div>
             <button
               type="submit"
               className="px-3 py-1 bg-white/30 backdrop-blur-sm text-white rounded text-sm hover:bg-white/40 active:bg-white/50 transition-all font-medium border border-white/20 hover:border-white/30"
+              data-tauri-drag-region="false"
             >
               Set Timer
             </button>
@@ -180,6 +184,7 @@ export function DurationInput({ isVisible = true, onDismiss }: DurationInputProp
                 border backdrop-blur-sm
                 active:scale-95
               `}
+              data-tauri-drag-region="false"
             >
               <Icon className={`
                 w-4 h-4 mb-0.5 transition-colors

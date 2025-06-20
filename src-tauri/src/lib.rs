@@ -9,6 +9,8 @@ use tauri::menu::{Menu, MenuItem, Submenu, PredefinedMenuItem};
 use tokio::sync::Mutex;
 use std::time::Duration;
 use std::fs;
+use chrono::{DateTime, Utc};
+use tauri::async_runtime::JoinHandle;
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct TimerState {
@@ -17,6 +19,41 @@ pub struct TimerState {
     pub is_running: bool,
     pub is_paused: bool,
     pub session_name: Option<String>, // Optional session name
+    pub current_session_id: Option<String>, // Track current session for statistics
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct SessionRecord {
+    pub id: String,
+    pub name: Option<String>,
+    pub session_type: String, // SessionType as string for serialization
+    pub duration: u32, // Planned duration in seconds
+    pub actual_duration: u32, // How long it actually ran
+    pub completed: bool,
+    pub start_time: DateTime<Utc>,
+    pub end_time: Option<DateTime<Utc>>,
+    pub interrupted: bool, // True if user stopped early
+    pub pause_count: u32, // How many times paused
+    pub pause_duration: u32, // Total pause time in seconds
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct SessionStats {
+    pub total_sessions: u32,
+    pub completed_sessions: u32,
+    pub completion_rate: f64,
+    pub average_duration: f64,
+    pub total_focus_time: u32, // Total completed session time in seconds
+    pub current_streak: u32,
+    pub longest_streak: u32,
+    pub named_sessions_completion_rate: f64,
+    pub unnamed_sessions_completion_rate: f64,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, Default)]
+pub struct SessionDatabase {
+    pub sessions: Vec<SessionRecord>,
+    pub version: u32,
 }
 
 impl Default for TimerState {
@@ -27,6 +64,7 @@ impl Default for TimerState {
             is_running: false,
             is_paused: false,
             session_name: None,
+            current_session_id: None,
         }
     }
 }
@@ -86,83 +124,142 @@ impl Default for Settings {
     }
 }
 
-type SharedTimerState = Arc<Mutex<TimerState>>;
+// Internal timer manager that holds the actual timer loop handle
+#[derive(Debug)]
+pub struct TimerManager {
+    pub state: TimerState,
+    pub timer_handle: Option<JoinHandle<()>>,
+    pub last_update_time: Option<std::time::Instant>,
+}
+
+impl TimerManager {
+    pub fn new() -> Self {
+        Self {
+            state: TimerState::default(),
+            timer_handle: None,
+            last_update_time: None,
+        }
+    }
+    
+    pub fn abort_timer(&mut self) {
+        if let Some(handle) = self.timer_handle.take() {
+            handle.abort();
+        }
+        self.last_update_time = None;
+    }
+}
+
+type SharedTimerManager = Arc<Mutex<TimerManager>>;
 type SharedWindowState = Arc<Mutex<WindowState>>;
 type SharedSettings = Arc<Mutex<Settings>>;
+type SharedSessionDatabase = Arc<Mutex<SessionDatabase>>;
 
 #[tauri::command]
-async fn get_timer_state(state: State<'_, SharedTimerState>) -> Result<TimerState, String> {
-    Ok(state.lock().await.clone())
+async fn get_timer_state(state: State<'_, SharedTimerManager>) -> Result<TimerState, String> {
+    Ok(state.lock().await.state.clone())
 }
 
 #[tauri::command]
 async fn set_duration(
     duration: u32,
-    state: State<'_, SharedTimerState>,
+    state: State<'_, SharedTimerManager>,
 ) -> Result<(), String> {
-    let mut timer = state.lock().await;
-    timer.duration = duration;
-    timer.remaining = duration;
+    let mut manager = state.lock().await;
+    manager.state.duration = duration;
+    manager.state.remaining = duration;
     Ok(())
 }
 
 #[tauri::command]
 async fn start_timer(
     app_handle: tauri::AppHandle,
-    state: State<'_, SharedTimerState>,
+    state: State<'_, SharedTimerManager>,
 ) -> Result<(), String> {
-    let mut timer = state.lock().await;
+    let mut manager = state.lock().await;
     
-    if timer.is_running && !timer.is_paused {
+    if manager.state.is_running && !manager.state.is_paused {
         return Ok(());
     }
     
-    timer.is_running = true;
-    timer.is_paused = false;
+    // Abort any existing timer to prevent multiple loops
+    manager.abort_timer();
     
-    let timer_state = state.inner().clone();
+    manager.state.is_running = true;
+    manager.state.is_paused = false;
+    manager.last_update_time = Some(std::time::Instant::now());
     
-    // Spawn timer loop
-    tauri::async_runtime::spawn(async move {
+    let timer_manager = state.inner().clone();
+    
+    // Spawn optimized timer loop
+    let handle = tauri::async_runtime::spawn(async move {
+        // Use tokio::time::interval for better precision and less drift
+        let mut interval = tokio::time::interval(Duration::from_millis(100)); // 100ms precision
+        let mut last_second_update = std::time::Instant::now();
+        let mut tray_update_counter = 0u32;
+        
         loop {
-            tokio::time::sleep(Duration::from_secs(1)).await;
+            interval.tick().await;
             
-            let mut timer = timer_state.lock().await;
+            let mut manager = timer_manager.lock().await;
             
-            if !timer.is_running || timer.is_paused {
+            // Exit if timer stopped or paused
+            if !manager.state.is_running || manager.state.is_paused {
                 break;
             }
             
-            if timer.remaining > 0 {
-                timer.remaining -= 1;
-                app_handle.emit("timer-update", timer.clone()).ok();
-                
-                if timer.remaining == 0 {
-                    timer.is_running = false;
-                    app_handle.emit("timer-complete", ()).ok();
-                    update_tray_menu(&app_handle, &timer).await.ok();
-                    break;
+            let now = std::time::Instant::now();
+            
+            // Only update every second to reduce CPU usage
+            if now.duration_since(last_second_update).as_millis() >= 1000 {
+                if manager.state.remaining > 0 {
+                    manager.state.remaining -= 1;
+                    last_second_update = now;
+                    
+                    // Emit timer update (only every second, not every 100ms)
+                    app_handle.emit("timer-update", manager.state.clone()).ok();
+                    
+                    // Timer completion
+                    if manager.state.remaining == 0 {
+                        manager.state.is_running = false;
+                        app_handle.emit("timer-complete", ()).ok();
+                        update_tray_menu(&app_handle, &manager.state).await.ok();
+                        break;
+                    }
+                    
+                    // Update tray every 15 seconds instead of every second to reduce CPU usage
+                    tray_update_counter += 1;
+                    if tray_update_counter >= 15 {
+                        update_tray_menu(&app_handle, &manager.state).await.ok();
+                        tray_update_counter = 0;
+                    }
                 }
             }
         }
     });
     
+    // Store the handle to prevent multiple timers
+    manager.timer_handle = Some(handle);
+    
     Ok(())
 }
 
 #[tauri::command]
-async fn pause_timer(state: State<'_, SharedTimerState>) -> Result<(), String> {
-    let mut timer = state.lock().await;
-    timer.is_paused = true;
+async fn pause_timer(state: State<'_, SharedTimerManager>) -> Result<(), String> {
+    let mut manager = state.lock().await;
+    manager.state.is_paused = true;
     Ok(())
 }
 
 #[tauri::command]
-async fn stop_timer(state: State<'_, SharedTimerState>) -> Result<(), String> {
-    let mut timer = state.lock().await;
-    timer.is_running = false;
-    timer.is_paused = false;
-    timer.remaining = timer.duration;
+async fn stop_timer(state: State<'_, SharedTimerManager>) -> Result<(), String> {
+    let mut manager = state.lock().await;
+    
+    // Abort the timer loop to immediately stop execution
+    manager.abort_timer();
+    
+    manager.state.is_running = false;
+    manager.state.is_paused = false;
+    manager.state.remaining = manager.state.duration;
     Ok(())
 }
 
@@ -441,29 +538,258 @@ async fn load_custom_watchfaces(
 #[tauri::command]
 async fn tray_start_timer(
     app_handle: tauri::AppHandle,
-    state: State<'_, SharedTimerState>,
+    state: State<'_, SharedTimerManager>,
 ) -> Result<(), String> {
     start_timer(app_handle, state).await
 }
 
 #[tauri::command]
-async fn tray_pause_timer(state: State<'_, SharedTimerState>) -> Result<(), String> {
+async fn tray_pause_timer(state: State<'_, SharedTimerManager>) -> Result<(), String> {
     pause_timer(state).await
 }
 
 #[tauri::command]
-async fn tray_stop_timer(state: State<'_, SharedTimerState>) -> Result<(), String> {
+async fn tray_stop_timer(state: State<'_, SharedTimerManager>) -> Result<(), String> {
     stop_timer(state).await
 }
 
 #[tauri::command]
 async fn set_session_name(
     name: Option<String>,
-    state: State<'_, SharedTimerState>,
+    state: State<'_, SharedTimerManager>,
 ) -> Result<(), String> {
-    let mut timer = state.lock().await;
-    timer.session_name = name;
+    let mut manager = state.lock().await;
+    manager.state.session_name = name;
     Ok(())
+}
+
+#[tauri::command]
+async fn start_session_record(
+    session_type: String,
+    app_handle: tauri::AppHandle,
+    timer_state: State<'_, SharedTimerManager>,
+    db: State<'_, SharedSessionDatabase>,
+) -> Result<String, String> {
+    let manager = timer_state.lock().await;
+    let session_id = uuid::Uuid::new_v4().to_string();
+    
+    let session = SessionRecord {
+        id: session_id.clone(),
+        name: manager.state.session_name.clone(),
+        session_type,
+        duration: manager.state.duration,
+        actual_duration: 0,
+        completed: false,
+        start_time: Utc::now(),
+        end_time: None,
+        interrupted: false,
+        pause_count: 0,
+        pause_duration: 0,
+    };
+    
+    // Add to database
+    let mut database = db.lock().await;
+    database.sessions.push(session);
+    
+    // Save to disk
+    save_session_database(&app_handle, &database).await?;
+    
+    Ok(session_id)
+}
+
+#[tauri::command]
+async fn complete_session_record(
+    session_id: String,
+    completed: bool,
+    actual_duration: u32,
+    pause_count: u32,
+    pause_duration: u32,
+    app_handle: tauri::AppHandle,
+    db: State<'_, SharedSessionDatabase>,
+) -> Result<(), String> {
+    let mut database = db.lock().await;
+    
+    if let Some(session) = database.sessions.iter_mut().find(|s| s.id == session_id) {
+        session.completed = completed;
+        session.actual_duration = actual_duration;
+        session.pause_count = pause_count;
+        session.pause_duration = pause_duration;
+        session.end_time = Some(Utc::now());
+        session.interrupted = !completed;
+    }
+    
+    // Save to disk
+    save_session_database(&app_handle, &database).await?;
+    
+    Ok(())
+}
+
+#[tauri::command]
+async fn get_session_stats(
+    days: Option<u32>,
+    db: State<'_, SharedSessionDatabase>,
+) -> Result<SessionStats, String> {
+    let database = db.lock().await;
+    let cutoff_date = days.map(|d| Utc::now() - chrono::Duration::days(d as i64));
+    
+    let sessions: Vec<&SessionRecord> = database.sessions.iter()
+        .filter(|s| {
+            cutoff_date.is_none() || s.start_time >= cutoff_date.unwrap()
+        })
+        .collect();
+    
+    if sessions.is_empty() {
+        return Ok(SessionStats {
+            total_sessions: 0,
+            completed_sessions: 0,
+            completion_rate: 0.0,
+            average_duration: 0.0,
+            total_focus_time: 0,
+            current_streak: 0,
+            longest_streak: 0,
+            named_sessions_completion_rate: 0.0,
+            unnamed_sessions_completion_rate: 0.0,
+        });
+    }
+    
+    let total_sessions = sessions.len() as u32;
+    let completed_sessions = sessions.iter().filter(|s| s.completed).count() as u32;
+    let completion_rate = completed_sessions as f64 / total_sessions as f64;
+    
+    let completed_session_durations: Vec<u32> = sessions.iter()
+        .filter(|s| s.completed)
+        .map(|s| s.actual_duration)
+        .collect();
+    
+    let average_duration = if completed_session_durations.is_empty() {
+        0.0
+    } else {
+        completed_session_durations.iter().sum::<u32>() as f64 / completed_session_durations.len() as f64
+    };
+    
+    let total_focus_time: u32 = completed_session_durations.iter().sum();
+    
+    // Calculate current streak (consecutive completed sessions from most recent)
+    let mut current_streak = 0;
+    let mut sorted_sessions = sessions.clone();
+    sorted_sessions.sort_by(|a, b| b.start_time.cmp(&a.start_time));
+    
+    for session in sorted_sessions.iter() {
+        if session.completed {
+            current_streak += 1;
+        } else {
+            break;
+        }
+    }
+    
+    // Calculate longest streak
+    let mut longest_streak = 0;
+    let mut temp_streak = 0;
+    let mut chronological_sessions = sessions.clone();
+    chronological_sessions.sort_by(|a, b| a.start_time.cmp(&b.start_time));
+    
+    for session in chronological_sessions.iter() {
+        if session.completed {
+            temp_streak += 1;
+            longest_streak = longest_streak.max(temp_streak);
+        } else {
+            temp_streak = 0;
+        }
+    }
+    
+    // Named vs unnamed completion rates
+    let named_sessions: Vec<&SessionRecord> = sessions.iter().filter(|s| s.name.is_some()).copied().collect();
+    let unnamed_sessions: Vec<&SessionRecord> = sessions.iter().filter(|s| s.name.is_none()).copied().collect();
+    
+    let named_completion_rate = if named_sessions.is_empty() {
+        0.0
+    } else {
+        named_sessions.iter().filter(|s| s.completed).count() as f64 / named_sessions.len() as f64
+    };
+    
+    let unnamed_completion_rate = if unnamed_sessions.is_empty() {
+        0.0
+    } else {
+        unnamed_sessions.iter().filter(|s| s.completed).count() as f64 / unnamed_sessions.len() as f64
+    };
+    
+    Ok(SessionStats {
+        total_sessions,
+        completed_sessions,
+        completion_rate,
+        average_duration,
+        total_focus_time,
+        current_streak,
+        longest_streak,
+        named_sessions_completion_rate: named_completion_rate,
+        unnamed_sessions_completion_rate: unnamed_completion_rate,
+    })
+}
+
+#[tauri::command]
+async fn get_recent_sessions(
+    limit: Option<u32>,
+    db: State<'_, SharedSessionDatabase>,
+) -> Result<Vec<SessionRecord>, String> {
+    let database = db.lock().await;
+    let mut sessions = database.sessions.clone();
+    sessions.sort_by(|a, b| b.start_time.cmp(&a.start_time));
+    
+    if let Some(limit) = limit {
+        sessions.truncate(limit as usize);
+    }
+    
+    Ok(sessions)
+}
+
+async fn save_session_database(app_handle: &tauri::AppHandle, database: &SessionDatabase) -> Result<(), String> {
+    let app_dir = app_handle.path().app_data_dir()
+        .map_err(|e| format!("Failed to get app data dir: {}", e))?;
+    
+    let db_path = app_dir.join("sessions.json");
+    
+    // Ensure directory exists
+    if let Some(parent) = db_path.parent() {
+        fs::create_dir_all(parent)
+            .map_err(|e| format!("Failed to create directory: {}", e))?;
+    }
+    
+    let json = serde_json::to_string_pretty(database)
+        .map_err(|e| format!("Failed to serialize session database: {}", e))?;
+    
+    fs::write(&db_path, json)
+        .map_err(|e| format!("Failed to write session database: {}", e))?;
+    
+    Ok(())
+}
+
+async fn load_session_database(app_handle: &tauri::AppHandle) -> SessionDatabase {
+    let app_dir = match app_handle.path().app_data_dir() {
+        Ok(dir) => dir,
+        Err(_) => return SessionDatabase::default(),
+    };
+    
+    let db_path = app_dir.join("sessions.json");
+    
+    if !db_path.exists() {
+        return SessionDatabase::default();
+    }
+    
+    match fs::read_to_string(&db_path) {
+        Ok(content) => {
+            match serde_json::from_str::<SessionDatabase>(&content) {
+                Ok(database) => database,
+                Err(e) => {
+                    eprintln!("Failed to parse session database: {}", e);
+                    SessionDatabase::default()
+                }
+            }
+        }
+        Err(e) => {
+            eprintln!("Failed to read session database: {}", e);
+            SessionDatabase::default()
+        }
+    }
 }
 
 async fn update_tray_menu(app_handle: &tauri::AppHandle, timer_state: &TimerState) -> Result<(), String> {
@@ -560,9 +886,10 @@ async fn update_tray_menu(app_handle: &tauri::AppHandle, timer_state: &TimerStat
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
-    let timer_state = Arc::new(Mutex::new(TimerState::default()));
+    let timer_manager = Arc::new(Mutex::new(TimerManager::new()));
     let window_state = Arc::new(Mutex::new(WindowState::default()));
     let settings = Arc::new(Mutex::new(Settings::default()));
+    let session_database = Arc::new(Mutex::new(SessionDatabase::default()));
 
     tauri::Builder::default()
         .plugin(tauri_plugin_shell::init())
@@ -584,9 +911,10 @@ pub fn run() {
                 })
                 .build()
         )
-        .manage(timer_state.clone())
+        .manage(timer_manager.clone())
         .manage(window_state)
         .manage(settings)
+        .manage(session_database.clone())
         .invoke_handler(tauri::generate_handler![
             get_timer_state,
             set_duration,
@@ -607,6 +935,10 @@ pub fn run() {
             tray_pause_timer,
             tray_stop_timer,
             set_session_name,
+            start_session_record,
+            complete_session_record,
+            get_session_stats,
+            get_recent_sessions,
         ])
         .setup(move |app| {
             let app_handle = app.handle().clone();
@@ -616,85 +948,111 @@ pub fn run() {
                 .tooltip("Pomo - Ready")
                 .icon(app.default_window_icon().unwrap().clone())
                 .on_menu_event({
-                    let timer_state_clone = timer_state.clone();
+                    let timer_manager_clone = timer_manager.clone();
                     let app_handle_clone = app_handle.clone();
                     move |_app, event| {
                         let app_handle = app_handle_clone.clone();
-                        let timer_state = timer_state_clone.clone();
+                        let timer_manager = timer_manager_clone.clone();
                         
                         tauri::async_runtime::spawn(async move {
                             match event.id.as_ref() {
                                 "start" => {
-                                    // Call start timer function directly since we have the state
-                                    let mut timer = timer_state.lock().await;
-                                    timer.is_running = true;
-                                    timer.is_paused = false;
+                                    // Use the optimized start_timer function
+                                    let mut manager = timer_manager.lock().await;
                                     
-                                    let timer_state_for_loop = timer_state.clone();
+                                    if manager.state.is_running && !manager.state.is_paused {
+                                        return;
+                                    }
+                                    
+                                    // Abort any existing timer to prevent multiple loops
+                                    manager.abort_timer();
+                                    
+                                    manager.state.is_running = true;
+                                    manager.state.is_paused = false;
+                                    
+                                    let timer_manager_for_loop = timer_manager.clone();
                                     let app_handle_for_loop = app_handle.clone();
                                     
-                                    // Spawn timer loop
-                                    tauri::async_runtime::spawn(async move {
+                                    // Use the same optimized timer loop as start_timer
+                                    let handle = tauri::async_runtime::spawn(async move {
+                                        let mut interval = tokio::time::interval(Duration::from_millis(100));
+                                        let mut last_second_update = std::time::Instant::now();
+                                        let mut tray_update_counter = 0u32;
+                                        
                                         loop {
-                                            tokio::time::sleep(Duration::from_secs(1)).await;
+                                            interval.tick().await;
                                             
-                                            let mut timer = timer_state_for_loop.lock().await;
+                                            let mut manager = timer_manager_for_loop.lock().await;
                                             
-                                            if !timer.is_running || timer.is_paused {
+                                            if !manager.state.is_running || manager.state.is_paused {
                                                 break;
                                             }
                                             
-                                            if timer.remaining > 0 {
-                                                timer.remaining -= 1;
-                                                app_handle_for_loop.emit("timer-update", timer.clone()).ok();
-                                                
-                                                if timer.remaining == 0 {
-                                                    timer.is_running = false;
-                                                    app_handle_for_loop.emit("timer-complete", ()).ok();
-                                                    update_tray_menu(&app_handle_for_loop, &timer).await.ok();
-                                                    break;
+                                            let now = std::time::Instant::now();
+                                            
+                                            if now.duration_since(last_second_update).as_millis() >= 1000 {
+                                                if manager.state.remaining > 0 {
+                                                    manager.state.remaining -= 1;
+                                                    last_second_update = now;
+                                                    
+                                                    app_handle_for_loop.emit("timer-update", manager.state.clone()).ok();
+                                                    
+                                                    if manager.state.remaining == 0 {
+                                                        manager.state.is_running = false;
+                                                        app_handle_for_loop.emit("timer-complete", ()).ok();
+                                                        update_tray_menu(&app_handle_for_loop, &manager.state).await.ok();
+                                                        break;
+                                                    }
+                                                    
+                                                    tray_update_counter += 1;
+                                                    if tray_update_counter >= 15 {
+                                                        update_tray_menu(&app_handle_for_loop, &manager.state).await.ok();
+                                                        tray_update_counter = 0;
+                                                    }
                                                 }
                                             }
                                         }
                                     });
                                     
-                                    update_tray_menu(&app_handle, &timer).await.ok();
+                                    manager.timer_handle = Some(handle);
+                                    update_tray_menu(&app_handle, &manager.state).await.ok();
                                 }
                                 "pause" => {
-                                    let mut timer = timer_state.lock().await;
-                                    timer.is_paused = true;
-                                    update_tray_menu(&app_handle, &timer).await.ok();
+                                    let mut manager = timer_manager.lock().await;
+                                    manager.state.is_paused = true;
+                                    update_tray_menu(&app_handle, &manager.state).await.ok();
                                 }
                                 "stop" => {
-                                    let mut timer = timer_state.lock().await;
-                                    timer.is_running = false;
-                                    timer.is_paused = false;
-                                    timer.remaining = timer.duration;
-                                    update_tray_menu(&app_handle, &timer).await.ok();
+                                    let mut manager = timer_manager.lock().await;
+                                    manager.abort_timer();
+                                    manager.state.is_running = false;
+                                    manager.state.is_paused = false;
+                                    manager.state.remaining = manager.state.duration;
+                                    update_tray_menu(&app_handle, &manager.state).await.ok();
                                 }
                                 "duration_5" => {
-                                    let mut timer = timer_state.lock().await;
-                                    timer.duration = 5 * 60;
-                                    timer.remaining = 5 * 60;
-                                    update_tray_menu(&app_handle, &timer).await.ok();
+                                    let mut manager = timer_manager.lock().await;
+                                    manager.state.duration = 5 * 60;
+                                    manager.state.remaining = 5 * 60;
+                                    update_tray_menu(&app_handle, &manager.state).await.ok();
                                 }
                                 "duration_15" => {
-                                    let mut timer = timer_state.lock().await;
-                                    timer.duration = 15 * 60;
-                                    timer.remaining = 15 * 60;
-                                    update_tray_menu(&app_handle, &timer).await.ok();
+                                    let mut manager = timer_manager.lock().await;
+                                    manager.state.duration = 15 * 60;
+                                    manager.state.remaining = 15 * 60;
+                                    update_tray_menu(&app_handle, &manager.state).await.ok();
                                 }
                                 "duration_25" => {
-                                    let mut timer = timer_state.lock().await;
-                                    timer.duration = 25 * 60;
-                                    timer.remaining = 25 * 60;
-                                    update_tray_menu(&app_handle, &timer).await.ok();
+                                    let mut manager = timer_manager.lock().await;
+                                    manager.state.duration = 25 * 60;
+                                    manager.state.remaining = 25 * 60;
+                                    update_tray_menu(&app_handle, &manager.state).await.ok();
                                 }
                                 "duration_45" => {
-                                    let mut timer = timer_state.lock().await;
-                                    timer.duration = 45 * 60;
-                                    timer.remaining = 45 * 60;
-                                    update_tray_menu(&app_handle, &timer).await.ok();
+                                    let mut manager = timer_manager.lock().await;
+                                    manager.state.duration = 45 * 60;
+                                    manager.state.remaining = 45 * 60;
+                                    update_tray_menu(&app_handle, &manager.state).await.ok();
                                 }
                                 "show" => {
                                     if let Some(window) = app_handle.get_webview_window("main") {
@@ -717,24 +1075,23 @@ pub fn run() {
             
             // Initialize tray menu
             let app_handle_tray = app_handle.clone();
-            let timer_state_tray = timer_state.clone();
+            let timer_manager_tray = timer_manager.clone();
             tauri::async_runtime::spawn(async move {
-                let timer = timer_state_tray.lock().await;
-                update_tray_menu(&app_handle_tray, &timer).await.ok();
+                let manager = timer_manager_tray.lock().await;
+                update_tray_menu(&app_handle_tray, &manager.state).await.ok();
             });
             
-            // Periodic tray update task (every 15 seconds when timer is running)
-            let app_handle_periodic = app_handle.clone();
-            let timer_state_periodic = timer_state.clone();
+            // Note: Periodic tray updates are now handled more efficiently within the timer loop itself
+            // This eliminates the need for a separate periodic task that wastes CPU cycles
+            
+            // Load session database from disk
+            let session_db_state = session_database.clone();
+            let app_handle_db = app_handle.clone();
             tauri::async_runtime::spawn(async move {
-                loop {
-                    tokio::time::sleep(Duration::from_secs(15)).await;
-                    
-                    let timer = timer_state_periodic.lock().await;
-                    if timer.is_running && !timer.is_paused {
-                        update_tray_menu(&app_handle_periodic, &timer).await.ok();
-                    }
-                }
+                let loaded_db = load_session_database(&app_handle_db).await;
+                let mut db = session_db_state.lock().await;
+                *db = loaded_db;
+                println!("✅ Loaded {} sessions from database", db.sessions.len());
             });
             
             // Load settings from file on startup

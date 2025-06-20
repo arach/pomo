@@ -70,6 +70,36 @@ function App() {
       if (soundEnabled) {
         AudioService.playCompletionSound(volume);
       }
+      
+      // Complete the session record
+      const { currentSessionId, duration, pauseCount, totalPauseTime, pauseStartTime } = useTimerStore.getState();
+      if (currentSessionId) {
+        try {
+          let finalPauseTime = totalPauseTime;
+          // If currently paused when timer completes, add current pause duration
+          if (pauseStartTime) {
+            finalPauseTime += Date.now() - pauseStartTime;
+          }
+          
+          await invoke('complete_session_record', {
+            sessionId: currentSessionId,
+            completed: true, // Timer completed naturally
+            actualDuration: duration, // Full duration completed
+            pauseCount,
+            pauseDuration: Math.floor(finalPauseTime / 1000)
+          });
+          
+          // Clear session tracking state
+          useTimerStore.setState({
+            currentSessionId: null,
+            pauseCount: 0,
+            totalPauseTime: 0,
+            pauseStartTime: null
+          });
+        } catch (error) {
+          console.error('Failed to complete session record:', error);
+        }
+      }
     });
     
     // Listen for window collapse events

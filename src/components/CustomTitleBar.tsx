@@ -2,7 +2,6 @@ import { getCurrentWebviewWindow } from '@tauri-apps/api/webviewWindow';
 import { invoke } from '@tauri-apps/api/core';
 import { useTimerStore } from '../stores/timer-store';
 import { SessionTypeIndicator } from './SessionTypeIndicator';
-import { LogicalSize } from '@tauri-apps/api/window';
 
 interface CustomTitleBarProps {
   isCollapsed?: boolean;

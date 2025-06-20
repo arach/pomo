@@ -57,6 +57,7 @@ Press `?` to see all shortcuts in a beautiful overlay window.
 
 ## Quick Start 🚀
 
+### Desktop App (Recommended)
 ```bash
 # Clone and enter
 git clone git@github.com:arach/pomo.git && cd pomo
@@ -65,6 +66,15 @@ git clone git@github.com:arach/pomo.git && cd pomo
 pnpm install && pnpm tauri:dev
 
 # That's it! Press ? to see all shortcuts
+```
+
+### Web Version (Demo/Development)
+```bash
+# After cloning and installing dependencies
+pnpm dev
+
+# Open http://localhost:1421/ in your browser
+# Full timer functionality with localStorage persistence
 ```
 
 ## Getting Started
@@ -91,7 +101,11 @@ pnpm install && pnpm tauri:dev
 
 3. Run in development mode:
    ```bash
+   # Desktop app (recommended)
    pnpm tauri:dev
+   
+   # Web version for demos/development
+   pnpm dev
    ```
 
 ### Building for Production
@@ -173,6 +187,57 @@ Pomo features a beautiful collection of watchfaces, each designed for different 
 
 > **Tip:** Press `T` to cycle through all available watchfaces instantly!
 
+## Development Features 🛠️
+
+### Split View Comparisons
+
+Perfect for theme development and testing! Pomo includes several split view modes to compare watchfaces side-by-side:
+
+```bash
+# Compare all watchfaces at once
+pnpm dev:compare
+# Opens: http://localhost:1421/?split=true
+
+# Compare Neon V1 vs V2 (or any versions)
+pnpm dev:neon  
+# Opens two windows: V1 and V2 side-by-side
+
+# Test latest V2 features
+pnpm dev:v2
+# Opens: http://localhost:1421/?version=v2
+```
+
+**URL Parameters for Custom Comparisons:**
+- `?split=true` - Shows all watchfaces in a grid layout
+- `?watchface=neon&version=v1` - Specific watchface and version
+- `?watchface=terminal&version=v2` - Compare different implementations
+- `?version=v2` - Test latest features
+
+**Example Custom Comparisons:**
+```bash
+# Compare Terminal V1 vs V2
+open 'http://localhost:1421/?watchface=terminal&version=v1'
+open 'http://localhost:1421/?watchface=terminal&version=v2'
+
+# Test specific watchface in split mode
+open 'http://localhost:1421/?split=true&watchface=chronograph'
+```
+
+### Web vs Desktop Versions
+
+- **Desktop App** (`pnpm tauri:dev`) - Full native functionality with system tray, global shortcuts, window management
+- **Web Version** (`pnpm dev`) - Complete timer functionality with localStorage persistence, perfect for demos and testing
+
+The web version automatically mocks all Tauri APIs, providing:
+- ✅ Full timer functionality (start/pause/stop/reset)
+- ✅ All watchfaces and themes
+- ✅ Settings persistence via localStorage  
+- ✅ Session naming and state management
+- ✅ Keyboard shortcuts (browser-compatible)
+- ❌ System tray integration
+- ❌ Global shortcuts outside browser
+- ❌ Window management features
+
 ## Development
 
 ### Project Structure
@@ -183,12 +248,15 @@ pomo/
 │   ├── stores/            # Zustand state management
 │   ├── watchfaces/        # Theme configurations
 │   ├── pages/             # Settings & shortcuts windows
+│   ├── mocks/             # Web version API mocks
+│   │   └── @tauri-apps/   # Tauri API mock implementations
 │   └── App.tsx            # Main app component
 ├── src-tauri/             # Rust backend
 │   ├── src/
 │   │   ├── lib.rs         # Core timer & window logic
 │   │   └── main.rs        # Entry point
 │   └── tauri.conf.json    # Tauri configuration
+├── specs/                 # Feature specifications
 └── package.json           # Frontend dependencies
 ```
 
@@ -220,8 +288,14 @@ Contributions are welcome! Please feel free to submit a Pull Request.
 - [x] Multiple themes/watchfaces
 - [x] Keyboard shortcuts system
 - [x] Settings persistence
+- [x] Menu bar/system tray integration
+- [x] Session naming functionality
+- [x] High-performance timer system
+- [x] Web version support
+- [x] Split view development tools
+- [ ] Session statistics & analytics (foundation complete)
+- [ ] Focus mode browser extension
 - [ ] Custom theme creator
-- [ ] Session statistics & analytics
 - [ ] Break timer integration
 - [ ] Time tracking integrations
 - [ ] Custom notification sounds upload

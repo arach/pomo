@@ -16,36 +16,69 @@
 - [x] Improved collapsed window (64px height)
 - [x] Enhanced keyboard shortcuts discoverability
 
+### v0.3.0 - Performance & Web Support
+- [x] **High-performance timer system** - Optimized for minimal CPU usage and millisecond accuracy
+- [x] **Session statistics foundation** - Complete data structures and tracking infrastructure
+- [x] **Web version support** - Full browser compatibility via clean API mocking
+- [x] **Split view development tools** - Enhanced theme comparison utilities
+- [x] **Comprehensive documentation** - Updated README with development features
+
 ## 🚧 In Progress
 
 *Nothing currently in development*
 
 ## 📋 Planned Features
 
-### 🎯 High Priority (Next 2 Features)
+### 🎯 High Priority (Next 4 Features)
 
-#### **Session Statistics Dashboard**
-*Track focus patterns and productivity insights*
-- [ ] Session history with names, durations, completion rates
-- [ ] Daily/weekly/monthly productivity views
-- [ ] Visual charts showing focus trends over time
-- [ ] Best time of day analysis
-- [ ] Longest streak tracking
-- [ ] Export data functionality
-- [ ] Local storage with JSON/SQLite
+#### **Session Statistics Dashboard** ⭐ **Most Impactful**
+*Transform Pomo into a productivity analytics powerhouse*
+- [ ] Beautiful dashboard UI with charts and insights
+- [ ] Session history timeline with completion patterns
+- [ ] Daily/weekly/monthly productivity views  
+- [ ] Focus quality metrics and streak analysis
+- [ ] Best time of day recommendations
+- [ ] Named vs unnamed session effectiveness comparison
+- [ ] Export functionality (CSV, JSON)
 
-**Impact:** High | **Effort:** Medium | **Dependencies:** Session naming ✅
+**Why Now:** Foundation is 100% complete - just need the gorgeous UI!
+**Impact:** High | **Effort:** Medium | **Dependencies:** Session tracking ✅
 
-#### **Enhanced Notifications + Auto-Break Suggestions**
-*Smart break reminders and better notification system*
-- [ ] Smart break reminders based on completed sessions
-- [ ] Break type suggestions (micro-break vs long break)
-- [ ] Multiple notification sounds for different events
-- [ ] Desktop notifications (system-level, not just in-app)
-- [ ] Break duration optimization based on session length
-- [ ] Do Not Disturb integration
+#### **Focus Mode Browser Extension** 🌟 **Most Innovative**
+*Revolutionary website blocking integration*
+- [ ] Chrome/Firefox extension for website blocking
+- [ ] Real-time sync with Pomo timer sessions
+- [ ] Smart block lists per session type (focus/break/planning)
+- [ ] Gentle redirect pages with session info
+- [ ] Whitelist management and override options
+- [ ] Focus score based on distraction attempts
 
-**Impact:** High | **Effort:** Medium | **Dependencies:** None
+**Why Now:** Could be a game-changer for productivity apps
+**Impact:** High | **Effort:** High | **Dependencies:** Session naming ✅
+
+#### **Custom Theme Creator** 🎨 **Most Creative**
+*Visual watchface designer with real-time preview*
+- [ ] Drag-and-drop theme builder interface
+- [ ] Color picker, font selection, layout options
+- [ ] Real-time preview with live timer
+- [ ] Theme export/import (JSON format)
+- [ ] Community theme sharing platform
+- [ ] Built-in theme gallery with popular designs
+
+**Why Now:** Perfect showcase for the web version we just built!
+**Impact:** Medium | **Effort:** Medium | **Dependencies:** Web version ✅
+
+#### **Enhanced Performance Testing Suite** ⚡ **Most Technical**
+*Complete the performance optimization work*
+- [ ] Automated CPU usage benchmarking
+- [ ] Memory leak detection over extended periods
+- [ ] Timer accuracy measurement (drift analysis)
+- [ ] Load testing with multiple concurrent sessions
+- [ ] Performance regression testing in CI
+- [ ] Real-world usage simulation
+
+**Why Now:** Complete the performance work we started
+**Impact:** Medium | **Effort:** Low | **Dependencies:** Performance foundation ✅
 
 ### 🌟 Medium Priority
 
@@ -151,4 +184,4 @@
 3. **Release Planning:** Group features into meaningful releases
 4. **Progress Tracking:** Move items between sections as work progresses
 
-*Last Updated: $(date +'%Y-%m-%d')*
+*Last Updated: 2025-01-20*

@@ -9,7 +9,7 @@ let webTimerState = {
   is_running: false,
   is_paused: false,
   session_name: null,
-  current_session_id: null,
+  current_session_id: null as string | null,
 };
 
 let webSettings = {

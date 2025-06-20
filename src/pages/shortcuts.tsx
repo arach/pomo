@@ -22,6 +22,7 @@ function ShortcutsWindow() {
         { keys: ['R'], description: 'Reset timer' },
         { keys: ['Esc'], description: 'Stop timer' },
         { keys: ['D'], description: 'Open duration panel' },
+        { keys: ['N'], description: 'Name session' },
       ]
     },
     {

@@ -17,7 +17,7 @@ export function TimerDisplay({ isCollapsed = false, onTimeClick, showDurationInp
   if (import.meta.env.DEV) {
     console.log(`TimerDisplay: version prop = ${version}`);
   }
-  const { duration, remaining, isRunning, isPaused, start, pause, stop, reset } = useTimerStore();
+  const { duration, remaining, isRunning, isPaused, start, pause, stop, reset, sessionName } = useTimerStore();
   const { watchFace: settingsWatchFace } = useSettingsStore();
   const [currentWatchFaceConfig, setCurrentWatchFaceConfig] = useState<any>(null);
   const [showHint, setShowHint] = useState(false);
@@ -143,6 +143,7 @@ export function TimerDisplay({ isCollapsed = false, onTimeClick, showDurationInp
             onTimeClick={onTimeClick}
             hideControls={showDurationInput}
             version={version}
+            sessionName={sessionName}
           />
         ) : (
           // Fallback while loading

@@ -4,6 +4,8 @@ use serde::{Deserialize, Serialize};
 use std::sync::Arc;
 use tauri::{Emitter, Manager, State};
 use tauri_plugin_global_shortcut::{GlobalShortcutExt, Code, Modifiers, Shortcut, ShortcutState};
+use tauri::tray::TrayIconBuilder;
+use tauri::menu::{Menu, MenuItem, Submenu, PredefinedMenuItem};
 use tokio::sync::Mutex;
 use std::time::Duration;
 use std::fs;
@@ -14,6 +16,7 @@ pub struct TimerState {
     pub remaining: u32, // Remaining time in seconds
     pub is_running: bool,
     pub is_paused: bool,
+    pub session_name: Option<String>, // Optional session name
 }
 
 impl Default for TimerState {
@@ -23,6 +26,7 @@ impl Default for TimerState {
             remaining: 25 * 60,
             is_running: false,
             is_paused: false,
+            session_name: None,
         }
     }
 }
@@ -136,6 +140,7 @@ async fn start_timer(
                 if timer.remaining == 0 {
                     timer.is_running = false;
                     app_handle.emit("timer-complete", ()).ok();
+                    update_tray_menu(&app_handle, &timer).await.ok();
                     break;
                 }
             }
@@ -173,7 +178,7 @@ async fn toggle_collapse(
         if window_state.is_collapsed {
             window.set_size(tauri::Size::Physical(tauri::PhysicalSize {
                 width: 320,
-                height: 80,
+                height: 64,
             })).ok();
         } else {
             window.set_size(tauri::Size::Physical(tauri::PhysicalSize {
@@ -433,6 +438,126 @@ async fn load_custom_watchfaces(
     Ok(watchfaces)
 }
 
+#[tauri::command]
+async fn tray_start_timer(
+    app_handle: tauri::AppHandle,
+    state: State<'_, SharedTimerState>,
+) -> Result<(), String> {
+    start_timer(app_handle, state).await
+}
+
+#[tauri::command]
+async fn tray_pause_timer(state: State<'_, SharedTimerState>) -> Result<(), String> {
+    pause_timer(state).await
+}
+
+#[tauri::command]
+async fn tray_stop_timer(state: State<'_, SharedTimerState>) -> Result<(), String> {
+    stop_timer(state).await
+}
+
+#[tauri::command]
+async fn set_session_name(
+    name: Option<String>,
+    state: State<'_, SharedTimerState>,
+) -> Result<(), String> {
+    let mut timer = state.lock().await;
+    timer.session_name = name;
+    Ok(())
+}
+
+async fn update_tray_menu(app_handle: &tauri::AppHandle, timer_state: &TimerState) -> Result<(), String> {
+    // Create the tray menu based on current timer state
+    let start_pause_item = if timer_state.is_running && !timer_state.is_paused {
+        MenuItem::with_id(app_handle, "pause", "⏸️ Pause Timer", true, None::<&str>).map_err(|e| e.to_string())?
+    } else {
+        MenuItem::with_id(app_handle, "start", "▶️ Start Timer", true, None::<&str>).map_err(|e| e.to_string())?
+    };
+    
+    let stop_item = MenuItem::with_id(app_handle, "stop", "⏹️ Stop Timer", timer_state.is_running, None::<&str>).map_err(|e| e.to_string())?;
+    
+    // Format remaining time
+    let minutes = timer_state.remaining / 60;
+    let seconds = timer_state.remaining % 60;
+    let time_text = if timer_state.is_running {
+        format!("⏱️ {}:{:02} remaining", minutes, seconds)
+    } else {
+        format!("⏱️ {}:{:02} ready", timer_state.duration / 60, timer_state.duration % 60)
+    };
+    
+    let status_item = MenuItem::with_id(app_handle, "status", time_text, false, None::<&str>).map_err(|e| e.to_string())?;
+    
+    let duration_5 = MenuItem::with_id(app_handle, "duration_5", "5 minutes", !timer_state.is_running, None::<&str>).map_err(|e| e.to_string())?;
+    let duration_15 = MenuItem::with_id(app_handle, "duration_15", "15 minutes", !timer_state.is_running, None::<&str>).map_err(|e| e.to_string())?;
+    let duration_25 = MenuItem::with_id(app_handle, "duration_25", "25 minutes", !timer_state.is_running, None::<&str>).map_err(|e| e.to_string())?;
+    let duration_45 = MenuItem::with_id(app_handle, "duration_45", "45 minutes", !timer_state.is_running, None::<&str>).map_err(|e| e.to_string())?;
+    
+    let durations_submenu = Submenu::with_id_and_items(
+        app_handle,
+        "durations",
+        "⏱️ Quick Start",
+        true,
+        &[
+            &duration_5,
+            &duration_15,
+            &duration_25,
+            &duration_45,
+        ]
+    ).map_err(|e| e.to_string())?;
+    
+    let show_item = MenuItem::with_id(app_handle, "show", "📱 Show Window", true, None::<&str>).map_err(|e| e.to_string())?;
+    let settings_item = MenuItem::with_id(app_handle, "settings", "⚙️ Settings", true, None::<&str>).map_err(|e| e.to_string())?;
+    let quit_item = MenuItem::with_id(app_handle, "quit", "❌ Quit", true, None::<&str>).map_err(|e| e.to_string())?;
+    
+    let separator = PredefinedMenuItem::separator(app_handle).map_err(|e| e.to_string())?;
+    
+    let mut menu_items: Vec<&dyn tauri::menu::IsMenuItem<tauri::Wry>> = vec![&status_item];
+    
+    // Add session name if available
+    let session_item = if let Some(ref name) = timer_state.session_name {
+        Some(MenuItem::with_id(app_handle, "session_name", format!("📝 {}", name), false, None::<&str>).map_err(|e| e.to_string())?)
+    } else {
+        None
+    };
+    
+    if let Some(ref item) = session_item {
+        menu_items.push(item);
+    }
+    
+    menu_items.extend_from_slice(&[
+        &separator,
+        &start_pause_item,
+        &stop_item,
+        &separator,
+        &durations_submenu,
+        &separator,
+        &show_item,
+        &settings_item,
+        &separator,
+        &quit_item,
+    ]);
+    
+    let menu = Menu::with_items(app_handle, &menu_items).map_err(|e| e.to_string())?;
+    
+    // Update the tray icon
+    if let Some(tray) = app_handle.tray_by_id("main") {
+        tray.set_menu(Some(menu)).map_err(|e| e.to_string())?;
+        
+        // For now, we'll use text-based status in the tooltip
+        let tooltip = if timer_state.is_running && !timer_state.is_paused {
+            format!("Pomo - Running ({}:{:02})", minutes, seconds)
+        } else if timer_state.is_paused {
+            format!("Pomo - Paused ({}:{:02})", minutes, seconds)
+        } else {
+            "Pomo - Ready".to_string()
+        };
+        
+        tray.set_tooltip(Some(&tooltip)).map_err(|e| e.to_string())?;
+    }
+    
+    Ok(())
+}
+
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
     let timer_state = Arc::new(Mutex::new(TimerState::default()));
@@ -459,7 +584,7 @@ pub fn run() {
                 })
                 .build()
         )
-        .manage(timer_state)
+        .manage(timer_state.clone())
         .manage(window_state)
         .manage(settings)
         .invoke_handler(tauri::generate_handler![
@@ -478,9 +603,139 @@ pub fn run() {
             open_shortcuts_window,
             save_custom_watchfaces,
             load_custom_watchfaces,
+            tray_start_timer,
+            tray_pause_timer,
+            tray_stop_timer,
+            set_session_name,
         ])
-        .setup(|app| {
+        .setup(move |app| {
             let app_handle = app.handle().clone();
+            
+            // Setup system tray
+            let _tray = TrayIconBuilder::with_id("main")
+                .tooltip("Pomo - Ready")
+                .icon(app.default_window_icon().unwrap().clone())
+                .on_menu_event({
+                    let timer_state_clone = timer_state.clone();
+                    let app_handle_clone = app_handle.clone();
+                    move |_app, event| {
+                        let app_handle = app_handle_clone.clone();
+                        let timer_state = timer_state_clone.clone();
+                        
+                        tauri::async_runtime::spawn(async move {
+                            match event.id.as_ref() {
+                                "start" => {
+                                    // Call start timer function directly since we have the state
+                                    let mut timer = timer_state.lock().await;
+                                    timer.is_running = true;
+                                    timer.is_paused = false;
+                                    
+                                    let timer_state_for_loop = timer_state.clone();
+                                    let app_handle_for_loop = app_handle.clone();
+                                    
+                                    // Spawn timer loop
+                                    tauri::async_runtime::spawn(async move {
+                                        loop {
+                                            tokio::time::sleep(Duration::from_secs(1)).await;
+                                            
+                                            let mut timer = timer_state_for_loop.lock().await;
+                                            
+                                            if !timer.is_running || timer.is_paused {
+                                                break;
+                                            }
+                                            
+                                            if timer.remaining > 0 {
+                                                timer.remaining -= 1;
+                                                app_handle_for_loop.emit("timer-update", timer.clone()).ok();
+                                                
+                                                if timer.remaining == 0 {
+                                                    timer.is_running = false;
+                                                    app_handle_for_loop.emit("timer-complete", ()).ok();
+                                                    update_tray_menu(&app_handle_for_loop, &timer).await.ok();
+                                                    break;
+                                                }
+                                            }
+                                        }
+                                    });
+                                    
+                                    update_tray_menu(&app_handle, &timer).await.ok();
+                                }
+                                "pause" => {
+                                    let mut timer = timer_state.lock().await;
+                                    timer.is_paused = true;
+                                    update_tray_menu(&app_handle, &timer).await.ok();
+                                }
+                                "stop" => {
+                                    let mut timer = timer_state.lock().await;
+                                    timer.is_running = false;
+                                    timer.is_paused = false;
+                                    timer.remaining = timer.duration;
+                                    update_tray_menu(&app_handle, &timer).await.ok();
+                                }
+                                "duration_5" => {
+                                    let mut timer = timer_state.lock().await;
+                                    timer.duration = 5 * 60;
+                                    timer.remaining = 5 * 60;
+                                    update_tray_menu(&app_handle, &timer).await.ok();
+                                }
+                                "duration_15" => {
+                                    let mut timer = timer_state.lock().await;
+                                    timer.duration = 15 * 60;
+                                    timer.remaining = 15 * 60;
+                                    update_tray_menu(&app_handle, &timer).await.ok();
+                                }
+                                "duration_25" => {
+                                    let mut timer = timer_state.lock().await;
+                                    timer.duration = 25 * 60;
+                                    timer.remaining = 25 * 60;
+                                    update_tray_menu(&app_handle, &timer).await.ok();
+                                }
+                                "duration_45" => {
+                                    let mut timer = timer_state.lock().await;
+                                    timer.duration = 45 * 60;
+                                    timer.remaining = 45 * 60;
+                                    update_tray_menu(&app_handle, &timer).await.ok();
+                                }
+                                "show" => {
+                                    if let Some(window) = app_handle.get_webview_window("main") {
+                                        window.show().ok();
+                                        window.set_focus().ok();
+                                    }
+                                }
+                                "settings" => {
+                                    open_settings_window(app_handle.clone()).await.ok();
+                                }
+                                "quit" => {
+                                    app_handle.exit(0);
+                                }
+                                _ => {}
+                            }
+                        });
+                    }
+                })
+                .build(app)?;
+            
+            // Initialize tray menu
+            let app_handle_tray = app_handle.clone();
+            let timer_state_tray = timer_state.clone();
+            tauri::async_runtime::spawn(async move {
+                let timer = timer_state_tray.lock().await;
+                update_tray_menu(&app_handle_tray, &timer).await.ok();
+            });
+            
+            // Periodic tray update task (every 15 seconds when timer is running)
+            let app_handle_periodic = app_handle.clone();
+            let timer_state_periodic = timer_state.clone();
+            tauri::async_runtime::spawn(async move {
+                loop {
+                    tokio::time::sleep(Duration::from_secs(15)).await;
+                    
+                    let timer = timer_state_periodic.lock().await;
+                    if timer.is_running && !timer.is_paused {
+                        update_tray_menu(&app_handle_periodic, &timer).await.ok();
+                    }
+                }
+            });
             
             // Load settings from file on startup
             let settings_state = app.state::<SharedSettings>();

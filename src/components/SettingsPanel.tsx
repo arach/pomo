@@ -110,7 +110,7 @@ export function SettingsPanel({ isStandalone = false }: SettingsPanelProps) {
     <>
       {!isStandalone && (
         <div className="flex items-center justify-between p-4 border-b border-border/50">
-          <h2 className="text-lg font-medium">Settings</h2>
+          <h2 className="text-lg font-brand">SETTINGS</h2>
           <button
             onClick={toggleSettings}
             className="p-1.5 hover:bg-white/10 rounded-lg transition-colors"
@@ -127,7 +127,7 @@ export function SettingsPanel({ isStandalone = false }: SettingsPanelProps) {
             <div className="flex items-center justify-between">
               <div className="flex items-center gap-2">
                 <Volume2 className="w-4 h-4 text-muted-foreground" />
-                <span className="text-sm font-medium">Sound</span>
+                <span className="text-sm font-brand">SOUND</span>
               </div>
               <button
                 onClick={() => updateSettings({ soundEnabled: !soundEnabled })}
@@ -190,7 +190,7 @@ export function SettingsPanel({ isStandalone = false }: SettingsPanelProps) {
             <div className="space-y-2">
               <div className="flex items-center gap-2">
                 <Eye className="w-4 h-4 text-muted-foreground" />
-                <span className="text-sm font-medium">Window Opacity</span>
+                <span className="text-sm font-brand">OPACITY</span>
               </div>
               <div className="flex items-center gap-2 pl-6">
                 <input
@@ -208,7 +208,7 @@ export function SettingsPanel({ isStandalone = false }: SettingsPanelProps) {
             <div className="flex items-center justify-between">
               <div className="flex items-center gap-2">
                 <Pin className="w-4 h-4 text-muted-foreground" />
-                <span className="text-sm font-medium">Always on Top</span>
+                <span className="text-sm font-brand">ALWAYS ON TOP</span>
               </div>
               <button
                 onClick={() => updateSettings({ alwaysOnTop: !alwaysOnTop })}
@@ -227,7 +227,7 @@ export function SettingsPanel({ isStandalone = false }: SettingsPanelProps) {
           <div className="space-y-3">
             <div className="flex items-center gap-2">
               <Keyboard className="w-4 h-4 text-muted-foreground" />
-              <span className="text-sm font-medium">Keyboard Shortcut</span>
+              <span className="text-sm font-brand">SHORTCUTS</span>
             </div>
             
             <div className="pl-6 space-y-3">
@@ -269,7 +269,7 @@ export function SettingsPanel({ isStandalone = false }: SettingsPanelProps) {
           <div className="space-y-3">
             <div className="flex items-center gap-2">
               <Watch className="w-4 h-4 text-muted-foreground" />
-              <span className="text-sm font-medium">Watch Face</span>
+              <span className="text-sm font-brand">WATCH FACE</span>
             </div>
             
             <div className="pl-6">

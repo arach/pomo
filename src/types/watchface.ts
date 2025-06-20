@@ -76,4 +76,5 @@ export interface WatchFaceProps {
   onStop: () => void;
   onReset: () => void;
   isCollapsed?: boolean;
+  sessionName?: string | null;
 }

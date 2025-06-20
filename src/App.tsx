@@ -11,17 +11,20 @@ import { useSettingsStore } from "./stores/settings-store";
 import { AudioService } from "./services/audio";
 import { WatchFaceLoader } from "./services/watchface-loader";
 import { SplitViewComparison } from "./components/dev/SplitViewComparison";
+import { SessionNameInput } from "./components/SessionNameInput";
 
 interface TimerUpdate {
   duration: number;
   remaining: number;
   is_running: boolean;
   is_paused: boolean;
+  session_name: string | null;
 }
 
 function App() {
   const [isCollapsed, setIsCollapsed] = useState(false);
   const [showDurationInput, setShowDurationInput] = useState(false);
+  const [showSessionNameInput, setShowSessionNameInput] = useState(false);
   const [currentWatchFaceConfig, setCurrentWatchFaceConfig] = useState<any>(null);
   
   // Development mode version support
@@ -52,6 +55,7 @@ function App() {
         remaining: event.payload.remaining,
         isRunning: event.payload.is_running,
         isPaused: event.payload.is_paused,
+        sessionName: event.payload.session_name,
       });
       
       // Show duration input again when timer is stopped
@@ -90,6 +94,7 @@ function App() {
         remaining: state.remaining,
         isRunning: state.is_running,
         isPaused: state.is_paused,
+        sessionName: state.session_name,
       });
     });
     
@@ -250,6 +255,14 @@ function App() {
           setShowDurationInput(true);
         }
         break;
+        
+      // Open session name input panel
+      case 'n':
+        if (!isRunning) {
+          e.preventDefault();
+          setShowSessionNameInput(true);
+        }
+        break;
     }
   }, [isRunning, isPaused, start, pause, stop, reset, duration, setDuration, soundEnabled, updateSettings, watchFace]);
   
@@ -305,10 +318,12 @@ function App() {
       )}
       <div className="flex-1 flex flex-col min-h-0 relative">
         {/* Draggable background area */}
-        <div 
-          className="absolute inset-0 z-0" 
-          data-tauri-drag-region
-        />
+        {!isCollapsed && (
+          <div 
+            className="absolute inset-0 z-0" 
+            data-tauri-drag-region
+          />
+        )}
         <TimerDisplay 
           isCollapsed={isCollapsed} 
           onTimeClick={() => !isRunning && setShowDurationInput(true)}
@@ -321,6 +336,9 @@ function App() {
         <div className="absolute inset-x-0 bottom-0 z-50">
           <DurationInput onDismiss={() => setShowDurationInput(false)} />
         </div>
+      )}
+      {showSessionNameInput && (
+        <SessionNameInput onDismiss={() => setShowSessionNameInput(false)} />
       )}
     </WindowWrapper>
   );

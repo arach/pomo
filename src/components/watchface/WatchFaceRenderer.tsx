@@ -287,6 +287,7 @@ export function WatchFaceRenderer({ config, onTimeClick, hideControls = false, v
                   onReset={props.onReset}
                   onTimeClick={onTimeClick}
                   sessionType={sessionType}
+                  sessionName={props.sessionName}
                 />
               ),
               () => (

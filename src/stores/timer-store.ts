@@ -11,6 +11,7 @@ interface TimerState {
   isRunning: boolean;
   isPaused: boolean;
   sessionType: SessionType;
+  sessionName: string | null;
   
   setDuration: (duration: number) => Promise<void>;
   start: () => Promise<void>;
@@ -19,6 +20,7 @@ interface TimerState {
   reset: () => Promise<void>;
   updateState: (state: Partial<TimerState>) => void;
   setSessionType: (type: SessionType) => void;
+  setSessionName: (name: string | null) => Promise<void>;
 }
 
 export const useTimerStore = create<TimerState>((set) => ({
@@ -27,6 +29,7 @@ export const useTimerStore = create<TimerState>((set) => ({
   isRunning: false,
   isPaused: false,
   sessionType: 'focus',
+  sessionName: null,
   
   setDuration: async (duration: number) => {
     try {
@@ -87,5 +90,14 @@ export const useTimerStore = create<TimerState>((set) => ({
   
   setSessionType: (type: SessionType) => {
     set({ sessionType: type });
+  },
+  
+  setSessionName: async (name: string | null) => {
+    try {
+      await invoke('set_session_name', { name });
+    } catch (error) {
+      console.error('Failed to set session name:', error);
+    }
+    set({ sessionName: name });
   },
 }));

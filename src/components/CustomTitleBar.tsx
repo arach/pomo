@@ -73,30 +73,13 @@ export function CustomTitleBar({ isCollapsed = false, title, showCollapseButton 
         {isCollapsed && (
           <SessionTypeIndicator type={sessionType} size="sm" />
         )}
-        <span className="text-xs text-muted-foreground">
-          {title || 'Pomo'}
+        <span className="text-xs text-muted-foreground font-brand">
+          {title || 'POMO'}
         </span>
       </div>
       
       <div className="flex items-center">
-        {/* Reset window size button - only in dev mode */}
-        {import.meta.env.DEV && (
-          <button
-            onClick={async () => {
-              try {
-                await appWindow.setSize(new LogicalSize(320, 280));
-                await appWindow.center();
-              } catch (error) {
-                console.error('Failed to reset window size:', error);
-              }
-            }}
-            className="text-[10px] px-1.5 py-0.5 rounded bg-muted/20 hover:bg-muted/30 text-muted-foreground transition-colors"
-            title="Reset window size"
-            data-tauri-drag-region="false"
-          >
-            Reset
-          </button>
-        )}
+        {/* Empty space for symmetry */}
       </div>
     </div>
   );

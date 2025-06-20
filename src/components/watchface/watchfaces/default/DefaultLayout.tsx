@@ -12,6 +12,7 @@ interface DefaultLayoutProps {
   onReset: () => void;
   onTimeClick?: () => void;
   sessionType: SessionType;
+  sessionName?: string | null;
 }
 
 const sessionLabels: Record<SessionType, string> = {
@@ -32,7 +33,8 @@ export function DefaultLayout({
   onPause,
   onReset,
   onTimeClick,
-  sessionType
+  sessionType,
+  sessionName
 }: DefaultLayoutProps) {
   const formatTime = (seconds: number): string => {
     const mins = Math.floor(seconds / 60);
@@ -134,13 +136,30 @@ export function DefaultLayout({
           fontWeight: '300',
           letterSpacing: '-1px',
           cursor: !isRunning ? 'pointer' : 'default',
-          marginBottom: '8px',
+          marginBottom: sessionName ? '4px' : '8px',
           fontFamily: "'JetBrains Mono', monospace",
           color: '#f0f0f0'
         }}
       >
         {formatTime(remaining)}
       </div>
+
+      {/* Session Name */}
+      {sessionName && (
+        <div style={{
+          fontSize: '12px',
+          fontWeight: '500',
+          color: '#888888',
+          marginBottom: '8px',
+          textAlign: 'center',
+          maxWidth: '180px',
+          overflow: 'hidden',
+          textOverflow: 'ellipsis',
+          whiteSpace: 'nowrap'
+        }}>
+          {sessionName}
+        </div>
+      )}
 
       {/* Controls */}
       <div style={{

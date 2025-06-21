@@ -68,17 +68,17 @@ export function CustomTitleBar({ isCollapsed = false, title, showCollapseButton 
         <div className="w-3 h-3 rounded-full bg-gray-600 cursor-not-allowed" />
       </div>
       
-      <div className="flex items-center gap-2">
-        {isCollapsed && (
-          <SessionTypeIndicator type={sessionType} size="sm" />
-        )}
+      <div className="flex items-center">
         <span className="text-xs text-muted-foreground font-brand">
           {title || 'POMO'}
         </span>
       </div>
       
-      <div className="flex items-center">
-        {/* Empty space for symmetry */}
+      <div className="flex items-center gap-1.5">
+        {/* Empty space matching left side window controls */}
+        <div className="w-3 h-3" />
+        <div className="w-3 h-3" />
+        <div className="w-3 h-3" />
       </div>
     </div>
   );

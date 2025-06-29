@@ -58,7 +58,7 @@ export function TimerDisplay({ isCollapsed = false, onTimeClick, showDurationInp
   if (isCollapsed) {
     // Get theme colors from current watchface
     const themeColors = currentWatchFaceConfig?.theme?.colors || {};
-    const fontFamily = currentWatchFaceConfig?.theme?.fonts?.primary || 'font-mono';
+    const fontFamily = currentWatchFaceConfig?.theme?.fonts?.accent || "'JetBrains Mono', monospace";
     
     return (
       <div className="flex items-center justify-between px-3 py-1">

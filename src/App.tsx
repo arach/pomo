@@ -12,6 +12,7 @@ import { AudioService } from "./services/audio";
 import { WatchFaceLoader } from "./services/watchface-loader";
 import { SplitViewComparison } from "./components/dev/SplitViewComparison";
 import { SessionNameInput } from "./components/SessionNameInput";
+import { SessionCompleteModal } from "./components/SessionCompleteModal";
 
 interface TimerUpdate {
   duration: number;
@@ -26,6 +27,9 @@ function App() {
   const [showDurationInput, setShowDurationInput] = useState(false);
   const [showSessionNameInput, setShowSessionNameInput] = useState(false);
   const [currentWatchFaceConfig, setCurrentWatchFaceConfig] = useState<any>(null);
+  const [showCompleteModal, setShowCompleteModal] = useState(false);
+  const [completedSession, setCompletedSession] = useState<any>(null);
+  const [showCompletionPulse, setShowCompletionPulse] = useState(false);
   
   // Development mode version support
   const urlParams = new URLSearchParams(window.location.search);
@@ -72,7 +76,30 @@ function App() {
       }
       
       // Complete the session record
-      const { currentSessionId, duration, pauseCount, totalPauseTime, pauseStartTime } = useTimerStore.getState();
+      const { currentSessionId, duration, pauseCount, totalPauseTime, pauseStartTime, sessionType, sessionName } = useTimerStore.getState();
+      
+      // Show completion modal with session info
+      setCompletedSession({
+        duration,
+        sessionType,
+        name: sessionName,
+        pauseCount
+      });
+      
+      // If collapsed, expand the window first
+      if (isCollapsed) {
+        await invoke('toggle_collapse');
+        // Small delay to ensure window expands before showing animations
+        await new Promise(resolve => setTimeout(resolve, 100));
+      }
+      
+      // Trigger completion pulse animation
+      setShowCompletionPulse(true);
+      setTimeout(() => setShowCompletionPulse(false), 2000);
+      
+      // Show modal after a short delay to let the pulse animation play
+      setTimeout(() => setShowCompleteModal(true), 500);
+      
       if (currentSessionId) {
         try {
           let finalPauseTime = totalPauseTime;
@@ -328,6 +355,17 @@ function App() {
   return (
     <WindowWrapper>
       <CustomTitleBar isCollapsed={isCollapsed} />
+      
+      {/* Completion pulse animation */}
+      {showCompletionPulse && (
+        <div className="absolute inset-0 pointer-events-none z-50">
+          <div className="absolute inset-0 bg-green-500 animate-ping opacity-20 rounded-lg" />
+          <div className="absolute inset-0 flex items-center justify-center">
+            <div className="w-32 h-32 bg-green-500 rounded-full animate-ping opacity-30" />
+          </div>
+        </div>
+      )}
+      
       {progressBarConfig.hidden !== true && (
         <div 
           className="absolute top-7 left-0 right-0 z-40"
@@ -369,6 +407,13 @@ function App() {
       )}
       {showSessionNameInput && (
         <SessionNameInput onDismiss={() => setShowSessionNameInput(false)} />
+      )}
+      {completedSession && (
+        <SessionCompleteModal
+          isOpen={showCompleteModal}
+          onClose={() => setShowCompleteModal(false)}
+          session={completedSession}
+        />
       )}
     </WindowWrapper>
   );

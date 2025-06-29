@@ -11,6 +11,8 @@ use std::time::Duration;
 use std::fs;
 use chrono::{DateTime, Utc};
 use tauri::async_runtime::JoinHandle;
+use image::{ImageBuffer, Rgba, RgbaImage};
+use rusttype::{Font, Scale};
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct TimerState {
@@ -174,6 +176,7 @@ async fn set_duration(
 async fn start_timer(
     app_handle: tauri::AppHandle,
     state: State<'_, SharedTimerManager>,
+    db: State<'_, SharedSessionDatabase>,
 ) -> Result<(), String> {
     let mut manager = state.lock().await;
     
@@ -189,6 +192,7 @@ async fn start_timer(
     manager.last_update_time = Some(std::time::Instant::now());
     
     let timer_manager = state.inner().clone();
+    let session_db = db.inner().clone();
     
     // Spawn optimized timer loop
     let handle = tauri::async_runtime::spawn(async move {
@@ -222,14 +226,22 @@ async fn start_timer(
                     if manager.state.remaining == 0 {
                         manager.state.is_running = false;
                         app_handle.emit("timer-complete", ()).ok();
-                        update_tray_menu(&app_handle, &manager.state).await.ok();
+                        let count = get_todays_count_from_db(&session_db).await;
+                        update_tray_menu(&app_handle, &manager.state, count, false).await.ok();
                         break;
                     }
                     
-                    // Update tray every 15 seconds instead of every second to reduce CPU usage
+                    // Update tray more frequently when window is hidden
                     tray_update_counter += 1;
-                    if tray_update_counter >= 15 {
-                        update_tray_menu(&app_handle, &manager.state).await.ok();
+                    let is_hidden = app_handle.get_webview_window("main")
+                        .map(|w| !w.is_visible().unwrap_or(true))
+                        .unwrap_or(true);
+                    
+                    let update_interval = if is_hidden { 1 } else { 15 };
+                    
+                    if tray_update_counter >= update_interval {
+                        let count = get_todays_count_from_db(&session_db).await;
+                        update_tray_menu(&app_handle, &manager.state, count, is_hidden).await.ok();
                         tray_update_counter = 0;
                     }
                 }
@@ -539,8 +551,9 @@ async fn load_custom_watchfaces(
 async fn tray_start_timer(
     app_handle: tauri::AppHandle,
     state: State<'_, SharedTimerManager>,
+    db: State<'_, SharedSessionDatabase>,
 ) -> Result<(), String> {
-    start_timer(app_handle, state).await
+    start_timer(app_handle, state, db).await
 }
 
 #[tauri::command]
@@ -742,6 +755,20 @@ async fn get_recent_sessions(
     Ok(sessions)
 }
 
+#[tauri::command]
+async fn get_todays_session_count(
+    db: State<'_, SharedSessionDatabase>,
+) -> Result<u32, String> {
+    let database = db.lock().await;
+    let today = Utc::now().date_naive();
+    
+    let count = database.sessions.iter()
+        .filter(|s| s.completed && s.start_time.date_naive() == today)
+        .count() as u32;
+    
+    Ok(count)
+}
+
 async fn save_session_database(app_handle: &tauri::AppHandle, database: &SessionDatabase) -> Result<(), String> {
     let app_dir = app_handle.path().app_data_dir()
         .map_err(|e| format!("Failed to get app data dir: {}", e))?;
@@ -792,7 +819,81 @@ async fn load_session_database(app_handle: &tauri::AppHandle) -> SessionDatabase
     }
 }
 
-async fn update_tray_menu(app_handle: &tauri::AppHandle, timer_state: &TimerState) -> Result<(), String> {
+fn generate_text_icon(text: &str, is_active: bool) -> Result<Vec<u8>, String> {
+    // Use embedded Inter font for consistent rendering
+    let font_bytes = include_bytes!("../assets/Inter-Medium.ttf");
+    let font = Font::try_from_bytes(font_bytes)
+        .ok_or("Failed to load font")?;
+    
+    // Calculate image size based on text
+    let scale = Scale::uniform(28.0); // Slightly smaller for better fit
+    let v_metrics = font.v_metrics(scale);
+    
+    // Measure text width
+    let glyphs: Vec<_> = font.layout(text, scale, rusttype::point(0.0, 0.0)).collect();
+    let text_width = glyphs
+        .iter()
+        .rev()
+        .find_map(|g| {
+            let bbox = g.pixel_bounding_box()?;
+            Some(bbox.max.x)
+        })
+        .unwrap_or(0) as u32;
+    
+    let width = text_width + 10; // Add padding
+    let height = 44; // Standard menu bar height for Retina (22pt * 2)
+    
+    // Create image with transparent background
+    let mut img: RgbaImage = ImageBuffer::new(width, height);
+    
+    // Text color - white for dark menu bar
+    let text_color = if is_active {
+        Rgba([255, 255, 255, 255]) // Full white
+    } else {
+        Rgba([255, 255, 255, 200]) // Slightly transparent
+    };
+    
+    // Center text vertically
+    let y_pos = ((height as f32 - (v_metrics.ascent - v_metrics.descent)) / 2.0 + v_metrics.ascent) as i32;
+    
+    // Draw text manually using rusttype
+    for glyph in glyphs {
+        if let Some(bounding_box) = glyph.pixel_bounding_box() {
+            glyph.draw(|x, y, v| {
+                let x = (x as i32 + bounding_box.min.x + 5) as u32;
+                let y = (y as i32 + bounding_box.min.y + y_pos) as u32;
+                if x < width && y < height && v > 0.0 {
+                    let alpha = (v * 255.0) as u8;
+                    let pixel = img.get_pixel_mut(x, y);
+                    pixel[0] = text_color[0];
+                    pixel[1] = text_color[1];
+                    pixel[2] = text_color[2];
+                    pixel[3] = ((pixel[3] as u16 + alpha as u16).min(255)) as u8;
+                }
+            });
+        }
+    }
+    
+    // Convert to PNG bytes
+    let mut png_bytes = Vec::new();
+    let mut cursor = std::io::Cursor::new(&mut png_bytes);
+    img.write_to(&mut cursor, image::ImageFormat::Png)
+        .map_err(|e| format!("Failed to encode PNG: {:?}", e))?;
+    
+    Ok(png_bytes)
+}
+
+
+async fn get_todays_count_from_db(db: &SharedSessionDatabase) -> u32 {
+    let database = db.lock().await;
+    let today = Utc::now().date_naive();
+    
+    database.sessions.iter()
+        .filter(|s| s.completed && s.start_time.date_naive() == today)
+        .count() as u32
+}
+
+async fn update_tray_menu(app_handle: &tauri::AppHandle, timer_state: &TimerState, session_count: u32, is_hidden: bool) -> Result<(), String> {
     // Create the tray menu based on current timer state
     let start_pause_item = if timer_state.is_running && !timer_state.is_paused {
         MenuItem::with_id(app_handle, "pause", "⏸️ Pause Timer", true, None::<&str>).map_err(|e| e.to_string())?
@@ -869,13 +970,57 @@ async fn update_tray_menu(app_handle: &tauri::AppHandle, timer_state: &TimerStat
     if let Some(tray) = app_handle.tray_by_id("main") {
         tray.set_menu(Some(menu)).map_err(|e| e.to_string())?;
         
-        // For now, we'll use text-based status in the tooltip
-        let tooltip = if timer_state.is_running && !timer_state.is_paused {
-            format!("Pomo - Running ({}:{:02})", minutes, seconds)
+        // Generate dynamic icon based on timer state
+        let icon_text = if timer_state.is_running && !timer_state.is_paused {
+            if minutes > 0 {
+                format!("{}m", minutes)
+            } else {
+                format!("{}s", seconds)
+            }
         } else if timer_state.is_paused {
-            format!("Pomo - Paused ({}:{:02})", minutes, seconds)
+            "||".to_string()
         } else {
-            "Pomo - Ready".to_string()
+            "".to_string() // Empty for ready state
+        };
+        
+        // Update icon if we have text to show
+        if !icon_text.is_empty() {
+            match generate_text_icon(&icon_text, timer_state.is_running && !timer_state.is_paused) {
+                Ok(icon_bytes) => {
+                    // Decode PNG to get dimensions
+                    if let Ok(img) = image::load_from_memory(&icon_bytes) {
+                        let rgba = img.to_rgba8();
+                        let (width, height) = (rgba.width(), rgba.height());
+                        let icon = tauri::image::Image::new(rgba.as_raw(), width, height);
+                        tray.set_icon(Some(icon)).ok();
+                    }
+                },
+                Err(e) => eprintln!("Failed to generate tray icon: {}", e),
+            }
+        } else {
+            // Use default icon when ready
+            if let Some(default_icon) = app_handle.default_window_icon() {
+                tray.set_icon(Some(default_icon.clone())).ok();
+            }
+        }
+        
+        // Update tooltip with session count and show more detail when hidden
+        let tooltip = if timer_state.is_running && !timer_state.is_paused {
+            if is_hidden {
+                // Show minute-level progress when hidden
+                let progress_percentage = ((timer_state.duration - timer_state.remaining) as f32 / timer_state.duration as f32 * 100.0) as u32;
+                format!("Pomo - {}m left ({}%) | {} sessions today", 
+                    if minutes > 0 { minutes } else { 1 }, // Show at least 1m
+                    progress_percentage,
+                    session_count
+                )
+            } else {
+                format!("Pomo - Running ({}:{:02}) | {} sessions today", minutes, seconds, session_count)
+            }
+        } else if timer_state.is_paused {
+            format!("Pomo - Paused ({}:{:02}) | {} sessions today", minutes, seconds, session_count)
+        } else {
+            format!("Pomo - Ready | {} sessions today", session_count)
         };
         
         tray.set_tooltip(Some(&tooltip)).map_err(|e| e.to_string())?;
@@ -939,6 +1084,7 @@ pub fn run() {
             complete_session_record,
             get_session_stats,
             get_recent_sessions,
+            get_todays_session_count,
         ])
         .setup(move |app| {
             let app_handle = app.handle().clone();
@@ -950,9 +1096,11 @@ pub fn run() {
                 .on_menu_event({
                     let timer_manager_clone = timer_manager.clone();
                     let app_handle_clone = app_handle.clone();
+                    let session_db_clone = session_database.clone();
                     move |_app, event| {
                         let app_handle = app_handle_clone.clone();
                         let timer_manager = timer_manager_clone.clone();
+                        let session_db = session_db_clone.clone();
                         
                         tauri::async_runtime::spawn(async move {
                             match event.id.as_ref() {
@@ -972,6 +1120,7 @@ pub fn run() {
                                     
                                     let timer_manager_for_loop = timer_manager.clone();
                                     let app_handle_for_loop = app_handle.clone();
+                                    let session_db_for_loop = session_db.clone();
                                     
                                     // Use the same optimized timer loop as start_timer
                                     let handle = tauri::async_runtime::spawn(async move {
@@ -1000,13 +1149,15 @@ pub fn run() {
                                                     if manager.state.remaining == 0 {
                                                         manager.state.is_running = false;
                                                         app_handle_for_loop.emit("timer-complete", ()).ok();
-                                                        update_tray_menu(&app_handle_for_loop, &manager.state).await.ok();
+                                                        let count = get_todays_count_from_db(&session_db_for_loop).await;
+                                                        update_tray_menu(&app_handle_for_loop, &manager.state, count, false).await.ok();
                                                         break;
                                                     }
                                                     
                                                     tray_update_counter += 1;
                                                     if tray_update_counter >= 15 {
-                                                        update_tray_menu(&app_handle_for_loop, &manager.state).await.ok();
+                                                        let count = get_todays_count_from_db(&session_db_for_loop).await;
+                                                        update_tray_menu(&app_handle_for_loop, &manager.state, count, false).await.ok();
                                                         tray_update_counter = 0;
                                                     }
                                                 }
@@ -1015,12 +1166,14 @@ pub fn run() {
                                     });
                                     
                                     manager.timer_handle = Some(handle);
-                                    update_tray_menu(&app_handle, &manager.state).await.ok();
+                                    let count = get_todays_count_from_db(&session_db).await;
+                                    update_tray_menu(&app_handle, &manager.state, count, false).await.ok();
                                 }
                                 "pause" => {
                                     let mut manager = timer_manager.lock().await;
                                     manager.state.is_paused = true;
-                                    update_tray_menu(&app_handle, &manager.state).await.ok();
+                                    let count = get_todays_count_from_db(&session_db).await;
+                                    update_tray_menu(&app_handle, &manager.state, count, false).await.ok();
                                 }
                                 "stop" => {
                                     let mut manager = timer_manager.lock().await;
@@ -1028,31 +1181,36 @@ pub fn run() {
                                     manager.state.is_running = false;
                                     manager.state.is_paused = false;
                                     manager.state.remaining = manager.state.duration;
-                                    update_tray_menu(&app_handle, &manager.state).await.ok();
+                                    let count = get_todays_count_from_db(&session_db).await;
+                                    update_tray_menu(&app_handle, &manager.state, count, false).await.ok();
                                 }
                                 "duration_5" => {
                                     let mut manager = timer_manager.lock().await;
                                     manager.state.duration = 5 * 60;
                                     manager.state.remaining = 5 * 60;
-                                    update_tray_menu(&app_handle, &manager.state).await.ok();
+                                    let count = get_todays_count_from_db(&session_db).await;
+                                    update_tray_menu(&app_handle, &manager.state, count, false).await.ok();
                                 }
                                 "duration_15" => {
                                     let mut manager = timer_manager.lock().await;
                                     manager.state.duration = 15 * 60;
                                     manager.state.remaining = 15 * 60;
-                                    update_tray_menu(&app_handle, &manager.state).await.ok();
+                                    let count = get_todays_count_from_db(&session_db).await;
+                                    update_tray_menu(&app_handle, &manager.state, count, false).await.ok();
                                 }
                                 "duration_25" => {
                                     let mut manager = timer_manager.lock().await;
                                     manager.state.duration = 25 * 60;
                                     manager.state.remaining = 25 * 60;
-                                    update_tray_menu(&app_handle, &manager.state).await.ok();
+                                    let count = get_todays_count_from_db(&session_db).await;
+                                    update_tray_menu(&app_handle, &manager.state, count, false).await.ok();
                                 }
                                 "duration_45" => {
                                     let mut manager = timer_manager.lock().await;
                                     manager.state.duration = 45 * 60;
                                     manager.state.remaining = 45 * 60;
-                                    update_tray_menu(&app_handle, &manager.state).await.ok();
+                                    let count = get_todays_count_from_db(&session_db).await;
+                                    update_tray_menu(&app_handle, &manager.state, count, false).await.ok();
                                 }
                                 "show" => {
                                     if let Some(window) = app_handle.get_webview_window("main") {
@@ -1076,9 +1234,11 @@ pub fn run() {
             // Initialize tray menu
             let app_handle_tray = app_handle.clone();
             let timer_manager_tray = timer_manager.clone();
+            let session_db_tray = session_database.clone();
             tauri::async_runtime::spawn(async move {
                 let manager = timer_manager_tray.lock().await;
-                update_tray_menu(&app_handle_tray, &manager.state).await.ok();
+                let count = get_todays_count_from_db(&session_db_tray).await;
+                update_tray_menu(&app_handle_tray, &manager.state, count, false).await.ok();
             });
             
             // Note: Periodic tray updates are now handled more efficiently within the timer loop itself

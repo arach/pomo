@@ -1,7 +1,5 @@
 import { getCurrentWebviewWindow } from '@tauri-apps/api/webviewWindow';
 import { invoke } from '@tauri-apps/api/core';
-import { useTimerStore } from '../stores/timer-store';
-import { SessionTypeIndicator } from './SessionTypeIndicator';
 
 interface CustomTitleBarProps {
   isCollapsed?: boolean;
@@ -9,8 +7,7 @@ interface CustomTitleBarProps {
   showCollapseButton?: boolean;
 }
 
-export function CustomTitleBar({ isCollapsed = false, title, showCollapseButton = true }: CustomTitleBarProps) {
-  const sessionType = useTimerStore(state => state.sessionType);
+export function CustomTitleBar({ title, showCollapseButton = true }: CustomTitleBarProps) {
   const appWindow = getCurrentWebviewWindow();
 
   const handleClose = async () => {

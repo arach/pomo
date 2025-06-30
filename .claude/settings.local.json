@@ -70,7 +70,8 @@
       "mcp__puppeteer__puppeteer_evaluate",
       "Bash(curl:*)",
       "Bash(python3:*)",
-      "Bash(gh:*)"
+      "Bash(gh:*)",
+      "WebFetch(domain:github.com)"
     ],
     "deny": []
   },

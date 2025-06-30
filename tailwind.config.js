@@ -23,6 +23,26 @@ export default {
           foreground: 'hsl(240, 5%, 64.9%)',
         },
       },
+      keyframes: {
+        'fade-in': {
+          '0%': { opacity: '0' },
+          '100%': { opacity: '1' },
+        },
+        'ping': {
+          '75%, 100%': {
+            transform: 'scale(2)',
+            opacity: '0',
+          },
+        },
+      },
+      animation: {
+        'fade-in': 'fade-in 0.2s ease-out',
+        'ping': 'ping 1s cubic-bezier(0, 0, 0.2, 1) infinite',
+      },
+      animationDelay: {
+        '200': '200ms',
+        '400': '400ms',
+      },
     },
   },
   plugins: [],

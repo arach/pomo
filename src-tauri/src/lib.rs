@@ -896,12 +896,12 @@ async fn get_todays_count_from_db(db: &SharedSessionDatabase) -> u32 {
 async fn update_tray_menu(app_handle: &tauri::AppHandle, timer_state: &TimerState, session_count: u32, is_hidden: bool) -> Result<(), String> {
     // Create the tray menu based on current timer state
     let start_pause_item = if timer_state.is_running && !timer_state.is_paused {
-        MenuItem::with_id(app_handle, "pause", "⏸️ Pause Timer", true, None::<&str>).map_err(|e| e.to_string())?
+        MenuItem::with_id(app_handle, "pause", "Pause Timer", true, None::<&str>).map_err(|e| e.to_string())?
     } else {
-        MenuItem::with_id(app_handle, "start", "▶️ Start Timer", true, None::<&str>).map_err(|e| e.to_string())?
+        MenuItem::with_id(app_handle, "start", "Start Timer", true, None::<&str>).map_err(|e| e.to_string())?
     };
     
-    let stop_item = MenuItem::with_id(app_handle, "stop", "⏹️ Stop Timer", timer_state.is_running, None::<&str>).map_err(|e| e.to_string())?;
+    let stop_item = MenuItem::with_id(app_handle, "stop", "Stop Timer", timer_state.is_running, None::<&str>).map_err(|e| e.to_string())?;
     
     // Format remaining time
     let minutes = timer_state.remaining / 60;
@@ -922,7 +922,7 @@ async fn update_tray_menu(app_handle: &tauri::AppHandle, timer_state: &TimerStat
     let durations_submenu = Submenu::with_id_and_items(
         app_handle,
         "durations",
-        "⏱️ Quick Start",
+        "Quick Start",
         true,
         &[
             &duration_5,
@@ -932,9 +932,9 @@ async fn update_tray_menu(app_handle: &tauri::AppHandle, timer_state: &TimerStat
         ]
     ).map_err(|e| e.to_string())?;
     
-    let show_item = MenuItem::with_id(app_handle, "show", "📱 Show Window", true, None::<&str>).map_err(|e| e.to_string())?;
-    let settings_item = MenuItem::with_id(app_handle, "settings", "⚙️ Settings", true, None::<&str>).map_err(|e| e.to_string())?;
-    let quit_item = MenuItem::with_id(app_handle, "quit", "❌ Quit", true, None::<&str>).map_err(|e| e.to_string())?;
+    let show_item = MenuItem::with_id(app_handle, "show", "Show Window", true, None::<&str>).map_err(|e| e.to_string())?;
+    let settings_item = MenuItem::with_id(app_handle, "settings", "Settings", true, None::<&str>).map_err(|e| e.to_string())?;
+    let quit_item = MenuItem::with_id(app_handle, "quit", "Quit", true, None::<&str>).map_err(|e| e.to_string())?;
     
     let separator = PredefinedMenuItem::separator(app_handle).map_err(|e| e.to_string())?;
     
@@ -942,7 +942,7 @@ async fn update_tray_menu(app_handle: &tauri::AppHandle, timer_state: &TimerStat
     
     // Add session name if available
     let session_item = if let Some(ref name) = timer_state.session_name {
-        Some(MenuItem::with_id(app_handle, "session_name", format!("📝 {}", name), false, None::<&str>).map_err(|e| e.to_string())?)
+        Some(MenuItem::with_id(app_handle, "session_name", format!("{}", name), false, None::<&str>).map_err(|e| e.to_string())?)
     } else {
         None
     };

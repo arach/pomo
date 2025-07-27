@@ -36,6 +36,9 @@ export interface WatchFaceTheme {
     success?: string;
     warning?: string;
     error?: string;
+    muted?: string;
+    // Allow any additional custom colors
+    [key: string]: string | undefined;
   };
   fonts?: {
     primary?: string;

@@ -115,7 +115,7 @@ impl Default for Settings {
             always_on_top: true,
             default_duration: 25 * 60,
             theme: "dark".to_string(),
-            notification_sound: "default".to_string(),
+            notification_sound: "zen".to_string(),
             custom_shortcut: ShortcutConfig {
                 toggle_visibility: "Hyperkey+P".to_string(),
                 modifiers: vec!["Super".to_string(), "Control".to_string(), "Alt".to_string(), "Shift".to_string()],
@@ -1313,6 +1313,15 @@ pub fn run() {
                 if let Ok(settings) = settings_state.try_lock() {
                     window.set_always_on_top(settings.always_on_top).ok();
                 }
+                
+                // Handle window close request - hide window instead of quitting
+                let window_clone = window.clone();
+                window.on_window_event(move |event| {
+                    if let tauri::WindowEvent::CloseRequested { api, .. } = event {
+                        api.prevent_close();
+                        window_clone.hide().ok();
+                    }
+                });
             }
             
             Ok(())

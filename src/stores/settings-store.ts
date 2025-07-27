@@ -35,7 +35,7 @@ const defaultSettings: Settings = {
   alwaysOnTop: true,
   defaultDuration: 25 * 60,
   theme: 'dark',
-  notificationSound: 'default',
+  notificationSound: 'zen',
   customShortcut: {
     toggleVisibility: 'Hyperkey+P',
     modifiers: ['Super', 'Control', 'Alt', 'Shift'],

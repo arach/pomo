@@ -9,11 +9,12 @@
     "lint": "next lint"
   },
   "dependencies": {
+    "@peal-sounds/peal": "^0.1.6",
+    "clsx": "^2.1.0",
+    "lucide-react": "^0.363.0",
     "next": "15.0.3",
     "react": "^18.3.1",
     "react-dom": "^18.3.1",
-    "lucide-react": "^0.363.0",
-    "clsx": "^2.1.0",
     "tailwind-merge": "^2.2.0"
   },
   "devDependencies": {

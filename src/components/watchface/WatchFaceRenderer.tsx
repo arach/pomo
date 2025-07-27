@@ -47,6 +47,15 @@ import { RolodexDisplay } from './watchfaces/rolodex/RolodexDisplay';
 // Default watchface components (new clean design)
 import { DefaultLayout } from './watchfaces/default/DefaultLayout';
 
+// Liquid Mercury watchface
+import { LiquidMercuryLayout } from './watchfaces/liquid-mercury/LiquidMercuryLayout';
+
+// Constellation watchface
+import { ConstellationLayout } from './watchfaces/constellation/ConstellationLayout';
+
+// Zen Garden watchface
+import { ZenGardenLayout } from './watchfaces/zen-garden/ZenGardenLayout';
+
 // Default watchface components
 import { DefaultProgress } from './watchfaces/default/DefaultProgress';
 
@@ -305,6 +314,57 @@ export function WatchFaceRenderer({ config, onTimeClick, hideControls = false, v
                   sessionType={sessionType}
                 />
               )
+            );
+          
+          case 'liquid-mercury-layout':
+            return (
+              <LiquidMercuryLayout
+                key={component.id}
+                config={config}
+                remaining={props.remaining}
+                duration={props.duration}
+                isRunning={props.isRunning}
+                isPaused={props.isPaused}
+                onStart={props.onStart}
+                onPause={props.onPause}
+                onReset={props.onReset}
+                onTimeClick={onTimeClick}
+                sessionName={props.sessionName}
+              />
+            );
+          
+          case 'constellation-layout':
+            return (
+              <ConstellationLayout
+                key={component.id}
+                config={config}
+                remaining={props.remaining}
+                duration={props.duration}
+                isRunning={props.isRunning}
+                isPaused={props.isPaused}
+                onStart={props.onStart}
+                onPause={props.onPause}
+                onReset={props.onReset}
+                onTimeClick={onTimeClick}
+                sessionName={props.sessionName}
+              />
+            );
+          
+          case 'zen-garden-layout':
+            return (
+              <ZenGardenLayout
+                key={component.id}
+                config={config}
+                remaining={props.remaining}
+                duration={props.duration}
+                isRunning={props.isRunning}
+                isPaused={props.isPaused}
+                onStart={props.onStart}
+                onPause={props.onPause}
+                onReset={props.onReset}
+                onTimeClick={onTimeClick}
+                sessionName={props.sessionName}
+              />
             );
           
           case 'default-progress':

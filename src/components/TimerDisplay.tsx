@@ -5,6 +5,7 @@ import { useEffect, useState } from 'react';
 import { WatchFaceRenderer } from './watchface/WatchFaceRenderer';
 import { WatchFaceLoader } from '../services/watchface-loader';
 import { invoke } from '@tauri-apps/api/core';
+import { useAmbientSound } from '../hooks/useAmbientSound';
 
 interface TimerDisplayProps {
   isCollapsed?: boolean;
@@ -48,6 +49,9 @@ export function TimerDisplay({ isCollapsed = false, onTimeClick, showDurationInp
       }
     });
   }, [watchFace]);
+  
+  // Use ambient sound hook
+  useAmbientSound(currentWatchFaceConfig);
   
   const formatTime = (seconds: number) => {
     const mins = Math.floor(seconds / 60);

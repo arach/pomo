@@ -5,6 +5,9 @@ import terminalConfig from '../watchfaces/terminal.json';
 import retroDigitalConfig from '../watchfaces/retro-digital.json';
 import retroLcdConfig from '../watchfaces/retro-lcd.json';
 import neonConfig from '../watchfaces/neon.json';
+import liquidMercuryConfig from '../watchfaces/liquid-mercury.json';
+import constellationConfig from '../watchfaces/constellation.json';
+import zenGardenConfig from '../watchfaces/zen-garden.json';
 import { invoke } from '@tauri-apps/api/core';
 
 export class WatchFaceLoader {
@@ -19,6 +22,9 @@ export class WatchFaceLoader {
     this.watchFaces.set('retro-digital', retroDigitalConfig as WatchFaceConfig);
     this.watchFaces.set('retro-lcd', retroLcdConfig as WatchFaceConfig);
     this.watchFaces.set('neon', neonConfig as WatchFaceConfig);
+    this.watchFaces.set('liquid-mercury', liquidMercuryConfig as WatchFaceConfig);
+    this.watchFaces.set('constellation', constellationConfig as WatchFaceConfig);
+    this.watchFaces.set('zen-garden', zenGardenConfig as WatchFaceConfig);
   }
   
   static getWatchFace(id: string): WatchFaceConfig | null {

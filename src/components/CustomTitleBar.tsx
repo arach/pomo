@@ -12,9 +12,9 @@ export function CustomTitleBar({ title, showCollapseButton = true }: CustomTitle
 
   const handleClose = async () => {
     try {
-      await appWindow.close();
+      await appWindow.hide();
     } catch (error) {
-      console.error('Failed to close window:', error);
+      console.error('Failed to hide window:', error);
     }
   };
 

@@ -6,10 +6,18 @@ import { open } from '@tauri-apps/plugin-dialog';
 import { readTextFile } from '@tauri-apps/plugin-fs';
 
 const SOUND_OPTIONS = [
-  { value: 'default', label: 'Default Beep', preview: '🔔' },
-  { value: 'bell', label: 'Bell', preview: '🔔' },
-  { value: 'chime', label: 'Chime', preview: '🎵' },
-  { value: 'ding', label: 'Ding', preview: '🛎️' },
+  { value: 'zen', label: 'Zen Bowl', preview: '🧘' },
+  { value: 'success', label: 'Success', preview: '✨' },
+  { value: 'gentle', label: 'Gentle Piano', preview: '🎹' },
+  { value: 'digital', label: 'Digital', preview: '💫' },
+  { value: 'nature', label: 'Nature', preview: '🐦' },
+  { value: 'retro', label: 'Retro 8-bit', preview: '🎮' },
+  { value: 'minimal', label: 'Minimal', preview: '○' },
+  { value: 'orchestra', label: 'Orchestra', preview: '🎻' },
+  { value: 'bach', label: 'Bach Invention', preview: '🎼' },
+  { value: 'beethoven', label: 'Beethoven 5th', preview: '🎭' },
+  { value: 'bell', label: 'Classic Bell', preview: '🔔' },
+  { value: 'chime', label: 'Classic Chime', preview: '🎵' },
   { value: 'custom', label: 'Custom File...', preview: '📁' },
 ];
 
@@ -95,11 +103,11 @@ export function SettingsPanel({ isStandalone = false }: SettingsPanelProps) {
     }
   }, [isRecordingShortcut, updateSettings]);
   
-  const handleSoundPreview = () => {
+  const handleSoundPreview = (soundType?: string) => {
     if (soundEnabled) {
       // Import and use AudioService to preview the selected sound
       import('../services/audio').then(({ AudioService }) => {
-        AudioService.playCompletionSound(volume);
+        AudioService.playCompletionSound(volume, soundType || notificationSound);
       });
     }
   };
@@ -161,13 +169,18 @@ export function SettingsPanel({ isStandalone = false }: SettingsPanelProps) {
                     <Music className="w-3 h-3 text-muted-foreground" />
                     <span className="text-xs text-muted-foreground">Notification Sound</span>
                   </div>
-                  <div className="grid grid-cols-2 gap-2">
+                  <div className="grid grid-cols-2 gap-2 max-h-64 overflow-y-auto">
                     {SOUND_OPTIONS.map((sound) => (
                       <button
                         key={sound.value}
                         onClick={() => {
-                          updateSettings({ notificationSound: sound.value });
-                          handleSoundPreview();
+                          if (sound.value !== 'custom') {
+                            updateSettings({ notificationSound: sound.value });
+                            handleSoundPreview(sound.value);
+                          } else {
+                            // TODO: Implement custom sound file selection
+                            alert('Custom sound file selection coming soon!');
+                          }
                         }}
                         className={`flex items-center gap-2 px-3 py-2 rounded-lg text-sm transition-all ${
                           notificationSound === sound.value

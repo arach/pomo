@@ -5,6 +5,7 @@ import "./globals.css";
 const inter = Inter({ subsets: ["latin"] });
 
 export const metadata: Metadata = {
+  metadataBase: new URL('https://pomo.arach.dev'),
   title: "Pomo - Minimalist Pomodoro Timer for macOS",
   description: "A beautifully crafted floating Pomodoro timer that lives in your menu bar. Focus on what matters with our distraction-free design.",
   keywords: "pomodoro, timer, productivity, focus, macos, desktop app, time management",

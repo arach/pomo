@@ -6,6 +6,7 @@
   "scripts": {
     "dev": "vite",
     "build": "tsc && vite build",
+    "build:web": "tsc && vite build --mode production",
     "preview": "vite preview",
     "tauri": "tauri",
     "tauri:dev": "tauri dev",
@@ -16,7 +17,9 @@
     "type-check": "tsc --noEmit",
     "dev:compare": "vite & sleep 2 && open 'http://localhost:1421/?split=true'",
     "dev:neon": "vite & sleep 2 && open 'http://localhost:1421/?watchface=neon&version=v1' && open 'http://localhost:1421/?watchface=neon&version=v2'",
-    "dev:v2": "vite & sleep 2 && open 'http://localhost:1421/?version=v2'"
+    "dev:v2": "vite & sleep 2 && open 'http://localhost:1421/?version=v2'",
+    "deploy:prepare": "npm run build:web",
+    "deploy": "npm run deploy:prepare && echo 'Ready to deploy dist/ to pomo.arach.dev'"
   },
   "dependencies": {
     "@radix-ui/react-slider": "^1.3.5",

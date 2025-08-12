@@ -13,6 +13,9 @@ export default defineConfig(async () => ({
   // prevent vite from obscuring rust errors
   clearScreen: false,
   
+  // Base path for subdomain deployment
+  base: process.env.VITE_BASE_PATH || '/',
+  
   // Module resolution: Use mocks for Tauri APIs in web mode
   resolve: {
     alias: isTauriMode ? {} : {
@@ -32,6 +35,10 @@ export default defineConfig(async () => ({
     },
   },
   build: {
+    // Output directory for static site
+    outDir: 'dist',
+    // Ensure assets are correctly referenced
+    assetsDir: 'assets',
     rollupOptions: {
       input: {
         main: resolve(__dirname, 'index.html'),

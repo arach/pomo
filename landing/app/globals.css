@@ -1,33 +1,178 @@
-@import url('https://fonts.googleapis.com/css2?family=Inter:wght@200;300;400;500;600;700&family=JetBrains+Mono:wght@300;400;500&display=swap');
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
 
+:root {
+  /* Enhanced color palette with OKLCH for better perceptual uniformity */
+  --background: oklch(0.99 0.005 106);
+  --foreground: oklch(0.15 0.02 258);
+  --accent: oklch(0.62 0.22 217);
+  --accent-light: oklch(0.72 0.18 217);
+  --muted: oklch(0.96 0.01 106);
+  --muted-foreground: oklch(0.55 0.015 258);
+  --border: oklch(0.91 0.015 106);
+  --primary: oklch(0.62 0.22 217);
+  --primary-foreground: oklch(0.99 0.005 106);
+  
+  /* Font variables */
+  --font-sans: var(--font-inter);
+  --font-serif: var(--font-space-grotesk);
+}
+
+.dark {
+  /* Rich dark mode with enhanced contrast */
+  --background: oklch(0.08 0.015 258);
+  --foreground: oklch(0.95 0.008 106);
+  --accent: oklch(0.65 0.25 217);
+  --accent-light: oklch(0.75 0.20 217);
+  --muted: oklch(0.15 0.02 258);
+  --muted-foreground: oklch(0.65 0.015 106);
+  --border: oklch(0.18 0.025 258);
+  --primary: oklch(0.65 0.25 217);
+  --primary-foreground: oklch(0.08 0.015 258);
+}
+
 @layer base {
-  :root {
-    --background: 26 26 26;
-    --foreground: 255 255 255;
+  * {
+    @apply border-border;
   }
   
   body {
-    @apply bg-background text-foreground;
+    @apply bg-background text-foreground font-sans antialiased;
+    text-rendering: optimizeLegibility;
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
   }
-  
-  /* Custom scrollbar */
+
+  /* Enhanced scrollbar styling */
   ::-webkit-scrollbar {
-    width: 8px;
-    height: 8px;
+    width: 6px;
+    height: 6px;
   }
-  
+
   ::-webkit-scrollbar-track {
-    @apply bg-background;
+    @apply bg-transparent;
   }
-  
+
   ::-webkit-scrollbar-thumb {
-    @apply bg-muted rounded-full;
+    @apply bg-border rounded-full;
+    transition: background-color 0.2s ease;
+  }
+
+  ::-webkit-scrollbar-thumb:hover {
+    @apply bg-border;
+    opacity: 0.8;
+  }
+}
+
+@layer utilities {
+  /* Enhanced animations */
+  @keyframes fade-up {
+    from {
+      opacity: 0;
+      transform: translateY(24px);
+    }
+    to {
+      opacity: 1;
+      transform: translateY(0);
+    }
+  }
+
+  @keyframes scale-in {
+    from {
+      opacity: 0;
+      transform: scale(0.96);
+    }
+    to {
+      opacity: 1;
+      transform: scale(1);
+    }
+  }
+
+  @keyframes float {
+    0%, 100% {
+      transform: translateY(0px) rotate(0deg);
+    }
+    33% {
+      transform: translateY(-8px) rotate(1deg);
+    }
+    66% {
+      transform: translateY(-4px) rotate(-1deg);
+    }
+  }
+
+  @keyframes glow {
+    0%, 100% {
+      box-shadow: 0 0 20px rgba(116, 144, 255, 0.1);
+    }
+    50% {
+      box-shadow: 0 0 40px rgba(116, 144, 255, 0.25);
+    }
+  }
+
+  @keyframes shimmer {
+    0% {
+      background-position: -1000px 0;
+    }
+    100% {
+      background-position: 1000px 0;
+    }
+  }
+
+  .animate-fade-up {
+    animation: fade-up 0.8s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+  }
+
+  .animate-scale-in {
+    animation: scale-in 0.8s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+  }
+
+  .animate-float {
+    animation: float 6s ease-in-out infinite;
+  }
+
+  .animate-glow {
+    animation: glow 3s ease-in-out infinite;
+  }
+
+  /* Glass morphism effect */
+  .glass {
+    background: rgba(255, 255, 255, 0.05);
+    backdrop-filter: blur(20px);
+    border: 1px solid rgba(255, 255, 255, 0.1);
+  }
+
+  .dark .glass {
+    background: rgba(255, 255, 255, 0.03);
+    border: 1px solid rgba(255, 255, 255, 0.08);
+  }
+
+  /* Gradient text effect */
+  .gradient-text {
+    background: linear-gradient(135deg, oklch(0.62 0.22 217) 0%, oklch(0.72 0.18 217) 100%);
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+    background-clip: text;
+  }
+
+  /* Shimmer effect for buttons */
+  .shimmer {
+    background: linear-gradient(
+      90deg,
+      transparent,
+      rgba(255, 255, 255, 0.1),
+      transparent
+    );
+    background-size: 1000px 100%;
+    animation: shimmer 2s infinite;
+  }
+
+  /* Enhanced hover states */
+  .hover-lift {
+    transition: transform 0.3s cubic-bezier(0.16, 1, 0.3, 1);
   }
   
-  ::-webkit-scrollbar-thumb:hover {
-    @apply bg-muted/80;
+  .hover-lift:hover {
+    transform: translateY(-4px);
   }
 }

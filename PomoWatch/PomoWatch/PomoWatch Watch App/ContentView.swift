@@ -18,6 +18,8 @@ struct ContentView: View {
     @State private var sessionsCompleted = 0
     @State private var selectedMinutes = 25
     
+    @EnvironmentObject var intentManager: TimerIntentManager
+    
     
     var totalDuration: Int {
         selectedMinutes * 60
@@ -212,7 +214,63 @@ struct ContentView: View {
             .sheet(isPresented: $showDurationPicker) {
                 DurationPickerView(selectedMinutes: $selectedMinutes, timeRemaining: $timeRemaining)
             }
+            .onReceive(NotificationCenter.default.publisher(for: .timerStartedFromIntent)) { notification in
+                if let userInfo = notification.userInfo,
+                   let minutes = userInfo["minutes"] as? Int,
+                   let themeString = userInfo["theme"] as? String,
+                   let theme = WatchTheme(rawValue: themeString) {
+                    selectedMinutes = minutes
+                    timeRemaining = minutes * 60
+                    currentTheme = theme
+                    isRunning = true
+                    startInternalTimer()
+                }
+            }
+            .onReceive(NotificationCenter.default.publisher(for: .timerPausedFromIntent)) { _ in
+                pauseTimer()
+            }
+            .onReceive(NotificationCenter.default.publisher(for: .timerResumedFromIntent)) { _ in
+                resumeTimer()
+            }
+            .onReceive(NotificationCenter.default.publisher(for: .timerStoppedFromIntent)) { _ in
+                stopTimer()
+            }
         }
+    }
+    
+    private func startInternalTimer() {
+        timer?.invalidate()
+        timer = Timer.scheduledTimer(withTimeInterval: 1, repeats: true) { _ in
+            if timeRemaining > 0 {
+                timeRemaining -= 1
+            } else {
+                // Timer finished
+                timer?.invalidate()
+                timer = nil
+                isRunning = false
+                sessionsCompleted += 1
+                timeRemaining = totalDuration
+                WKInterfaceDevice.current().play(.success)
+            }
+        }
+    }
+    
+    private func pauseTimer() {
+        isRunning = false
+        timer?.invalidate()
+        timer = nil
+    }
+    
+    private func resumeTimer() {
+        isRunning = true
+        startInternalTimer()
+    }
+    
+    private func stopTimer() {
+        isRunning = false
+        timeRemaining = selectedMinutes * 60
+        timer?.invalidate()
+        timer = nil
     }
     
     private func toggleTimer() {

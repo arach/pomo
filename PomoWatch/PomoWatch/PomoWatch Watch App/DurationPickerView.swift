@@ -20,7 +20,7 @@ struct DurationPickerView: View {
                 VStack(spacing: 8) {
                     Text("Set Timer Duration")
                         .font(.system(size: 14, weight: .medium))
-                        .foregroundColor(.secondary)
+                        .foregroundColor(.white)
                         .padding(.bottom, 5)
                     
                     ForEach(presetDurations, id: \.self) { minutes in
@@ -59,7 +59,6 @@ struct DurationPickerView: View {
                 }
                 .padding()
             }
-            .navigationTitle("Duration")
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
                 ToolbarItem(placement: .cancellationAction) {

@@ -79,7 +79,9 @@
       "Bash(xcodebuild:*)",
       "Bash(xcrun simctl list:*)",
       "Bash(open:*)",
-      "Bash(./create_watch_app.sh:*)"
+      "Bash(./create_watch_app.sh:*)",
+      "Bash(xcodegen generate:*)",
+      "Bash(git rm:*)"
     ],
     "deny": []
   },

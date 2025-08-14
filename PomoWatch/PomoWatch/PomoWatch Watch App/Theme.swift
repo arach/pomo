@@ -200,4 +200,56 @@ enum WatchTheme: String, CaseIterable {
             )
         }
     }
+
+    // MARK: - Button styling helpers
+    var buttonBorderColor: Color {
+        switch self {
+        case .minimal:
+            return accentColor.opacity(0.35)
+        case .terminal:
+            return primaryColor.opacity(0.4)
+        case .neon:
+            return accentColor.opacity(0.5)
+        case .retroDigital:
+            return primaryColor.opacity(0.5)
+        case .lcd:
+            return Color.black.opacity(0.25)
+        case .glow:
+            return accentColor.opacity(0.35)
+        }
+    }
+
+    var buttonIconColor: Color {
+        switch self {
+        case .minimal:
+            return Color.white
+        case .terminal:
+            return primaryColor
+        case .neon:
+            return Color.black
+        case .retroDigital:
+            return Color.white
+        case .lcd:
+            return primaryColor
+        case .glow:
+            return Color.white
+        }
+    }
+
+    var buttonShadowColor: Color {
+        switch self {
+        case .minimal:
+            return Color.black.opacity(0.3)
+        case .terminal:
+            return primaryColor.opacity(0.25)
+        case .neon:
+            return accentColor.opacity(0.6)
+        case .retroDigital:
+            return primaryColor.opacity(0.4)
+        case .lcd:
+            return Color.black.opacity(0.2)
+        case .glow:
+            return accentColor.opacity(0.5)
+        }
+    }
 }

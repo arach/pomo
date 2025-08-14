@@ -17,6 +17,7 @@ struct ContentView: View {
     @State private var showDurationPicker = false
     @State private var sessionsCompleted = 0
     @State private var selectedMinutes = 25
+    @AppStorage("hasSetDurationOnce") private var hasSetDurationOnce: Bool = false
     
     @EnvironmentObject var intentManager: TimerIntentManager
     
@@ -29,6 +30,10 @@ struct ContentView: View {
         Double(totalDuration - timeRemaining) / Double(totalDuration)
     }
     
+    var isIdle: Bool {
+        !isRunning && timeRemaining == totalDuration
+    }
+    
     var body: some View {
         NavigationStack {
             ZStack {
@@ -37,177 +42,74 @@ struct ContentView: View {
                     .ignoresSafeArea()
                 
                 ScrollView {
-                    VStack(spacing: 12) {
-                        // Settings bar
-                        HStack(spacing: 12) {
-                            // Duration picker
-                            Button(action: { showDurationPicker = true }) {
-                                Label(String(format: "%d min", selectedMinutes), systemImage: "timer")
-                                    .font(.system(size: 12))
-                                    .foregroundColor(currentTheme.accentColor.opacity(0.7))
-                            }
-                            .buttonStyle(PlainButtonStyle())
-                            
-                            Spacer()
-                            
-                            // Theme switcher
-                            Button(action: { showThemePicker = true }) {
-                                Image(systemName: "paintbrush.fill")
-                                    .font(.system(size: 14))
-                                    .foregroundColor(currentTheme.accentColor.opacity(0.7))
-                            }
-                            .buttonStyle(PlainButtonStyle())
-                        }
-                        .padding(.horizontal)
-                        .padding(.top, 5)
-                
-                // Theme-specific timer display
-                if currentTheme == .terminal {
-                    // Terminal-specific view
-                    TerminalTimerView(
-                        timeRemaining: timeRemaining,
-                        isRunning: isRunning,
-                        sessionsCompleted: sessionsCompleted
-                    )
-                    .padding()
-                    .background(
-                        RoundedRectangle(cornerRadius: 8)
-                            .fill(Color.black.opacity(0.9))
-                            .overlay(
-                                RoundedRectangle(cornerRadius: 8)
-                                    .stroke(Color(red: 0, green: 1, blue: 0).opacity(0.3), lineWidth: 1)
-                            )
-                    )
-                    .shadow(color: Color(red: 0, green: 1, blue: 0).opacity(0.2), radius: 10)
-                    .padding(.vertical, 10)
-                } else if currentTheme == .lcd {
-                    // LCD display view
-                    LCDTimerView(
-                        timeRemaining: timeRemaining,
-                        isRunning: isRunning,
-                        progress: progress
-                    )
-                    .padding(.vertical, 10)
-                } else if currentTheme == .retroDigital {
-                    // Retro digital clock view
-                    RetroDigitalTimerView(
-                        timeRemaining: timeRemaining,
-                        isRunning: isRunning,
-                        progress: progress
-                    )
-                    .padding(.vertical, 10)
-                } else {
-                    // Circular progress for minimal and neon themes
-                    ZStack {
-                        // Background circle
-                        Circle()
-                            .stroke(currentTheme.primaryColor.opacity(0.2), lineWidth: currentTheme == .neon ? 6 : 3)
-                            .frame(width: 140, height: 140)
-                        
-                        // Progress circle
-                        Circle()
-                            .trim(from: 0, to: progress)
-                            .stroke(
-                                currentTheme.progressGradient,
-                                style: StrokeStyle(lineWidth: currentTheme == .neon ? 6 : 3, lineCap: .round)
-                            )
-                            .frame(width: 140, height: 140)
-                            .rotationEffect(.degrees(-90))
-                            .animation(.linear(duration: 0.5), value: progress)
-                        
-                        if currentTheme.hasGlow {
-                            Circle()
-                                .trim(from: 0, to: progress)
-                                .stroke(
-                                    currentTheme.primaryColor.opacity(0.3),
-                                    style: StrokeStyle(lineWidth: 10, lineCap: .round)
-                                )
-                                .frame(width: 140, height: 140)
-                                .rotationEffect(.degrees(-90))
-                                .blur(radius: currentTheme == .neon ? 8 : 4)
-                        }
-                        
-                        // Time display inside circle
-                        VStack(spacing: 5) {
-                            if currentTheme == .neon {
-                                // Neon digital display
-                                HStack(spacing: 2) {
-                                    Text(String(format: "%02d", timeRemaining / 60))
-                                        .font(.system(size: 44, weight: .bold, design: .rounded))
-                                        .foregroundColor(currentTheme.primaryColor)
-                                        .shadow(color: currentTheme.primaryColor, radius: 15)
-                                    
-                                    Text(":")
-                                        .font(.system(size: 36, weight: .bold, design: .rounded))
-                                        .foregroundColor(currentTheme.accentColor)
-                                        .shadow(color: currentTheme.accentColor, radius: 10)
-                                        .offset(y: -2)
-                                    
-                                    Text(String(format: "%02d", timeRemaining % 60))
-                                        .font(.system(size: 44, weight: .bold, design: .rounded))
-                                        .foregroundColor(currentTheme.primaryColor)
-                                        .shadow(color: currentTheme.primaryColor, radius: 15)
-                                }
-                            } else if currentTheme == .glow {
-                                // Glow theme with pulsing effect
-                                Text(timeString(from: timeRemaining))
-                                    .font(currentTheme.timerFont)
-                                    .foregroundColor(currentTheme.primaryColor)
-                                    .shadow(color: currentTheme.primaryColor, radius: 20)
-                                    .shadow(color: currentTheme.accentColor, radius: 10)
-                                    .blur(radius: 0.5)
-                                    .overlay(
-                                        Text(timeString(from: timeRemaining))
-                                            .font(currentTheme.timerFont)
-                                            .foregroundColor(.white)
-                                    )
-                            } else {
-                                // Minimal clean display
-                                Text(timeString(from: timeRemaining))
-                                    .font(currentTheme.timerFont)
-                                    .foregroundColor(currentTheme.primaryColor)
-                            }
-                            
-                            // Session dots
-                            HStack(spacing: 4) {
-                                ForEach(0..<4, id: \.self) { index in
-                                    Circle()
-                                        .fill(index < (sessionsCompleted % 4) ? 
-                                              currentTheme.accentColor : 
-                                              currentTheme.primaryColor.opacity(0.2))
-                                        .frame(width: 5, height: 5)
-                                }
-                            }
-                        }
-                    }
-                    .padding(.vertical, 10)
-                }
-                        
-                        // Play/Pause button with theme colors
-                        Button(action: toggleTimer) {
-                            ZStack {
-                                Circle()
-                                    .fill(isRunning ? currentTheme.accentColor : currentTheme.buttonColor)
-                                    .frame(width: 50, height: 50)
-                                
-                                if currentTheme.hasGlow {
-                                    Circle()
-                                        .stroke(currentTheme.accentColor.opacity(0.5), lineWidth: 1)
-                                        .frame(width: 50, height: 50)
-                                        .shadow(color: currentTheme.accentColor.opacity(0.3), radius: currentTheme.glowRadius / 2)
-                                }
-                                
-                                Image(systemName: isRunning ? "pause.fill" : "play.fill")
-                                    .font(.system(size: 22))
-                                    .foregroundColor(currentTheme == .minimal ? currentTheme.backgroundColor : .white)
-                            }
-                        }
-                        .buttonStyle(PlainButtonStyle())
-                        .padding(.bottom, 10)
-                    }
-                    .padding(.horizontal)
+                    mainScrollContent
                 }
             }
+            .frame(maxWidth: .infinity, maxHeight: .infinity)
+            // Geometry-anchored corner controls (ignore safe areas, anchor by screen radius)
+            .overlay {
+                GeometryReader { proxy in
+                    let size = proxy.size
+                    let minDim = min(size.width, size.height)
+                    // Pull in by a handful of pixels; scale slightly with watch size and add a few extra px
+                    let edgePadding: CGFloat = max(6, minDim * 0.03) + 4
+                    // Mildly responsive button radii for smaller watches
+                    let smallRadius: CGFloat = max(14, min(17, minDim * 0.085)) // ~28–34pt diameter
+                    let largeRadius: CGFloat = smallRadius // Keep start button same size as others
+                    
+                    ZStack {
+                        if currentTheme != .terminal {
+                            // Bottom-left: reset (long-press in Minimal theme resets first-time hint)
+                            Group {
+                                if currentTheme == .minimal {
+                                    CornerCircleButton(
+                                        icon: "arrow.counterclockwise",
+                                        size: smallRadius * 2,
+                                        fill: currentTheme.buttonColor,
+                                        border: currentTheme.buttonBorderColor,
+                                        iconColor: currentTheme.buttonIconColor,
+                                        shadowColor: currentTheme.buttonShadowColor,
+                                        action: { stopTimer() }
+                                    )
+                                    .simultaneousGesture(
+                                        LongPressGesture(minimumDuration: 0.6)
+                                            .onEnded { _ in
+                                                hasSetDurationOnce = false
+                                                WKInterfaceDevice.current().play(.success)
+                                            }
+                                    )
+                                } else {
+                                    CornerCircleButton(
+                                        icon: "arrow.counterclockwise",
+                                        size: smallRadius * 2,
+                                        fill: currentTheme.buttonColor,
+                                        border: currentTheme.buttonBorderColor,
+                                        iconColor: currentTheme.buttonIconColor,
+                                        shadowColor: currentTheme.buttonShadowColor,
+                                        action: { stopTimer() }
+                                    )
+                                }
+                            }
+                            .position(cornerPoint(.bottomLeft, in: size, controlRadius: smallRadius, edgePadding: edgePadding + 2))
+                            
+                            // Bottom-right: start/pause
+                            CornerCircleButton(
+                                icon: isRunning ? "pause.fill" : "play.fill",
+                                size: largeRadius * 2,
+                                fill: isRunning ? currentTheme.accentColor : currentTheme.buttonColor,
+                                border: currentTheme.buttonBorderColor,
+                                iconColor: currentTheme.buttonIconColor,
+                                shadowColor: currentTheme.buttonShadowColor,
+                                action: { toggleTimer() }
+                            )
+                            .position(cornerPoint(.bottomRight, in: size, controlRadius: largeRadius, edgePadding: edgePadding + 2))
+                        }
+                    }
+                }
+                .ignoresSafeArea()
+            }
+            // Terminal theme now renders its own command UI; no global bottom bar
+            
             .sheet(isPresented: $showThemePicker) {
                 ThemePickerView(currentTheme: $currentTheme)
             }
@@ -307,4 +209,218 @@ struct ContentView: View {
 
 #Preview {
     ContentView()
+}
+
+// MARK: - Extracted subviews to simplify type-checking
+private extension ContentView {
+    enum CornerAnchor { case topLeft, topRight, bottomLeft, bottomRight }
+
+    // Anchor a circular control to the visual corners by subtracting its radius and a small edge padding
+    func cornerPoint(_ anchor: CornerAnchor, in size: CGSize, controlRadius: CGFloat, edgePadding: CGFloat) -> CGPoint {
+        let w = size.width
+        let h = size.height
+        let xInset = controlRadius + edgePadding
+        let yInset = controlRadius + edgePadding
+        switch anchor {
+        case .topLeft:
+            return CGPoint(x: xInset, y: yInset)
+        case .topRight:
+            return CGPoint(x: w - xInset, y: yInset)
+        case .bottomLeft:
+            return CGPoint(x: xInset, y: h - yInset)
+        case .bottomRight:
+            return CGPoint(x: w - xInset, y: h - yInset)
+        }
+    }
+    @ViewBuilder var mainScrollContent: some View {
+        VStack(spacing: 8) {
+            timerDisplay
+            if isIdle && !hasSetDurationOnce {
+                HStack(spacing: 4) {
+                    Image(systemName: "timer")
+                    Text("Tap time to set duration")
+                }
+                .font(currentTheme.labelFont)
+                .foregroundColor(currentTheme.primaryColor.opacity(0.35))
+                .padding(.top, 2)
+                .offset(y: -10)
+            }
+        }
+        .contentShape(Rectangle())
+        .onTapGesture {
+            if isIdle && currentTheme != .terminal {
+                hasSetDurationOnce = true
+                showDurationPicker = true
+            }
+        }
+        .onLongPressGesture(minimumDuration: 0.5) {
+            showThemePicker = true
+        }
+        .padding(.horizontal)
+        .padding(.bottom, 38)
+    }
+
+    @ViewBuilder var timerDisplay: some View {
+        switch currentTheme {
+        case .terminal:
+            TerminalTimerView(
+                timeRemaining: timeRemaining,
+                isRunning: isRunning,
+                sessionsCompleted: sessionsCompleted,
+                totalDuration: totalDuration,
+                isIdle: isIdle,
+                currentThemeName: currentTheme.rawValue,
+                onStartPause: { toggleTimer() },
+                onSetDuration: {
+                    if isIdle {
+                        hasSetDurationOnce = true
+                        showDurationPicker = true
+                    }
+                },
+                onChangeTheme: { showThemePicker = true }
+            )
+            .padding()
+            .background(
+                RoundedRectangle(cornerRadius: 8)
+                    .fill(Color.black.opacity(0.9))
+                    .overlay(
+                        RoundedRectangle(cornerRadius: 8)
+                            .stroke(Color(red: 0, green: 1, blue: 0).opacity(0.3), lineWidth: 1)
+                    )
+            )
+            .shadow(color: Color(red: 0, green: 1, blue: 0).opacity(0.2), radius: 10)
+            .padding(.vertical, 10)
+
+        case .lcd:
+            LCDTimerView(
+                timeRemaining: timeRemaining,
+                isRunning: isRunning,
+                progress: progress
+            )
+            .padding(.vertical, 10)
+
+        case .retroDigital:
+            RetroDigitalTimerView(
+                timeRemaining: timeRemaining,
+                isRunning: isRunning,
+                progress: progress
+            )
+            .padding(.vertical, 10)
+
+        default:
+            circularTimerView
+                .padding(.vertical, 10)
+        }
+    }
+
+    @ViewBuilder var circularTimerView: some View {
+        ZStack {
+            Circle()
+                .stroke(currentTheme.primaryColor.opacity(0.2), lineWidth: currentTheme == .neon ? 6 : 3)
+                .frame(width: 120, height: 120)
+
+            Circle()
+                .trim(from: 0, to: progress)
+                .stroke(
+                    currentTheme.progressGradient,
+                    style: StrokeStyle(lineWidth: currentTheme == .neon ? 6 : 3, lineCap: .round)
+                )
+                .frame(width: 120, height: 120)
+                .rotationEffect(.degrees(-90))
+                .animation(.linear(duration: 0.5), value: progress)
+
+            if currentTheme.hasGlow {
+                Circle()
+                    .trim(from: 0, to: progress)
+                    .stroke(
+                        currentTheme.primaryColor.opacity(0.3),
+                        style: StrokeStyle(lineWidth: 10, lineCap: .round)
+                    )
+                    .frame(width: 120, height: 120)
+                    .rotationEffect(.degrees(-90))
+                    .blur(radius: currentTheme == .neon ? 8 : 4)
+            }
+
+            VStack(spacing: 5) {
+                if currentTheme == .neon {
+                    HStack(spacing: 2) {
+                        Text(String(format: "%02d", timeRemaining / 60))
+                            .font(.system(size: 44, weight: .bold, design: .rounded))
+                            .foregroundColor(currentTheme.primaryColor)
+                            .shadow(color: currentTheme.primaryColor, radius: 15)
+
+                        Text(":")
+                            .font(.system(size: 36, weight: .bold, design: .rounded))
+                            .foregroundColor(currentTheme.accentColor)
+                            .shadow(color: currentTheme.accentColor, radius: 10)
+                            .offset(y: -2)
+
+                        Text(String(format: "%02d", timeRemaining % 60))
+                            .font(.system(size: 44, weight: .bold, design: .rounded))
+                            .foregroundColor(currentTheme.primaryColor)
+                            .shadow(color: currentTheme.primaryColor, radius: 15)
+                    }
+                } else if currentTheme == .glow {
+                    Text(timeString(from: timeRemaining))
+                        .font(currentTheme.timerFont)
+                        .foregroundColor(currentTheme.primaryColor)
+                        .shadow(color: currentTheme.primaryColor, radius: 20)
+                        .shadow(color: currentTheme.accentColor, radius: 10)
+                        .blur(radius: 0.5)
+                        .overlay(
+                            Text(timeString(from: timeRemaining))
+                                .font(currentTheme.timerFont)
+                                .foregroundColor(.white)
+                        )
+                } else {
+                    Text(timeString(from: timeRemaining))
+                        .font(currentTheme.timerFont)
+                        .foregroundColor(currentTheme.primaryColor)
+                }
+
+                HStack(spacing: 4) {
+                    ForEach(0..<4, id: \.self) { index in
+                        Circle()
+                            .fill(index < (sessionsCompleted % 4) ?
+                                  currentTheme.accentColor :
+                                  currentTheme.primaryColor.opacity(0.2))
+                            .frame(width: 5, height: 5)
+                    }
+                }
+            }
+        }
+    }
+}
+// MARK: - Computed overlay views
+private extension ContentView {
+    // terminalBottomBar removed; TerminalTimerView now handles terminal commands
+}
+
+// Reusable corner button to ensure identical sizing/visuals across corners
+private struct CornerCircleButton: View {
+    let icon: String
+    let size: CGFloat
+    let fill: Color
+    let border: Color
+    let iconColor: Color
+    let shadowColor: Color
+    let action: () -> Void
+    
+    var body: some View {
+        Button(action: action) {
+            ZStack {
+                Circle()
+                    .fill(fill)
+                    .frame(width: size, height: size)
+                    .shadow(color: shadowColor, radius: 6)
+                Circle()
+                    .stroke(border, lineWidth: 1)
+                    .frame(width: size, height: size)
+                Image(systemName: icon)
+                    .font(.system(size: max(12, size * 0.4), weight: .semibold))
+                    .foregroundColor(iconColor)
+            }
+        }
+        .buttonStyle(PlainButtonStyle())
+    }
 }

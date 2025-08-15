@@ -50,7 +50,7 @@ function App() {
     reset: state.reset,
     setDuration: state.setDuration
   }));
-  const { soundEnabled, volume, notificationSound, loadSettings, watchFace, updateSettings } = useSettingsStore();
+  const { soundEnabled, volume, notificationSound, loadSettings, watchFace, updateSettings, alwaysOnTop } = useSettingsStore();
   
   useEffect(() => {
     
@@ -227,6 +227,13 @@ function App() {
     if (isCmd && e.key === ',') {
       e.preventDefault();
       invoke('open_settings_window');
+      return;
+    }
+    
+    // Toggle always on top (Cmd+T)
+    if (isCmd && e.key.toLowerCase() === 't') {
+      e.preventDefault();
+      updateSettings({ alwaysOnTop: !alwaysOnTop });
       return;
     }
     

@@ -29,6 +29,7 @@ function ShortcutsWindow() {
       title: 'Navigation',
       shortcuts: [
         { keys: ['⌘', ','], description: 'Open settings' },
+        { keys: ['⌘', 'T'], description: 'Toggle always on top' },
         { keys: ['1-9'], description: 'Quick set minutes (5-45)' },
         { keys: ['↑', '↓'], description: 'Adjust duration ±1 minute' },
         { keys: ['Shift', '↑/↓'], description: 'Adjust duration ±5 minutes' },

@@ -13,6 +13,7 @@ import { WatchFaceLoader } from "./services/watchface-loader";
 import { SplitViewComparison } from "./components/dev/SplitViewComparison";
 import { SessionNameInput } from "./components/SessionNameInput";
 import { SessionCompleteModal } from "./components/SessionCompleteModal";
+import { ConfettiCelebration } from "./components/ConfettiCelebration";
 
 interface TimerUpdate {
   duration: number;
@@ -30,6 +31,7 @@ function App() {
   const [showCompleteModal, setShowCompleteModal] = useState(false);
   const [completedSession, setCompletedSession] = useState<any>(null);
   const [showCompletionPulse, setShowCompletionPulse] = useState(false);
+  const [showConfetti, setShowConfetti] = useState(false);
   
   // Development mode version support
   const urlParams = new URLSearchParams(window.location.search);
@@ -48,7 +50,7 @@ function App() {
     reset: state.reset,
     setDuration: state.setDuration
   }));
-  const { soundEnabled, volume, loadSettings, watchFace, updateSettings } = useSettingsStore();
+  const { soundEnabled, volume, notificationSound, loadSettings, watchFace, updateSettings } = useSettingsStore();
   
   useEffect(() => {
     
@@ -72,7 +74,7 @@ function App() {
     const unlistenComplete = listen('timer-complete', async () => {
       // Play completion sound using our audio service
       if (soundEnabled) {
-        AudioService.playCompletionSound(volume);
+        AudioService.playCompletionSound(volume, notificationSound);
       }
       
       // Complete the session record
@@ -93,12 +95,41 @@ function App() {
         await new Promise(resolve => setTimeout(resolve, 100));
       }
       
+      // Show window if hidden, then bring to front and focus it
+      try {
+        const { getCurrent } = await import('@tauri-apps/api/webviewWindow');
+        const window = getCurrent();
+        
+        // Check if window is visible, if not, show it first
+        const isVisible = await window.isVisible();
+        if (!isVisible) {
+          console.log('Window is hidden, showing it...');
+          await window.show();
+        }
+        
+        // Always focus the window after showing
+        await window.setFocus();
+        console.log('Window focused successfully');
+      } catch (error) {
+        console.log('Could not show/focus window:', error);
+        // Fallback: try the toggle_visibility command
+        try {
+          await invoke('toggle_visibility');
+        } catch (e) {
+          console.log('Fallback toggle_visibility failed:', e);
+        }
+      }
+      
+      // Trigger confetti celebration first
+      setShowConfetti(true);
+      setTimeout(() => setShowConfetti(false), 4000);
+      
       // Trigger completion pulse animation
       setShowCompletionPulse(true);
       setTimeout(() => setShowCompletionPulse(false), 2000);
       
-      // Show modal after a short delay to let the pulse animation play
-      setTimeout(() => setShowCompleteModal(true), 500);
+      // Show modal after confetti starts but before it ends
+      setTimeout(() => setShowCompleteModal(true), 1500);
       
       if (currentSessionId) {
         try {
@@ -409,6 +440,11 @@ function App() {
           session={completedSession}
         />
       )}
+
+      <ConfettiCelebration 
+        isActive={showConfetti} 
+        duration={4000}
+      />
     </WindowWrapper>
   );
 }

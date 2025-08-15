@@ -130,8 +130,14 @@ export class AudioService {
   private static ambientNodes: Map<string, { source: OscillatorNode | AudioBufferSourceNode; gain: GainNode }> = new Map();
 
   static playCompletionSound(volume: number = 0.5, soundType: string = 'default') {
-    // Always use generated sounds for consistency
-    this.playGeneratedSound(soundType, volume);
+    console.log('🔊 Playing completion sound:', soundType, 'volume:', volume);
+    try {
+      // Always use generated sounds for consistency
+      this.playGeneratedSound(soundType, volume);
+      console.log('✅ Sound played successfully');
+    } catch (error) {
+      console.error('❌ Failed to play completion sound:', error);
+    }
   }
 
   private static playGeneratedSound(soundType: string, volume: number = 0.5) {
@@ -385,8 +391,21 @@ export class AudioService {
 
   private static initAudioContext() {
     if (!this.audioContext) {
+      console.log('🎵 Initializing audio context...');
       this.audioContext = new (window.AudioContext || (window as any).webkitAudioContext)();
+      
+      // Resume audio context if suspended (common in bundled apps)
+      if (this.audioContext.state === 'suspended') {
+        console.log('🔄 Audio context suspended, resuming...');
+        this.audioContext.resume().then(() => {
+          console.log('✅ Audio context resumed');
+        }).catch(err => {
+          console.error('❌ Failed to resume audio context:', err);
+        });
+      }
+      
       this.createReverb();
+      console.log('✅ Audio context initialized, state:', this.audioContext.state);
     }
   }
 

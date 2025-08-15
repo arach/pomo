@@ -233,7 +233,7 @@ export default function Home() {
             </h1>
 
             <p className="text-base md:text-lg text-gray-600 mb-8 leading-relaxed max-w-3xl mx-auto font-mono animate-slide-up" style={{ animationDelay: '0.2s' }}>
-              A beautifully minimal Pomodoro timer that lives in your menu bar. 
+              A beautifully minimal Pomodoro timer.
               <span className="text-gray-900 font-medium"> No distractions, just focus.</span>
             </p>
 

@@ -12,10 +12,12 @@ struct PomoShortcuts: AppShortcutsProvider {
         AppShortcut(
             intent: Start25MinuteTimerIntent(),
             phrases: [
+                "Start Pomodoro timer in \(.applicationName)",
+                "Start a Pomodoro in \(.applicationName)",
+                "Begin Pomodoro in \(.applicationName)",
+                "Start focus timer in \(.applicationName)",
                 "Start Pomodoro in \(.applicationName)",
-                "Start focus time in \(.applicationName)",
-                "Begin Pomodoro with \(.applicationName)",
-                "Start working with \(.applicationName)"
+                "Start focus time in \(.applicationName)"
             ],
             shortTitle: "Start Pomodoro",
             systemImageName: "timer"
@@ -24,9 +26,12 @@ struct PomoShortcuts: AppShortcutsProvider {
         AppShortcut(
             intent: Start5MinuteBreakIntent(),
             phrases: [
-                "Start break in \(.applicationName)",
+                "Start break timer in \(.applicationName)",
                 "Take a break with \(.applicationName)",
-                "Break time in \(.applicationName)"
+                "Break time in \(.applicationName)",
+                "Start a break in \(.applicationName)",
+                "Start break in \(.applicationName)",
+                "Take a break with \(.applicationName)"
             ],
             shortTitle: "Start Break",
             systemImageName: "cup.and.saucer.fill"

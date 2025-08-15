@@ -17,9 +17,31 @@ struct ContentView: View {
     @State private var showDurationPicker = false
     @State private var sessionsCompleted = 0
     @State private var selectedMinutes = 25
+    @State private var activityType: ActivityType = .focus
+    @State private var showActivityTypeChange = false
     @AppStorage("hasSetDurationOnce") private var hasSetDurationOnce: Bool = false
     
     @EnvironmentObject var intentManager: TimerIntentManager
+    
+    enum ActivityType: String, CaseIterable {
+        case focus = "DEEP FOCUS"
+        case shortBreak = "SHORT BREAK"
+        case longBreak = "LONG BREAK"
+        case planning = "PLANNING"
+        
+        var displayText: (String, String) {
+            switch self {
+            case .focus:
+                return ("DEEP", "FOCUS")
+            case .shortBreak:
+                return ("SHORT", "BREAK")
+            case .longBreak:
+                return ("LONG", "BREAK")
+            case .planning:
+                return ("", "PLANNING")
+            }
+        }
+    }
     
     
     var totalDuration: Int {
@@ -52,7 +74,7 @@ struct ContentView: View {
                     let size = proxy.size
                     let minDim = min(size.width, size.height)
                     // Pull in by a handful of pixels; scale slightly with watch size and add a few extra px
-                    let edgePadding: CGFloat = max(6, minDim * 0.03) + 4
+                    let edgePadding: CGFloat = max(6, minDim * 0.03) + 6
                     // Mildly responsive button radii for smaller watches
                     let smallRadius: CGFloat = max(14, min(17, minDim * 0.085)) // ~28–34pt diameter
                     let largeRadius: CGFloat = smallRadius // Keep start button same size as others
@@ -90,7 +112,7 @@ struct ContentView: View {
                                     )
                                 }
                             }
-                            .position(cornerPoint(.bottomLeft, in: size, controlRadius: smallRadius, edgePadding: edgePadding + 2))
+                            .position(cornerPoint(.bottomLeft, in: size, controlRadius: smallRadius, edgePadding: edgePadding))
                             
                             // Bottom-right: start/pause
                             CornerCircleButton(
@@ -102,7 +124,7 @@ struct ContentView: View {
                                 shadowColor: currentTheme.buttonShadowColor,
                                 action: { toggleTimer() }
                             )
-                            .position(cornerPoint(.bottomRight, in: size, controlRadius: largeRadius, edgePadding: edgePadding + 2))
+                            .position(cornerPoint(.bottomRight, in: size, controlRadius: largeRadius, edgePadding: edgePadding))
                         }
                     }
                 }
@@ -115,6 +137,22 @@ struct ContentView: View {
             }
             .sheet(isPresented: $showDurationPicker) {
                 DurationPickerView(selectedMinutes: $selectedMinutes, timeRemaining: $timeRemaining)
+            }
+            // Activity type change overlay
+            .overlay(alignment: .top) {
+                if showActivityTypeChange {
+                    Text(activityType.rawValue)
+                        .font(.system(size: 12, weight: .medium))
+                        .padding(.horizontal, 12)
+                        .padding(.vertical, 6)
+                        .background(
+                            Capsule()
+                                .fill(Color.gray.opacity(0.9))
+                        )
+                        .foregroundColor(.white)
+                        .transition(.scale.combined(with: .opacity))
+                        .padding(.top, 10)
+                }
             }
             .onReceive(NotificationCenter.default.publisher(for: .timerStartedFromIntent)) { notification in
                 if let userInfo = notification.userInfo,
@@ -205,6 +243,30 @@ struct ContentView: View {
         let remainingSeconds = seconds % 60
         return String(format: "%02d:%02d", minutes, remainingSeconds)
     }
+    
+    private func cycleActivityType() {
+        let allCases = ActivityType.allCases
+        if let currentIndex = allCases.firstIndex(of: activityType) {
+            let nextIndex = (currentIndex + 1) % allCases.count
+            activityType = allCases[nextIndex]
+            
+            // Adjust duration based on activity type
+            switch activityType {
+            case .focus:
+                selectedMinutes = 25
+            case .shortBreak:
+                selectedMinutes = 5
+            case .longBreak:
+                selectedMinutes = 15
+            case .planning:
+                selectedMinutes = 10
+            }
+            timeRemaining = selectedMinutes * 60
+            
+            // Haptic feedback
+            WKInterfaceDevice.current().play(.click)
+        }
+    }
 }
 
 #Preview {
@@ -219,7 +281,7 @@ private extension ContentView {
     func cornerPoint(_ anchor: CornerAnchor, in size: CGSize, controlRadius: CGFloat, edgePadding: CGFloat) -> CGPoint {
         let w = size.width
         let h = size.height
-        let xInset = controlRadius + edgePadding
+        let xInset = controlRadius + edgePadding + 3 // Add extra horizontal inset
         let yInset = controlRadius + edgePadding
         switch anchor {
         case .topLeft:
@@ -247,6 +309,21 @@ private extension ContentView {
             }
         }
         .contentShape(Rectangle())
+        .onTapGesture(count: 2) {
+            // Double tap to cycle activity type
+            if isIdle {
+                cycleActivityType()
+                // Show visual feedback
+                withAnimation(.easeInOut(duration: 0.3)) {
+                    showActivityTypeChange = true
+                }
+                DispatchQueue.main.asyncAfter(deadline: .now() + 1.5) {
+                    withAnimation(.easeOut(duration: 0.3)) {
+                        showActivityTypeChange = false
+                    }
+                }
+            }
+        }
         .onTapGesture {
             if isIdle && currentTheme != .terminal {
                 hasSetDurationOnce = true
@@ -314,79 +391,110 @@ private extension ContentView {
     }
 
     @ViewBuilder var circularTimerView: some View {
+        let circleSize: CGFloat = 140 // Increased from 120
+        
         ZStack {
             Circle()
-                .stroke(currentTheme.primaryColor.opacity(0.2), lineWidth: currentTheme == .neon ? 6 : 3)
-                .frame(width: 120, height: 120)
+                .stroke(currentTheme.primaryColor.opacity(currentTheme == .minimal ? 0.15 : 0.2), lineWidth: currentTheme == .neon ? 6 : (currentTheme == .minimal ? 2 : 3))
+                .frame(width: circleSize, height: circleSize)
 
-            Circle()
-                .trim(from: 0, to: progress)
-                .stroke(
-                    currentTheme.progressGradient,
-                    style: StrokeStyle(lineWidth: currentTheme == .neon ? 6 : 3, lineCap: .round)
-                )
-                .frame(width: 120, height: 120)
-                .rotationEffect(.degrees(-90))
-                .animation(.linear(duration: 0.5), value: progress)
-
-            if currentTheme.hasGlow {
                 Circle()
                     .trim(from: 0, to: progress)
                     .stroke(
-                        currentTheme.primaryColor.opacity(0.3),
-                        style: StrokeStyle(lineWidth: 10, lineCap: .round)
+                        currentTheme == .minimal ? 
+                            LinearGradient(colors: [currentTheme.primaryColor.opacity(0.5)], startPoint: .leading, endPoint: .trailing) :
+                            currentTheme.progressGradient,
+                        style: StrokeStyle(lineWidth: currentTheme == .neon ? 6 : (currentTheme == .minimal ? 2 : 3), lineCap: .round)
                     )
-                    .frame(width: 120, height: 120)
+                    .frame(width: circleSize, height: circleSize)
                     .rotationEffect(.degrees(-90))
-                    .blur(radius: currentTheme == .neon ? 8 : 4)
-            }
+                    .animation(.linear(duration: 0.5), value: progress)
 
-            VStack(spacing: 5) {
-                if currentTheme == .neon {
-                    HStack(spacing: 2) {
-                        Text(String(format: "%02d", timeRemaining / 60))
-                            .font(.system(size: 44, weight: .bold, design: .rounded))
-                            .foregroundColor(currentTheme.primaryColor)
-                            .shadow(color: currentTheme.primaryColor, radius: 15)
-
-                        Text(":")
-                            .font(.system(size: 36, weight: .bold, design: .rounded))
-                            .foregroundColor(currentTheme.accentColor)
-                            .shadow(color: currentTheme.accentColor, radius: 10)
-                            .offset(y: -2)
-
-                        Text(String(format: "%02d", timeRemaining % 60))
-                            .font(.system(size: 44, weight: .bold, design: .rounded))
-                            .foregroundColor(currentTheme.primaryColor)
-                            .shadow(color: currentTheme.primaryColor, radius: 15)
-                    }
-                } else if currentTheme == .glow {
-                    Text(timeString(from: timeRemaining))
-                        .font(currentTheme.timerFont)
-                        .foregroundColor(currentTheme.primaryColor)
-                        .shadow(color: currentTheme.primaryColor, radius: 20)
-                        .shadow(color: currentTheme.accentColor, radius: 10)
-                        .blur(radius: 0.5)
-                        .overlay(
-                            Text(timeString(from: timeRemaining))
-                                .font(currentTheme.timerFont)
-                                .foregroundColor(.white)
+                if currentTheme.hasGlow {
+                    Circle()
+                        .trim(from: 0, to: progress)
+                        .stroke(
+                            currentTheme.primaryColor.opacity(0.3),
+                            style: StrokeStyle(lineWidth: 10, lineCap: .round)
                         )
-                } else {
-                    Text(timeString(from: timeRemaining))
-                        .font(currentTheme.timerFont)
-                        .foregroundColor(currentTheme.primaryColor)
+                        .frame(width: circleSize, height: circleSize)
+                        .rotationEffect(.degrees(-90))
+                        .blur(radius: currentTheme == .neon ? 8 : 4)
                 }
 
-                HStack(spacing: 4) {
-                    ForEach(0..<4, id: \.self) { index in
-                        Circle()
-                            .fill(index < (sessionsCompleted % 4) ?
-                                  currentTheme.accentColor :
-                                  currentTheme.primaryColor.opacity(0.2))
-                            .frame(width: 5, height: 5)
+                VStack(spacing: currentTheme == .minimal ? 2 : 5) {
+                    // Show activity description for minimal theme, like macOS
+                    if currentTheme == .minimal {
+                        VStack(spacing: 0) {
+                            let (line1, line2) = activityType.displayText
+                            if !line1.isEmpty {
+                                Text(line1)
+                                    .font(.system(size: 11, weight: .regular, design: .default))
+                                    .foregroundColor(currentTheme.primaryColor.opacity(0.5))
+                                    .tracking(1.2)
+                            }
+                            Text(line2)
+                                .font(.system(size: 11, weight: .regular, design: .default))
+                                .foregroundColor(currentTheme.primaryColor.opacity(0.5))
+                                .tracking(1.2)
+                            Text("\(Int(progress * 100))%")
+                                .font(.system(size: 10, weight: .regular, design: .default))
+                                .foregroundColor(currentTheme.primaryColor.opacity(0.35))
+                                .padding(.top, 1)
+                        }
+                        .padding(.bottom, 4)
                     }
-                }
+                    
+                    if currentTheme == .neon {
+                        HStack(spacing: 2) {
+                            Text(String(format: "%02d", timeRemaining / 60))
+                                .font(.system(size: 48, weight: .bold, design: .rounded))
+                                .foregroundColor(currentTheme.primaryColor)
+                                .shadow(color: currentTheme.primaryColor, radius: 15)
+
+                            Text(":")
+                                .font(.system(size: 40, weight: .bold, design: .rounded))
+                                .foregroundColor(currentTheme.accentColor)
+                                .shadow(color: currentTheme.accentColor, radius: 10)
+                                .offset(y: -2)
+
+                            Text(String(format: "%02d", timeRemaining % 60))
+                                .font(.system(size: 48, weight: .bold, design: .rounded))
+                                .foregroundColor(currentTheme.primaryColor)
+                                .shadow(color: currentTheme.primaryColor, radius: 15)
+                        }
+                    } else if currentTheme == .glow {
+                        Text(timeString(from: timeRemaining))
+                            .font(.system(size: 40, weight: .medium, design: .default))
+                            .foregroundColor(currentTheme.primaryColor)
+                            .shadow(color: currentTheme.primaryColor, radius: 20)
+                            .shadow(color: currentTheme.accentColor, radius: 10)
+                            .blur(radius: 0.5)
+                            .overlay(
+                                Text(timeString(from: timeRemaining))
+                                    .font(.system(size: 40, weight: .medium, design: .default))
+                                    .foregroundColor(.white)
+                            )
+                    } else {
+                        Text(timeString(from: timeRemaining))
+                            .font(currentTheme == .minimal ? 
+                                  .system(size: 38, weight: .light, design: .default) :
+                                  .system(size: 40, weight: .medium, design: .default))
+                            .foregroundColor(currentTheme.primaryColor)
+                    }
+
+                    // Only show session dots for non-minimal themes
+                    if currentTheme != .minimal {
+                        HStack(spacing: 4) {
+                            ForEach(0..<4, id: \.self) { index in
+                                Circle()
+                                    .fill(index < (sessionsCompleted % 4) ?
+                                          currentTheme.accentColor :
+                                          currentTheme.primaryColor.opacity(0.2))
+                                    .frame(width: 5, height: 5)
+                            }
+                        }
+                    }
             }
         }
     }
@@ -406,19 +514,33 @@ private struct CornerCircleButton: View {
     let shadowColor: Color
     let action: () -> Void
     
+    @Environment(\.colorScheme) var colorScheme
+    
     var body: some View {
         Button(action: action) {
             ZStack {
-                Circle()
-                    .fill(fill)
-                    .frame(width: size, height: size)
-                    .shadow(color: shadowColor, radius: 6)
-                Circle()
-                    .stroke(border, lineWidth: 1)
-                    .frame(width: size, height: size)
+                // For minimal theme, use a more subtle style
+                if fill == WatchTheme.minimal.buttonColor {
+                    RoundedRectangle(cornerRadius: 8)
+                        .fill(Color.gray.opacity(0.08))
+                        .frame(width: size, height: size * 0.7)
+                        .overlay(
+                            RoundedRectangle(cornerRadius: 8)
+                                .stroke(Color.gray.opacity(0.4), lineWidth: 0.5)
+                        )
+                } else {
+                    Circle()
+                        .fill(fill)
+                        .frame(width: size, height: size)
+                        .shadow(color: shadowColor, radius: 6)
+                    Circle()
+                        .stroke(border, lineWidth: 1)
+                        .frame(width: size, height: size)
+                }
+                
                 Image(systemName: icon)
-                    .font(.system(size: max(12, size * 0.4), weight: .semibold))
-                    .foregroundColor(iconColor)
+                    .font(.system(size: max(10, size * 0.3), weight: .regular))
+                    .foregroundColor(fill == WatchTheme.minimal.buttonColor ? Color.gray.opacity(0.7) : iconColor)
             }
         }
         .buttonStyle(PlainButtonStyle())

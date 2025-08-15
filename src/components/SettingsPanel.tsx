@@ -165,9 +165,20 @@ export function SettingsPanel({ isStandalone = false }: SettingsPanelProps) {
                 </div>
                 
                 <div className="pl-6 space-y-2">
-                  <div className="flex items-center gap-2">
-                    <Music className="w-3 h-3 text-muted-foreground" />
-                    <span className="text-xs text-muted-foreground">Notification Sound</span>
+                  <div className="flex items-center justify-between">
+                    <div className="flex items-center gap-2">
+                      <Music className="w-3 h-3 text-muted-foreground" />
+                      <span className="text-xs text-muted-foreground">Notification Sound</span>
+                    </div>
+                    <button
+                      onClick={() => {
+                        console.log('Testing completion sound from settings...');
+                        handleSoundPreview();
+                      }}
+                      className="px-3 py-1.5 text-xs bg-primary hover:bg-primary/80 text-primary-foreground rounded transition-colors font-medium"
+                    >
+                      🔊 Test Timer Sound
+                    </button>
                   </div>
                   <div className="grid grid-cols-2 gap-2 max-h-64 overflow-y-auto">
                     {SOUND_OPTIONS.map((sound) => (

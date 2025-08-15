@@ -13,7 +13,7 @@ export function DurationInput({ isVisible = true, onDismiss }: DurationInputProp
   const [minutes, setMinutes] = useState(Math.floor(duration / 60).toString());
   const [seconds, setSeconds] = useState((duration % 60).toString());
   const [selectedPreset, setSelectedPreset] = useState<number | null>(null);
-  const [focusedPresetIndex, setFocusedPresetIndex] = useState<number>(-1);
+  const [focusedPresetIndex, setFocusedPresetIndex] = useState<number>(0); // Start with first preset focused
   const [isAnimating, setIsAnimating] = useState(false);
   const containerRef = useRef<HTMLDivElement>(null);
   const minutesRef = useRef<HTMLInputElement>(null);
@@ -38,6 +38,10 @@ export function DurationInput({ isVisible = true, onDismiss }: DurationInputProp
 
   useEffect(() => {
     setIsAnimating(true);
+    // Focus first preset on mount instead of minutes input
+    setTimeout(() => {
+      presetRefs.current[0]?.focus();
+    }, 100);
   }, []);
 
   useEffect(() => {
@@ -68,34 +72,58 @@ export function DurationInput({ isVisible = true, onDismiss }: DurationInputProp
         }
       }
       
-      // Handle arrow key and vim navigation for inputs
+      // Handle arrow key and vim navigation for inputs (only when not typing)
       if (document.activeElement === minutesRef.current || document.activeElement === secondsRef.current) {
-        // Prevent vim keys from being typed into the inputs
-        if (['h', 'j', 'k', 'l'].includes(e.key)) {
-          e.preventDefault();
-        }
+        // Only handle vim keys if not combined with other modifiers (to allow normal typing)
+        const isVimNavigation = !e.ctrlKey && !e.metaKey && !e.altKey && !e.shiftKey;
         
-        if ((e.key === 'ArrowRight' || e.key === 'l') && document.activeElement === minutesRef.current) {
-          e.preventDefault();
-          secondsRef.current?.focus();
-          secondsRef.current?.select();
-        } else if ((e.key === 'ArrowLeft' || e.key === 'h') && document.activeElement === secondsRef.current) {
-          e.preventDefault();
-          minutesRef.current?.focus();
-          minutesRef.current?.select();
-        } else if (e.key === 'j' || e.key === 'ArrowDown') {
+        if (e.key === 'ArrowRight' || (e.key === 'l' && isVimNavigation)) {
+          if (document.activeElement === minutesRef.current) {
+            e.preventDefault();
+            secondsRef.current?.focus();
+            secondsRef.current?.select();
+          }
+        } else if (e.key === 'ArrowLeft' || (e.key === 'h' && isVimNavigation)) {
+          if (document.activeElement === secondsRef.current) {
+            e.preventDefault();
+            minutesRef.current?.focus();
+            minutesRef.current?.select();
+          }
+        } else if (e.key === 'ArrowDown' || (e.key === 'j' && isVimNavigation)) {
           // Move down to presets from either input
           e.preventDefault();
           setFocusedPresetIndex(0);
           presetRefs.current[0]?.focus();
-        } else if (e.key === 'k' || e.key === 'ArrowUp') {
+        } else if (e.key === 'ArrowUp' || (e.key === 'k' && isVimNavigation)) {
           // k/up does nothing when already in inputs (already at top)
           e.preventDefault();
         }
       }
       
-      // Handle number keys 1-4 for preset selection
-      if (!e.ctrlKey && !e.metaKey && !e.altKey) {
+      // Handle 'm' and 's' keys to focus inputs (only when NOT already in inputs)
+      const isInInput = document.activeElement === minutesRef.current || 
+                       document.activeElement === secondsRef.current;
+      
+      if (!isInInput && !e.ctrlKey && !e.metaKey && !e.altKey) {
+        if (e.key === 'm' || e.key === 'M') {
+          e.preventDefault();
+          minutesRef.current?.focus();
+          minutesRef.current?.select();
+          setFocusedPresetIndex(-1);
+          return;
+        }
+        
+        if (e.key === 's' || e.key === 'S') {
+          e.preventDefault();
+          secondsRef.current?.focus();
+          secondsRef.current?.select();
+          setFocusedPresetIndex(-1);
+          return;
+        }
+      }
+      
+      // Handle number keys 1-4 for preset selection (only when NOT in input fields)
+      if (!e.ctrlKey && !e.metaKey && !e.altKey && !isInInput) {
         const key = parseInt(e.key);
         if (key >= 1 && key <= 4) {
           e.preventDefault();
@@ -236,7 +264,6 @@ export function DurationInput({ isVisible = true, onDismiss }: DurationInputProp
                 max="999"
                 className="w-12 px-1.5 py-1 bg-white/20 backdrop-blur-sm rounded text-sm focus:outline-none focus:ring-2 focus:ring-white/40 text-center font-mono font-medium transition-all hover:bg-white/25"
                 placeholder="25"
-                autoFocus
                 data-tauri-drag-region="false"
               />
               <span className="text-muted-foreground/50 text-base font-light">:</span>
@@ -355,10 +382,12 @@ export function DurationInput({ isVisible = true, onDismiss }: DurationInputProp
       <div className="mt-2 text-center text-[9px] text-muted-foreground/40 space-y-0.5">
         <div>
           Press <kbd className="px-0.5 py-0.25 bg-white/15 rounded text-[8px] text-white/60">1-4</kbd> for presets • 
-          <kbd className="px-0.5 py-0.25 bg-white/15 rounded text-[8px] text-white/60">Tab</kbd> / <kbd className="px-0.5 py-0.25 bg-white/15 rounded text-[8px] text-white/60">→</kbd> / <kbd className="px-0.5 py-0.25 bg-white/15 rounded text-[8px] text-white/60">l</kbd> to navigate
+          <kbd className="px-0.5 py-0.25 bg-white/15 rounded text-[8px] text-white/60">m</kbd> for minutes • 
+          <kbd className="px-0.5 py-0.25 bg-white/15 rounded text-[8px] text-white/60">s</kbd> for seconds
         </div>
         <div>
-          Vim keys: <kbd className="px-0.5 py-0.25 bg-white/15 rounded text-[8px] text-white/60">h j k l</kbd> • 
+          Navigate: <kbd className="px-0.5 py-0.25 bg-white/15 rounded text-[8px] text-white/60">h j k l</kbd> or arrows • 
+          <kbd className="px-0.5 py-0.25 bg-white/15 rounded text-[8px] text-white/60">Tab</kbd> between inputs • 
           <kbd className="px-0.5 py-0.25 bg-white/15 rounded text-[8px] text-white/60">Enter</kbd> to set • 
           <kbd className="px-0.5 py-0.25 bg-white/15 rounded text-[8px] text-white/60">Esc</kbd> to close
         </div>

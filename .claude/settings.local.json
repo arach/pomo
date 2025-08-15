@@ -75,7 +75,13 @@
       "Bash(sips:*)",
       "Bash(iconutil:*)",
       "Bash(# Create icon_16x16.png\nsips -z 16 16 source-1024.png --out AppIcon.iconset/icon_16x16.png\n\n# Create icon_16x16@2x.png (32x32)\nsips -z 32 32 source-1024.png --out AppIcon.iconset/icon_16x16@2x.png\n\n# Create icon_32x32.png\nsips -z 32 32 source-1024.png --out AppIcon.iconset/icon_32x32.png\n\n# Create icon_32x32@2x.png (64x64)\nsips -z 64 64 source-1024.png --out AppIcon.iconset/icon_32x32@2x.png\n\n# Create icon_128x128.png\nsips -z 128 128 source-1024.png --out AppIcon.iconset/icon_128x128.png\n\n# Create icon_128x128@2x.png (256x256)\nsips -z 256 256 source-1024.png --out AppIcon.iconset/icon_128x128@2x.png\n\n# Create icon_256x256.png\nsips -z 256 256 source-1024.png --out AppIcon.iconset/icon_256x256.png\n\n# Create icon_256x256@2x.png (512x512)\nsips -z 512 512 source-1024.png --out AppIcon.iconset/icon_256x256@2x.png\n\n# Create icon_512x512.png\nsips -z 512 512 source-1024.png --out AppIcon.iconset/icon_512x512.png\n\n# Create icon_512x512@2x.png (1024x1024)\nsips -z 1024 1024 source-1024.png --out AppIcon.iconset/icon_512x512@2x.png)",
-      "Bash(pnpm build:*)"
+      "Bash(pnpm build:*)",
+      "Bash(xcodebuild:*)",
+      "Bash(xcrun simctl list:*)",
+      "Bash(open:*)",
+      "Bash(./create_watch_app.sh:*)",
+      "Bash(xcodegen generate:*)",
+      "Bash(git rm:*)"
     ],
     "deny": []
   },

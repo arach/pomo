@@ -39,7 +39,6 @@ export function KeyboardShortcuts({ isOpen, onClose }: KeyboardShortcutsProps) {
       title: 'Interface',
       shortcuts: [
         { keys: ['?'], description: 'Toggle this help' },
-        { keys: ['H'], description: 'Hide/Show window' },
         { keys: ['M'], description: 'Toggle mute' },
         { keys: ['T'], description: 'Cycle through themes' },
       ]

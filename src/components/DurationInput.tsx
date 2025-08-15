@@ -13,8 +13,12 @@ export function DurationInput({ isVisible = true, onDismiss }: DurationInputProp
   const [minutes, setMinutes] = useState(Math.floor(duration / 60).toString());
   const [seconds, setSeconds] = useState((duration % 60).toString());
   const [selectedPreset, setSelectedPreset] = useState<number | null>(null);
+  const [focusedPresetIndex, setFocusedPresetIndex] = useState<number>(-1);
   const [isAnimating, setIsAnimating] = useState(false);
   const containerRef = useRef<HTMLDivElement>(null);
+  const minutesRef = useRef<HTMLInputElement>(null);
+  const secondsRef = useRef<HTMLInputElement>(null);
+  const presetRefs = useRef<(HTMLButtonElement | null)[]>([]);
   
   useEffect(() => {
     const currentMinutes = Math.floor(duration / 60);
@@ -37,9 +41,86 @@ export function DurationInput({ isVisible = true, onDismiss }: DurationInputProp
   }, []);
 
   useEffect(() => {
-    const handleEscape = (e: KeyboardEvent) => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      // Handle Escape key
       if (e.key === 'Escape') {
         dismiss();
+        return;
+      }
+      
+      // Handle Tab navigation between inputs
+      if (e.key === 'Tab' && !e.shiftKey) {
+        if (document.activeElement === minutesRef.current) {
+          e.preventDefault();
+          secondsRef.current?.focus();
+          secondsRef.current?.select();
+          return;
+        }
+      }
+      
+      // Handle Shift+Tab navigation
+      if (e.key === 'Tab' && e.shiftKey) {
+        if (document.activeElement === secondsRef.current) {
+          e.preventDefault();
+          minutesRef.current?.focus();
+          minutesRef.current?.select();
+          return;
+        }
+      }
+      
+      // Handle arrow key and vim navigation for inputs
+      if (document.activeElement === minutesRef.current || document.activeElement === secondsRef.current) {
+        // Prevent vim keys from being typed into the inputs
+        if (['h', 'j', 'k', 'l'].includes(e.key)) {
+          e.preventDefault();
+        }
+        
+        if ((e.key === 'ArrowRight' || e.key === 'l') && document.activeElement === minutesRef.current) {
+          e.preventDefault();
+          secondsRef.current?.focus();
+          secondsRef.current?.select();
+        } else if ((e.key === 'ArrowLeft' || e.key === 'h') && document.activeElement === secondsRef.current) {
+          e.preventDefault();
+          minutesRef.current?.focus();
+          minutesRef.current?.select();
+        } else if (e.key === 'j' || e.key === 'ArrowDown') {
+          // Move down to presets from either input
+          e.preventDefault();
+          setFocusedPresetIndex(0);
+          presetRefs.current[0]?.focus();
+        } else if (e.key === 'k' || e.key === 'ArrowUp') {
+          // k/up does nothing when already in inputs (already at top)
+          e.preventDefault();
+        }
+      }
+      
+      // Handle number keys 1-4 for preset selection
+      if (!e.ctrlKey && !e.metaKey && !e.altKey) {
+        const key = parseInt(e.key);
+        if (key >= 1 && key <= 4) {
+          e.preventDefault();
+          const presetValues = [5, 15, 25, 45];
+          handlePreset(presetValues[key - 1]);
+        }
+      }
+      
+      // Handle arrow keys and vim navigation for preset navigation
+      if ((e.key === 'ArrowDown' || e.key === 'j') && focusedPresetIndex === -1) {
+        e.preventDefault();
+        setFocusedPresetIndex(0);
+        presetRefs.current[0]?.focus();
+      } else if ((e.key === 'ArrowLeft' || e.key === 'h') && focusedPresetIndex > 0) {
+        e.preventDefault();
+        setFocusedPresetIndex(focusedPresetIndex - 1);
+        presetRefs.current[focusedPresetIndex - 1]?.focus();
+      } else if ((e.key === 'ArrowRight' || e.key === 'l') && focusedPresetIndex >= 0 && focusedPresetIndex < 3) {
+        e.preventDefault();
+        setFocusedPresetIndex(focusedPresetIndex + 1);
+        presetRefs.current[focusedPresetIndex + 1]?.focus();
+      } else if ((e.key === 'ArrowUp' || e.key === 'k') && focusedPresetIndex >= 0) {
+        e.preventDefault();
+        setFocusedPresetIndex(-1);
+        minutesRef.current?.focus();
       }
     };
 
@@ -49,14 +130,14 @@ export function DurationInput({ isVisible = true, onDismiss }: DurationInputProp
       }
     };
 
-    document.addEventListener('keydown', handleEscape);
+    document.addEventListener('keydown', handleKeyDown);
     document.addEventListener('mousedown', handleClickOutside);
 
     return () => {
-      document.removeEventListener('keydown', handleEscape);
+      document.removeEventListener('keydown', handleKeyDown);
       document.removeEventListener('mousedown', handleClickOutside);
     };
-  }, []);
+  }, [focusedPresetIndex, onDismiss]);
   
   const dismiss = () => {
     setIsAnimating(false);
@@ -112,9 +193,10 @@ export function DurationInput({ isVisible = true, onDismiss }: DurationInputProp
       <div className="relative pt-2">
         <button
           onClick={dismiss}
-          className="absolute -top-0.5 -right-0.5 p-0.5 rounded-full bg-black/40 backdrop-blur-sm border border-white/10 hover:bg-white/20 hover:border-white/20 transition-all z-10"
+          className="absolute -top-0.5 -right-0.5 p-0.5 rounded-full bg-black/40 backdrop-blur-sm border border-white/10 hover:bg-white/20 hover:border-white/20 transition-all z-10 focus:outline-none focus:ring-2 focus:ring-white/40"
           title="Close (Esc)"
           data-tauri-drag-region="false"
+          tabIndex={-1}
         >
           <X className="w-3 h-3 text-white/70" />
         </button>
@@ -125,38 +207,77 @@ export function DurationInput({ isVisible = true, onDismiss }: DurationInputProp
             <Clock className="w-3.5 h-3.5 text-muted-foreground/70" />
             <div className="flex items-baseline gap-1 flex-1">
               <input
+                ref={minutesRef}
                 type="number"
                 value={minutes}
                 onChange={(e) => {
-                  setMinutes(e.target.value);
+                  // Only allow numeric input
+                  const value = e.target.value.replace(/[^0-9]/g, '');
+                  setMinutes(value);
                   setSelectedPreset(null);
+                }}
+                onFocus={(e) => {
+                  e.target.select();
+                  setFocusedPresetIndex(-1);
+                }}
+                onKeyDown={(e) => {
+                  if (e.key === 'Enter') {
+                    e.preventDefault();
+                    handleSubmit(e as any);
+                  }
+                }}
+                onKeyPress={(e) => {
+                  // Prevent non-numeric characters
+                  if (!/[0-9]/.test(e.key)) {
+                    e.preventDefault();
+                  }
                 }}
                 min="0"
                 max="999"
-                className="w-12 px-1.5 py-1 bg-white/20 backdrop-blur-sm rounded text-sm focus:outline-none focus:ring-1 focus:ring-white/30 text-center font-mono font-medium transition-all hover:bg-white/25"
+                className="w-12 px-1.5 py-1 bg-white/20 backdrop-blur-sm rounded text-sm focus:outline-none focus:ring-2 focus:ring-white/40 text-center font-mono font-medium transition-all hover:bg-white/25"
                 placeholder="25"
                 autoFocus
                 data-tauri-drag-region="false"
               />
               <span className="text-muted-foreground/50 text-base font-light">:</span>
               <input
+                ref={secondsRef}
                 type="number"
                 value={seconds}
                 onChange={(e) => {
-                  setSeconds(e.target.value);
+                  // Only allow numeric input
+                  const value = e.target.value.replace(/[^0-9]/g, '');
+                  setSeconds(value);
                   setSelectedPreset(null);
+                }}
+                onFocus={(e) => {
+                  e.target.select();
+                  setFocusedPresetIndex(-1);
+                }}
+                onKeyDown={(e) => {
+                  if (e.key === 'Enter') {
+                    e.preventDefault();
+                    handleSubmit(e as any);
+                  }
+                }}
+                onKeyPress={(e) => {
+                  // Prevent non-numeric characters
+                  if (!/[0-9]/.test(e.key)) {
+                    e.preventDefault();
+                  }
                 }}
                 min="0"
                 max="59"
-                className="w-12 px-1.5 py-1 bg-white/20 backdrop-blur-sm rounded text-sm focus:outline-none focus:ring-1 focus:ring-white/30 text-center font-mono font-medium transition-all hover:bg-white/25"
+                className="w-12 px-1.5 py-1 bg-white/20 backdrop-blur-sm rounded text-sm focus:outline-none focus:ring-2 focus:ring-white/40 text-center font-mono font-medium transition-all hover:bg-white/25"
                 placeholder="00"
                 data-tauri-drag-region="false"
               />
             </div>
             <button
               type="submit"
-              className="px-3 py-1 bg-white/30 backdrop-blur-sm text-white rounded text-sm hover:bg-white/40 active:bg-white/50 transition-all font-medium border border-white/20 hover:border-white/30"
+              className="px-3 py-1 bg-white/30 backdrop-blur-sm text-white rounded text-sm hover:bg-white/40 active:bg-white/50 transition-all font-medium border border-white/20 hover:border-white/30 focus:outline-none focus:ring-2 focus:ring-white/40"
               data-tauri-drag-region="false"
+              title="Set timer (Enter)"
             >
               Set Timer
             </button>
@@ -166,42 +287,61 @@ export function DurationInput({ isVisible = true, onDismiss }: DurationInputProp
       
       {/* Presets - Second Priority */}
       <div className="grid grid-cols-4 gap-1.5 mb-2">
-        {presets.map((preset) => {
+        {presets.map((preset, index) => {
           const Icon = preset.icon;
           const isSelected = selectedPreset === preset.value;
+          const isFocused = focusedPresetIndex === index;
           
           return (
             <button
+              ref={(el) => presetRefs.current[index] = el}
               key={preset.value}
               onClick={() => handlePreset(preset.value)}
+              onFocus={() => setFocusedPresetIndex(index)}
+              onBlur={() => setFocusedPresetIndex(-1)}
+              onKeyDown={(e) => {
+                if (e.key === 'Enter' || e.key === ' ') {
+                  e.preventDefault();
+                  handlePreset(preset.value);
+                }
+              }}
               className={`
                 relative group flex flex-col items-center py-2 px-1 rounded-md
                 transition-all duration-200
                 ${isSelected 
                   ? 'bg-white/25 border-white/40' 
-                  : 'bg-black/30 border-white/10 hover:bg-white/15 hover:border-white/20'
+                  : isFocused
+                    ? 'bg-white/20 border-white/30 ring-2 ring-white/40'
+                    : 'bg-black/30 border-white/10 hover:bg-white/15 hover:border-white/20'
                 }
                 border backdrop-blur-sm
                 active:scale-95
+                focus:outline-none focus:ring-2 focus:ring-white/40
               `}
               data-tauri-drag-region="false"
+              title={`Press ${index + 1} for ${preset.desc}`}
             >
               <Icon className={`
                 w-4 h-4 mb-0.5 transition-colors
-                ${isSelected ? 'text-white' : 'text-muted-foreground/70 group-hover:text-white/90'}
+                ${isSelected || isFocused ? 'text-white' : 'text-muted-foreground/70 group-hover:text-white/90'}
               `} />
               <span className={`
                 text-xs font-medium transition-colors
-                ${isSelected ? 'text-white' : 'text-white/80 group-hover:text-white'}
+                ${isSelected || isFocused ? 'text-white' : 'text-white/80 group-hover:text-white'}
               `}>
                 {preset.label}
               </span>
               <span className={`
                 text-[9px] leading-tight transition-all whitespace-nowrap
-                ${isSelected ? 'opacity-60' : 'opacity-0 group-hover:opacity-40'}
+                ${isSelected || isFocused ? 'opacity-60' : 'opacity-0 group-hover:opacity-40'}
               `}>
                 {preset.desc}
               </span>
+              {index < 4 && (
+                <kbd className="absolute top-1 right-1 px-1 py-0.5 text-[8px] bg-black/40 rounded opacity-40 group-hover:opacity-60">
+                  {index + 1}
+                </kbd>
+              )}
             </button>
           );
         })}
@@ -212,8 +352,16 @@ export function DurationInput({ isVisible = true, onDismiss }: DurationInputProp
         <SessionTypeSelector compact iconOnly />
       </div>
       
-      <div className="mt-2 text-center text-[9px] text-muted-foreground/40">
-        Press <kbd className="px-0.5 py-0.25 bg-white/15 rounded text-[8px] text-white/60">Esc</kbd> or click outside to close
+      <div className="mt-2 text-center text-[9px] text-muted-foreground/40 space-y-0.5">
+        <div>
+          Press <kbd className="px-0.5 py-0.25 bg-white/15 rounded text-[8px] text-white/60">1-4</kbd> for presets • 
+          <kbd className="px-0.5 py-0.25 bg-white/15 rounded text-[8px] text-white/60">Tab</kbd> / <kbd className="px-0.5 py-0.25 bg-white/15 rounded text-[8px] text-white/60">→</kbd> / <kbd className="px-0.5 py-0.25 bg-white/15 rounded text-[8px] text-white/60">l</kbd> to navigate
+        </div>
+        <div>
+          Vim keys: <kbd className="px-0.5 py-0.25 bg-white/15 rounded text-[8px] text-white/60">h j k l</kbd> • 
+          <kbd className="px-0.5 py-0.25 bg-white/15 rounded text-[8px] text-white/60">Enter</kbd> to set • 
+          <kbd className="px-0.5 py-0.25 bg-white/15 rounded text-[8px] text-white/60">Esc</kbd> to close
+        </div>
       </div>
     </div>
   );

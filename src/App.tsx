@@ -239,12 +239,6 @@ function App() {
         }
         break;
         
-      // Hide/Show window
-      case 'h':
-        e.preventDefault();
-        invoke('toggle_visibility');
-        break;
-        
       // Toggle mute
       case 'm':
         if (!isRunning) {

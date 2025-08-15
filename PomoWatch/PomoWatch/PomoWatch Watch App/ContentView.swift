@@ -7,6 +7,7 @@
 
 import SwiftUI
 import WatchKit
+import AVFoundation
 
 struct ContentView: View {
     @State private var timeRemaining = 25 * 60 // 25 minutes in seconds
@@ -19,6 +20,7 @@ struct ContentView: View {
     @State private var selectedMinutes = 25
     @State private var activityType: ActivityType = .focus
     @State private var showActivityTypeChange = false
+    @State private var showConfetti = false
     @AppStorage("hasSetDurationOnce") private var hasSetDurationOnce: Bool = false
     
     @EnvironmentObject var intentManager: TimerIntentManager
@@ -154,6 +156,13 @@ struct ContentView: View {
                         .padding(.top, 10)
                 }
             }
+            // Confetti overlay
+            .overlay {
+                if showConfetti {
+                    ConfettiView(isShowing: $showConfetti)
+                        .allowsHitTesting(false)
+                }
+            }
             .onReceive(NotificationCenter.default.publisher(for: .timerStartedFromIntent)) { notification in
                 if let userInfo = notification.userInfo,
                    let minutes = userInfo["minutes"] as? Int,
@@ -190,7 +199,9 @@ struct ContentView: View {
                 isRunning = false
                 sessionsCompleted += 1
                 timeRemaining = totalDuration
-                WKInterfaceDevice.current().play(.success)
+                
+                // Trigger completion effects
+                triggerCompletionEffects()
             }
         }
     }
@@ -230,8 +241,9 @@ struct ContentView: View {
                     isRunning = false
                     sessionsCompleted += 1
                     timeRemaining = totalDuration // Reset
-                    // Add haptic feedback
-                    WKInterfaceDevice.current().play(.success)
+                    
+                    // Trigger completion effects
+                    triggerCompletionEffects()
                 }
             }
         }
@@ -265,6 +277,42 @@ struct ContentView: View {
             
             // Haptic feedback
             WKInterfaceDevice.current().play(.click)
+        }
+    }
+    
+    private func triggerCompletionEffects() {
+        // 1. Play sound effect (includes haptic feedback)
+        SoundPlayer.shared.playCompletionSound()
+        
+        // 2. Additional haptic celebration pattern
+        playHapticCelebration()
+        
+        // 3. Show confetti animation
+        withAnimation(.spring(response: 0.5, dampingFraction: 0.8)) {
+            showConfetti = true
+        }
+        
+        // Hide confetti after animation
+        DispatchQueue.main.asyncAfter(deadline: .now() + 3.5) {
+            withAnimation(.easeOut(duration: 0.5)) {
+                showConfetti = false
+            }
+        }
+    }
+    
+    private func playHapticCelebration() {
+        // Play a celebratory haptic pattern
+        let device = WKInterfaceDevice.current()
+        
+        // Play a series of haptic taps to create a celebration effect
+        device.play(.success)
+        
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.2) {
+            device.play(.directionUp)
+        }
+        
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.4) {
+            device.play(.success)
         }
     }
 }

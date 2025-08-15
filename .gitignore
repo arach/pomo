@@ -29,3 +29,14 @@ src-tauri/WixTools/
 
 # Claude settings
 .claude/
+
+# Xcode user state
+*.xcuserstate
+xcuserdata/
+
+# Landing page unused images
+landing/public/watch-terminal-app.png
+landing/public/watch-app-1.png
+landing/public/watch-app-2.png
+landing/public/watch-app-3.png
+landing/public/watch-app-4.png

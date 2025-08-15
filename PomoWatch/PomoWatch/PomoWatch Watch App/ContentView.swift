@@ -8,11 +8,20 @@
 import SwiftUI
 import WatchKit
 import AVFoundation
+import UserNotifications
 
 struct ContentView: View {
-    @State private var timeRemaining = 25 * 60 // 25 minutes in seconds
+    // Timer state using Date-based calculation
+    @State private var endTime: Date?
+    @State private var pausedRemainingTime: TimeInterval = 0
     @State private var isRunning = false
+    @State private var isPaused = false
     @State private var timer: Timer?
+    @State private var extendedSession: WKExtendedRuntimeSession?
+    @State private var sessionHandler = ExtendedRuntimeSessionHandler()
+    @State private var currentTime = Date() // Force UI updates
+    
+    // UI state
     @State private var currentTheme: WatchTheme = .minimal
     @State private var showThemePicker = false
     @State private var showDurationPicker = false
@@ -21,7 +30,14 @@ struct ContentView: View {
     @State private var activityType: ActivityType = .focus
     @State private var showActivityTypeChange = false
     @State private var showConfetti = false
+    
+    // Persistence
     @AppStorage("hasSetDurationOnce") private var hasSetDurationOnce: Bool = false
+    @AppStorage("timerEndTime") private var persistedEndTime: Double = 0
+    @AppStorage("timerPausedTime") private var persistedPausedTime: Double = 0
+    @AppStorage("timerIsRunning") private var persistedIsRunning: Bool = false
+    @AppStorage("timerIsPaused") private var persistedIsPaused: Bool = false
+    @AppStorage("timerSelectedMinutes") private var persistedSelectedMinutes: Int = 25
     
     @EnvironmentObject var intentManager: TimerIntentManager
     
@@ -46,6 +62,24 @@ struct ContentView: View {
     }
     
     
+    // Computed properties
+    var timeRemaining: Int {
+        // Use currentTime to ensure view updates
+        _ = currentTime
+        
+        if let endTime = endTime, isRunning {
+            // Timer is running - calculate from end time
+            let remaining = endTime.timeIntervalSinceNow
+            return max(0, Int(remaining))
+        } else if isPaused && pausedRemainingTime > 0 {
+            // Timer is paused - show stored remaining time
+            return Int(pausedRemainingTime)
+        } else {
+            // Timer hasn't started or was reset
+            return selectedMinutes * 60
+        }
+    }
+    
     var totalDuration: Int {
         selectedMinutes * 60
     }
@@ -55,199 +89,322 @@ struct ContentView: View {
     }
     
     var isIdle: Bool {
-        !isRunning && timeRemaining == totalDuration
+        !isRunning && !isPaused && endTime == nil
     }
     
     var body: some View {
         NavigationStack {
-            ZStack {
-                // Background
-                currentTheme.backgroundColor
-                    .ignoresSafeArea()
-                
-                ScrollView {
-                    mainScrollContent
-                }
-            }
-            .frame(maxWidth: .infinity, maxHeight: .infinity)
-            // Geometry-anchored corner controls (ignore safe areas, anchor by screen radius)
-            .overlay {
-                GeometryReader { proxy in
-                    let size = proxy.size
-                    let minDim = min(size.width, size.height)
-                    // Pull in by a handful of pixels; scale slightly with watch size and add a few extra px
-                    let edgePadding: CGFloat = max(6, minDim * 0.03) + 6
-                    // Mildly responsive button radii for smaller watches
-                    let smallRadius: CGFloat = max(14, min(17, minDim * 0.085)) // ~28–34pt diameter
-                    let largeRadius: CGFloat = smallRadius // Keep start button same size as others
-                    
-                    ZStack {
-                        if currentTheme != .terminal {
-                            // Bottom-left: reset (long-press in Minimal theme resets first-time hint)
-                            Group {
-                                if currentTheme == .minimal {
-                                    CornerCircleButton(
-                                        icon: "arrow.counterclockwise",
-                                        size: smallRadius * 2,
-                                        fill: currentTheme.buttonColor,
-                                        border: currentTheme.buttonBorderColor,
-                                        iconColor: currentTheme.buttonIconColor,
-                                        shadowColor: currentTheme.buttonShadowColor,
-                                        action: { stopTimer() }
-                                    )
-                                    .simultaneousGesture(
-                                        LongPressGesture(minimumDuration: 0.6)
-                                            .onEnded { _ in
-                                                hasSetDurationOnce = false
-                                                WKInterfaceDevice.current().play(.success)
-                                            }
-                                    )
-                                } else {
-                                    CornerCircleButton(
-                                        icon: "arrow.counterclockwise",
-                                        size: smallRadius * 2,
-                                        fill: currentTheme.buttonColor,
-                                        border: currentTheme.buttonBorderColor,
-                                        iconColor: currentTheme.buttonIconColor,
-                                        shadowColor: currentTheme.buttonShadowColor,
-                                        action: { stopTimer() }
-                                    )
-                                }
-                            }
-                            .position(cornerPoint(.bottomLeft, in: size, controlRadius: smallRadius, edgePadding: edgePadding))
-                            
-                            // Bottom-right: start/pause
-                            CornerCircleButton(
-                                icon: isRunning ? "pause.fill" : "play.fill",
-                                size: largeRadius * 2,
-                                fill: isRunning ? currentTheme.accentColor : currentTheme.buttonColor,
-                                border: currentTheme.buttonBorderColor,
-                                iconColor: currentTheme.buttonIconColor,
-                                shadowColor: currentTheme.buttonShadowColor,
-                                action: { toggleTimer() }
-                            )
-                            .position(cornerPoint(.bottomRight, in: size, controlRadius: largeRadius, edgePadding: edgePadding))
-                        }
-                    }
-                }
+            mainContent
+        }
+        .environment(\.scenePhase, scenePhase)
+    }
+    
+    @ViewBuilder
+    private var mainContent: some View {
+        ZStack {
+            // Background
+            currentTheme.backgroundColor
                 .ignoresSafeArea()
-            }
-            // Terminal theme now renders its own command UI; no global bottom bar
             
-            .sheet(isPresented: $showThemePicker) {
-                ThemePickerView(currentTheme: $currentTheme)
+            ScrollView {
+                mainScrollContent
             }
-            .sheet(isPresented: $showDurationPicker) {
-                DurationPickerView(selectedMinutes: $selectedMinutes, timeRemaining: $timeRemaining)
-            }
-            // Activity type change overlay
-            .overlay(alignment: .top) {
-                if showActivityTypeChange {
-                    Text(activityType.rawValue)
-                        .font(.system(size: 12, weight: .medium))
-                        .padding(.horizontal, 12)
-                        .padding(.vertical, 6)
-                        .background(
-                            Capsule()
-                                .fill(Color.gray.opacity(0.9))
-                        )
-                        .foregroundColor(.white)
-                        .transition(.scale.combined(with: .opacity))
-                        .padding(.top, 10)
-                }
-            }
-            // Confetti overlay
-            .overlay {
-                if showConfetti {
-                    ConfettiView(isShowing: $showConfetti)
-                        .allowsHitTesting(false)
-                }
-            }
-            .onReceive(NotificationCenter.default.publisher(for: .timerStartedFromIntent)) { notification in
-                if let userInfo = notification.userInfo,
-                   let minutes = userInfo["minutes"] as? Int,
-                   let themeString = userInfo["theme"] as? String,
-                   let theme = WatchTheme(rawValue: themeString) {
-                    selectedMinutes = minutes
-                    timeRemaining = minutes * 60
-                    currentTheme = theme
-                    isRunning = true
-                    startInternalTimer()
-                }
-            }
-            .onReceive(NotificationCenter.default.publisher(for: .timerPausedFromIntent)) { _ in
-                pauseTimer()
-            }
-            .onReceive(NotificationCenter.default.publisher(for: .timerResumedFromIntent)) { _ in
-                resumeTimer()
-            }
-            .onReceive(NotificationCenter.default.publisher(for: .timerStoppedFromIntent)) { _ in
-                stopTimer()
+        }
+        .frame(maxWidth: .infinity, maxHeight: .infinity)
+        .overlay(content: controlButtonsOverlay)
+        .sheet(isPresented: $showThemePicker) {
+            ThemePickerView(currentTheme: $currentTheme)
+        }
+        .sheet(isPresented: $showDurationPicker) {
+            DurationPickerView(selectedMinutes: $selectedMinutes)
+        }
+        .overlay(alignment: .top, content: activityChangeOverlay)
+        .overlay(content: confettiOverlay)
+        .onReceive(NotificationCenter.default.publisher(for: .timerStartedFromIntent), perform: handleTimerStartIntent)
+        .onReceive(NotificationCenter.default.publisher(for: .timerPausedFromIntent)) { _ in
+            pauseTimer()
+        }
+        .onReceive(NotificationCenter.default.publisher(for: .timerResumedFromIntent)) { _ in
+            resumeTimer()
+        }
+        .onReceive(NotificationCenter.default.publisher(for: .timerStoppedFromIntent)) { _ in
+            stopTimer()
+        }
+        .onAppear {
+            requestNotificationPermissions()
+            restoreTimerState()
+        }
+        .onChange(of: scenePhase, perform: handleScenePhaseChange)
+    }
+    
+    @ViewBuilder
+    private func controlButtonsOverlay() -> some View {
+        GeometryReader { proxy in
+            controlButtons(in: proxy.size)
+        }
+        .ignoresSafeArea()
+    }
+    
+    @ViewBuilder
+    private func controlButtons(in size: CGSize) -> some View {
+        let minDim = min(size.width, size.height)
+        let edgePadding: CGFloat = max(6, minDim * 0.03) + 6
+        let smallRadius: CGFloat = max(14, min(17, minDim * 0.085))
+        let largeRadius: CGFloat = smallRadius
+        
+        ZStack {
+            if currentTheme != .terminal {
+                resetButton(smallRadius: smallRadius, size: size, edgePadding: edgePadding)
+                playPauseButton(largeRadius: largeRadius, size: size, edgePadding: edgePadding)
             }
         }
     }
     
-    private func startInternalTimer() {
-        timer?.invalidate()
-        timer = Timer.scheduledTimer(withTimeInterval: 1, repeats: true) { _ in
-            if timeRemaining > 0 {
-                timeRemaining -= 1
+    @ViewBuilder
+    private func resetButton(smallRadius: CGFloat, size: CGSize, edgePadding: CGFloat) -> some View {
+        Group {
+            if currentTheme == .minimal {
+                CornerCircleButton(
+                    icon: "arrow.counterclockwise",
+                    size: smallRadius * 2,
+                    fill: currentTheme.buttonColor,
+                    border: currentTheme.buttonBorderColor,
+                    iconColor: currentTheme.buttonIconColor,
+                    shadowColor: currentTheme.buttonShadowColor,
+                    action: { stopTimer() }
+                )
+                .simultaneousGesture(
+                    LongPressGesture(minimumDuration: 0.6)
+                        .onEnded { _ in
+                            hasSetDurationOnce = false
+                            WKInterfaceDevice.current().play(.success)
+                        }
+                )
             } else {
+                CornerCircleButton(
+                    icon: "arrow.counterclockwise",
+                    size: smallRadius * 2,
+                    fill: currentTheme.buttonColor,
+                    border: currentTheme.buttonBorderColor,
+                    iconColor: currentTheme.buttonIconColor,
+                    shadowColor: currentTheme.buttonShadowColor,
+                    action: { stopTimer() }
+                )
+            }
+        }
+        .position(cornerPoint(.bottomLeft, in: size, controlRadius: smallRadius, edgePadding: edgePadding))
+    }
+    
+    @ViewBuilder
+    private func playPauseButton(largeRadius: CGFloat, size: CGSize, edgePadding: CGFloat) -> some View {
+        CornerCircleButton(
+            icon: isRunning ? "pause.fill" : "play.fill",
+            size: largeRadius * 2,
+            fill: isRunning ? currentTheme.accentColor : currentTheme.buttonColor,
+            border: currentTheme.buttonBorderColor,
+            iconColor: currentTheme.buttonIconColor,
+            shadowColor: currentTheme.buttonShadowColor,
+            action: { toggleTimer() }
+        )
+        .position(cornerPoint(.bottomRight, in: size, controlRadius: largeRadius, edgePadding: edgePadding))
+    }
+    
+    @ViewBuilder
+    private func activityChangeOverlay() -> some View {
+        if showActivityTypeChange {
+            Text(activityType.rawValue)
+                .font(.system(size: 12, weight: .medium))
+                .padding(.horizontal, 12)
+                .padding(.vertical, 6)
+                .background(
+                    Capsule()
+                        .fill(Color.gray.opacity(0.9))
+                )
+                .foregroundColor(.white)
+                .transition(.scale.combined(with: .opacity))
+                .padding(.top, 10)
+        }
+    }
+    
+    @ViewBuilder
+    private func confettiOverlay() -> some View {
+        if showConfetti {
+            ConfettiView(isShowing: $showConfetti)
+                .allowsHitTesting(false)
+        }
+    }
+    
+    private func handleTimerStartIntent(_ notification: Notification) {
+        if let userInfo = notification.userInfo,
+           let minutes = userInfo["minutes"] as? Int,
+           let themeString = userInfo["theme"] as? String,
+           let theme = WatchTheme(rawValue: themeString) {
+            selectedMinutes = minutes
+            currentTheme = theme
+            isRunning = true
+            startInternalTimer()
+        }
+    }
+    
+    private func handleScenePhaseChange(_ newPhase: ScenePhase) {
+        if newPhase == .active {
+            checkTimerCompletion()
+            // Restart UI updates if timer is running
+            if isRunning && timer == nil {
+                startInternalTimer()
+            }
+        } else if newPhase == .background {
+            persistTimerState()
+        }
+    }
+    
+    @Environment(\.scenePhase) private var scenePhase
+    
+    private func startInternalTimer() {
+        // Only update UI, don't manage actual timing
+        timer?.invalidate()
+        timer = Timer.scheduledTimer(withTimeInterval: 0.1, repeats: true) { _ in
+            // Update currentTime to trigger view refresh
+            self.currentTime = Date()
+            
+            // Check if timer finished
+            if self.timeRemaining <= 0 && self.isRunning {
                 // Timer finished
-                timer?.invalidate()
-                timer = nil
-                isRunning = false
-                sessionsCompleted += 1
-                timeRemaining = totalDuration
-                
-                // Trigger completion effects
-                triggerCompletionEffects()
+                self.completeTimer()
             }
         }
     }
     
     private func pauseTimer() {
+        guard isRunning, let endTime = endTime else { return }
+        
+        // Store remaining time
+        pausedRemainingTime = max(0, endTime.timeIntervalSinceNow)
+        
+        // Update state
         isRunning = false
+        isPaused = true
+        self.endTime = nil
+        
+        // Stop UI updates
         timer?.invalidate()
         timer = nil
+        
+        // Cancel notifications
+        UNUserNotificationCenter.current().removeAllPendingNotificationRequests()
+        
+        // End extended session
+        extendedSession?.invalidate()
+        extendedSession = nil
+        
+        // Persist state
+        persistTimerState()
     }
     
     private func resumeTimer() {
+        guard isPaused, pausedRemainingTime > 0 else { return }
+        
+        // Calculate new end time
+        endTime = Date().addingTimeInterval(pausedRemainingTime)
+        
+        // Update state
         isRunning = true
+        isPaused = false
+        pausedRemainingTime = 0
+        
+        // Schedule notification
+        scheduleCompletionNotification()
+        
+        // Start extended session
+        startExtendedSession()
+        
+        // Start UI updates
         startInternalTimer()
+        
+        // Persist state
+        persistTimerState()
     }
     
     private func stopTimer() {
+        // Reset everything
+        endTime = nil
+        pausedRemainingTime = 0
         isRunning = false
-        timeRemaining = selectedMinutes * 60
+        isPaused = false
+        
+        // Stop UI updates
         timer?.invalidate()
         timer = nil
+        
+        // Cancel notifications
+        UNUserNotificationCenter.current().removeAllPendingNotificationRequests()
+        
+        // End extended session
+        extendedSession?.invalidate()
+        extendedSession = nil
+        
+        // Clear persisted state
+        persistedEndTime = 0
+        persistedPausedTime = 0
+        persistedIsRunning = false
+        persistedIsPaused = false
     }
     
     private func toggleTimer() {
         if isRunning {
-            // Pause
-            timer?.invalidate()
-            timer = nil
+            pauseTimer()
+        } else if isPaused {
+            resumeTimer()
         } else {
-            // Start
-            timer = Timer.scheduledTimer(withTimeInterval: 1, repeats: true) { _ in
-                if timeRemaining > 0 {
-                    timeRemaining -= 1
-                } else {
-                    // Timer finished
-                    timer?.invalidate()
-                    timer = nil
-                    isRunning = false
-                    sessionsCompleted += 1
-                    timeRemaining = totalDuration // Reset
-                    
-                    // Trigger completion effects
-                    triggerCompletionEffects()
-                }
-            }
+            startTimer()
         }
-        isRunning.toggle()
+    }
+    
+    private func startTimer() {
+        // Calculate end time
+        let duration = TimeInterval(selectedMinutes * 60)
+        endTime = Date().addingTimeInterval(duration)
+        
+        // Update state
+        isRunning = true
+        isPaused = false
+        pausedRemainingTime = 0
+        
+        // Schedule notification
+        scheduleCompletionNotification()
+        
+        // Start extended session for background updates
+        startExtendedSession()
+        
+        // Start UI update timer
+        startInternalTimer()
+        
+        // Persist state
+        persistTimerState()
+    }
+    
+    private func completeTimer() {
+        // Timer finished
+        timer?.invalidate()
+        timer = nil
+        isRunning = false
+        isPaused = false
+        endTime = nil
+        pausedRemainingTime = 0
+        sessionsCompleted += 1
+        
+        // End extended session
+        extendedSession?.invalidate()
+        extendedSession = nil
+        
+        // Clear persisted state
+        persistedEndTime = 0
+        persistedPausedTime = 0
+        persistedIsRunning = false
+        persistedIsPaused = false
+        
+        // Trigger completion effects
+        triggerCompletionEffects()
     }
     
     private func timeString(from seconds: Int) -> String {
@@ -273,7 +430,7 @@ struct ContentView: View {
             case .planning:
                 selectedMinutes = 10
             }
-            timeRemaining = selectedMinutes * 60
+            // Timer will reset with new duration on next start
             
             // Haptic feedback
             WKInterfaceDevice.current().play(.click)
@@ -313,6 +470,145 @@ struct ContentView: View {
         
         DispatchQueue.main.asyncAfter(deadline: .now() + 0.4) {
             device.play(.success)
+        }
+    }
+    
+    // MARK: - Notification Methods
+    
+    private func requestNotificationPermissions() {
+        UNUserNotificationCenter.current().requestAuthorization(options: [.alert, .sound, .badge]) { granted, error in
+            if let error = error {
+                print("Error requesting notification permissions: \(error)")
+            }
+        }
+    }
+    
+    private func scheduleCompletionNotification() {
+        guard let endTime = endTime else { return }
+        
+        // Cancel existing notifications
+        UNUserNotificationCenter.current().removeAllPendingNotificationRequests()
+        
+        // Create notification content
+        let content = UNMutableNotificationContent()
+        content.title = "Timer Complete!"
+        content.body = "Your \(activityType.rawValue) session is finished."
+        content.sound = .default
+        content.categoryIdentifier = "timer_complete"
+        
+        // Calculate time interval
+        let timeInterval = endTime.timeIntervalSinceNow
+        guard timeInterval > 0 else { return }
+        
+        // Create trigger
+        let trigger = UNTimeIntervalNotificationTrigger(timeInterval: timeInterval, repeats: false)
+        
+        // Create request
+        let request = UNNotificationRequest(identifier: "timer_completion", content: content, trigger: trigger)
+        
+        // Schedule notification
+        UNUserNotificationCenter.current().add(request) { error in
+            if let error = error {
+                print("Error scheduling notification: \(error)")
+            }
+        }
+    }
+    
+    // MARK: - State Persistence
+    
+    private func persistTimerState() {
+        if let endTime = endTime {
+            persistedEndTime = endTime.timeIntervalSince1970
+        } else {
+            persistedEndTime = 0
+        }
+        
+        persistedPausedTime = pausedRemainingTime
+        persistedIsRunning = isRunning
+        persistedIsPaused = isPaused
+        persistedSelectedMinutes = selectedMinutes
+    }
+    
+    private func restoreTimerState() {
+        // Restore selected minutes
+        selectedMinutes = persistedSelectedMinutes
+        
+        // Check if timer was running
+        if persistedIsRunning && persistedEndTime > 0 {
+            let savedEndTime = Date(timeIntervalSince1970: persistedEndTime)
+            
+            // Check if timer should still be running
+            if savedEndTime.timeIntervalSinceNow > 0 {
+                // Timer is still valid
+                endTime = savedEndTime
+                isRunning = true
+                isPaused = false
+                
+                // Restart UI updates
+                startInternalTimer()
+                
+                // Restart extended session
+                startExtendedSession()
+            } else {
+                // Timer completed while app was closed
+                checkTimerCompletion()
+            }
+        } else if persistedIsPaused && persistedPausedTime > 0 {
+            // Timer was paused
+            pausedRemainingTime = persistedPausedTime
+            isPaused = true
+            isRunning = false
+        }
+    }
+    
+    private func checkTimerCompletion() {
+        // Check if timer completed while app was in background
+        if persistedIsRunning && persistedEndTime > 0 {
+            let savedEndTime = Date(timeIntervalSince1970: persistedEndTime)
+            
+            if savedEndTime.timeIntervalSinceNow <= 0 {
+                // Timer completed
+                completeTimer()
+            }
+        }
+    }
+    
+    // MARK: - Extended Runtime Session
+    
+    private func startExtendedSession() {
+        // End any existing session
+        extendedSession?.invalidate()
+        
+        // Setup handler callback
+        sessionHandler.onWillExpire = {
+            persistTimerState()
+        }
+        
+        // Create new session
+        extendedSession = WKExtendedRuntimeSession()
+        extendedSession?.delegate = sessionHandler
+        extendedSession?.start()
+    }
+}
+
+// MARK: - Extended Runtime Session Handler
+
+class ExtendedRuntimeSessionHandler: NSObject, WKExtendedRuntimeSessionDelegate {
+    var onWillExpire: (() -> Void)?
+    
+    func extendedRuntimeSessionDidStart(_ extendedRuntimeSession: WKExtendedRuntimeSession) {
+        print("Extended runtime session started")
+    }
+    
+    func extendedRuntimeSessionWillExpire(_ extendedRuntimeSession: WKExtendedRuntimeSession) {
+        print("Extended runtime session will expire")
+        onWillExpire?()
+    }
+    
+    func extendedRuntimeSession(_ extendedRuntimeSession: WKExtendedRuntimeSession, didInvalidateWith reason: WKExtendedRuntimeSessionInvalidationReason, error: Error?) {
+        print("Extended runtime session invalidated: \(reason)")
+        if let error = error {
+            print("Error: \(error)")
         }
     }
 }

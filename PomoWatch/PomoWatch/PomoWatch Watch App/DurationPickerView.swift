@@ -9,7 +9,6 @@ import SwiftUI
 
 struct DurationPickerView: View {
     @Binding var selectedMinutes: Int
-    @Binding var timeRemaining: Int
     @Environment(\.dismiss) private var dismiss
     
     let presetDurations = [5, 10, 15, 20, 25, 30, 45, 60]
@@ -26,7 +25,6 @@ struct DurationPickerView: View {
                     ForEach(presetDurations, id: \.self) { minutes in
                         Button(action: {
                             selectedMinutes = minutes
-                            timeRemaining = minutes * 60
                             dismiss()
                         }) {
                             HStack {
@@ -72,5 +70,5 @@ struct DurationPickerView: View {
 }
 
 #Preview {
-    DurationPickerView(selectedMinutes: .constant(25), timeRemaining: .constant(1500))
+    DurationPickerView(selectedMinutes: .constant(25))
 }

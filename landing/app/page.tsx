@@ -131,7 +131,7 @@ export default function Home() {
                 
                 {/* Original Style - Gray background tag */}
                 {professionStyle === 'original' && (
-                  <span className="relative inline-block bg-gray-100 px-4 py-1 rounded-lg border border-gray-200" style={{ minWidth: '200px' }}>
+                  <span className="relative inline-block bg-gray-100 px-4 py-1 rounded-lg border border-gray-200" style={{ minWidth: '200px', verticalAlign: 'baseline' }}>
                     {professions.map((profession, index) => (
                       <span
                         key={profession}
@@ -150,7 +150,7 @@ export default function Home() {
                 
                 {/* Tag Style */}
                 {professionStyle === 'tag' && (
-                  <span className="relative inline-block bg-gray-100 px-4 py-1 rounded-lg border border-gray-200 transition-all duration-300" style={{ minWidth: '200px' }}>
+                  <span className="relative inline-block bg-gray-100 px-4 py-1 rounded-lg border border-gray-200 transition-all duration-300" style={{ minWidth: '200px', verticalAlign: 'baseline' }}>
                     {professions.map((profession, index) => (
                       <span
                         key={profession}
@@ -171,7 +171,7 @@ export default function Home() {
                 
                 {/* Underline Style */}
                 {professionStyle === 'underline' && (
-                  <span className="relative inline-block" style={{ minWidth: '200px' }}>
+                  <span className="relative inline-block" style={{ minWidth: '200px', verticalAlign: 'baseline' }}>
                     {professions.map((profession, index) => (
                       <span
                         key={profession}
@@ -212,17 +212,15 @@ export default function Home() {
                 
                 {/* Glossy Style */}
                 {professionStyle === 'glossy' && (
-                  <span className="relative inline-flex items-center justify-center bg-gradient-to-r from-gray-100 to-gray-200 px-4 py-1 rounded-lg overflow-hidden border border-gray-300" style={{ minWidth: '200px', height: '32px' }}>
+                  <span className="relative inline-block bg-gradient-to-r from-gray-100 to-gray-200 px-4 py-1 rounded-lg overflow-hidden border border-gray-300" style={{ minWidth: '200px', verticalAlign: 'text-bottom' }}>
                     <div className="absolute inset-0 bg-gradient-to-t from-transparent via-white/40 to-white/60"></div>
                     {professions.map((profession, index) => (
                       <span
                         key={profession}
                         className={`absolute inset-0 flex items-center justify-center font-bold text-gray-700 z-10 transition-all duration-500 ${
                           index === currentIndex 
-                            ? 'opacity-100 translate-x-0' 
-                            : index === (currentIndex - 1 + professions.length) % professions.length
-                            ? 'opacity-0 -translate-x-4'
-                            : 'opacity-0 translate-x-4'
+                            ? 'opacity-100' 
+                            : 'opacity-0'
                         }`}
                       >
                         {profession}

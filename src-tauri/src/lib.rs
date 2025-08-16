@@ -176,7 +176,7 @@ async fn set_duration(
 async fn start_timer(
     app_handle: tauri::AppHandle,
     state: State<'_, SharedTimerManager>,
-    db: State<'_, SharedSessionDatabase>,
+    _db: State<'_, SharedSessionDatabase>,
 ) -> Result<(), String> {
     let mut manager = state.lock().await;
     
@@ -192,7 +192,6 @@ async fn start_timer(
     manager.last_update_time = Some(std::time::Instant::now());
     
     let timer_manager = state.inner().clone();
-    let session_db = db.inner().clone();
     
     // Spawn optimized timer loop
     let handle = tauri::async_runtime::spawn(async move {
@@ -226,8 +225,7 @@ async fn start_timer(
                     if manager.state.remaining == 0 {
                         manager.state.is_running = false;
                         app_handle.emit("timer-complete", ()).ok();
-                        let count = get_todays_count_from_db(&session_db).await;
-                        update_tray_menu(&app_handle, &manager.state, count, false).await.ok();
+                        update_tray_menu(&app_handle, &manager.state, false).await.ok();
                         break;
                     }
                     
@@ -240,8 +238,7 @@ async fn start_timer(
                     let update_interval = if is_hidden { 1 } else { 15 };
                     
                     if tray_update_counter >= update_interval {
-                        let count = get_todays_count_from_db(&session_db).await;
-                        update_tray_menu(&app_handle, &manager.state, count, is_hidden).await.ok();
+                        update_tray_menu(&app_handle, &manager.state, is_hidden).await.ok();
                         tray_update_counter = 0;
                     }
                 }
@@ -884,16 +881,7 @@ fn generate_text_icon(text: &str, is_active: bool) -> Result<Vec<u8>, String> {
 }
 
 
-async fn get_todays_count_from_db(db: &SharedSessionDatabase) -> u32 {
-    let database = db.lock().await;
-    let today = Utc::now().date_naive();
-    
-    database.sessions.iter()
-        .filter(|s| s.completed && s.start_time.date_naive() == today)
-        .count() as u32
-}
-
-async fn update_tray_menu(app_handle: &tauri::AppHandle, timer_state: &TimerState, session_count: u32, is_hidden: bool) -> Result<(), String> {
+async fn update_tray_menu(app_handle: &tauri::AppHandle, timer_state: &TimerState, is_hidden: bool) -> Result<(), String> {
     // Create the tray menu based on current timer state
     let start_pause_item = if timer_state.is_running && !timer_state.is_paused {
         MenuItem::with_id(app_handle, "pause", "Pause Timer", true, None::<&str>).map_err(|e| e.to_string())?
@@ -1004,23 +992,22 @@ async fn update_tray_menu(app_handle: &tauri::AppHandle, timer_state: &TimerStat
             }
         }
         
-        // Update tooltip with session count and show more detail when hidden
+        // Update tooltip to show more detail when hidden
         let tooltip = if timer_state.is_running && !timer_state.is_paused {
             if is_hidden {
                 // Show minute-level progress when hidden
                 let progress_percentage = ((timer_state.duration - timer_state.remaining) as f32 / timer_state.duration as f32 * 100.0) as u32;
-                format!("Pomo - {}m left ({}%) | {} sessions today", 
+                format!("Pomo - {}m left ({}%)", 
                     if minutes > 0 { minutes } else { 1 }, // Show at least 1m
-                    progress_percentage,
-                    session_count
+                    progress_percentage
                 )
             } else {
-                format!("Pomo - Running ({}:{:02}) | {} sessions today", minutes, seconds, session_count)
+                format!("Pomo - Running ({}:{:02})", minutes, seconds)
             }
         } else if timer_state.is_paused {
-            format!("Pomo - Paused ({}:{:02}) | {} sessions today", minutes, seconds, session_count)
+            format!("Pomo - Paused ({}:{:02})", minutes, seconds)
         } else {
-            format!("Pomo - Ready | {} sessions today", session_count)
+            format!("Pomo - Ready")
         };
         
         tray.set_tooltip(Some(&tooltip)).map_err(|e| e.to_string())?;
@@ -1096,11 +1083,9 @@ pub fn run() {
                 .on_menu_event({
                     let timer_manager_clone = timer_manager.clone();
                     let app_handle_clone = app_handle.clone();
-                    let session_db_clone = session_database.clone();
                     move |_app, event| {
                         let app_handle = app_handle_clone.clone();
                         let timer_manager = timer_manager_clone.clone();
-                        let session_db = session_db_clone.clone();
                         
                         tauri::async_runtime::spawn(async move {
                             match event.id.as_ref() {
@@ -1120,7 +1105,6 @@ pub fn run() {
                                     
                                     let timer_manager_for_loop = timer_manager.clone();
                                     let app_handle_for_loop = app_handle.clone();
-                                    let session_db_for_loop = session_db.clone();
                                     
                                     // Use the same optimized timer loop as start_timer
                                     let handle = tauri::async_runtime::spawn(async move {
@@ -1149,15 +1133,13 @@ pub fn run() {
                                                     if manager.state.remaining == 0 {
                                                         manager.state.is_running = false;
                                                         app_handle_for_loop.emit("timer-complete", ()).ok();
-                                                        let count = get_todays_count_from_db(&session_db_for_loop).await;
-                                                        update_tray_menu(&app_handle_for_loop, &manager.state, count, false).await.ok();
+                                                        update_tray_menu(&app_handle_for_loop, &manager.state, false).await.ok();
                                                         break;
                                                     }
                                                     
                                                     tray_update_counter += 1;
                                                     if tray_update_counter >= 15 {
-                                                        let count = get_todays_count_from_db(&session_db_for_loop).await;
-                                                        update_tray_menu(&app_handle_for_loop, &manager.state, count, false).await.ok();
+                                                        update_tray_menu(&app_handle_for_loop, &manager.state, false).await.ok();
                                                         tray_update_counter = 0;
                                                     }
                                                 }
@@ -1166,14 +1148,12 @@ pub fn run() {
                                     });
                                     
                                     manager.timer_handle = Some(handle);
-                                    let count = get_todays_count_from_db(&session_db).await;
-                                    update_tray_menu(&app_handle, &manager.state, count, false).await.ok();
+                                    update_tray_menu(&app_handle, &manager.state, false).await.ok();
                                 }
                                 "pause" => {
                                     let mut manager = timer_manager.lock().await;
                                     manager.state.is_paused = true;
-                                    let count = get_todays_count_from_db(&session_db).await;
-                                    update_tray_menu(&app_handle, &manager.state, count, false).await.ok();
+                                    update_tray_menu(&app_handle, &manager.state, false).await.ok();
                                 }
                                 "stop" => {
                                     let mut manager = timer_manager.lock().await;
@@ -1181,36 +1161,31 @@ pub fn run() {
                                     manager.state.is_running = false;
                                     manager.state.is_paused = false;
                                     manager.state.remaining = manager.state.duration;
-                                    let count = get_todays_count_from_db(&session_db).await;
-                                    update_tray_menu(&app_handle, &manager.state, count, false).await.ok();
+                                    update_tray_menu(&app_handle, &manager.state, false).await.ok();
                                 }
                                 "duration_5" => {
                                     let mut manager = timer_manager.lock().await;
                                     manager.state.duration = 5 * 60;
                                     manager.state.remaining = 5 * 60;
-                                    let count = get_todays_count_from_db(&session_db).await;
-                                    update_tray_menu(&app_handle, &manager.state, count, false).await.ok();
+                                    update_tray_menu(&app_handle, &manager.state, false).await.ok();
                                 }
                                 "duration_15" => {
                                     let mut manager = timer_manager.lock().await;
                                     manager.state.duration = 15 * 60;
                                     manager.state.remaining = 15 * 60;
-                                    let count = get_todays_count_from_db(&session_db).await;
-                                    update_tray_menu(&app_handle, &manager.state, count, false).await.ok();
+                                    update_tray_menu(&app_handle, &manager.state, false).await.ok();
                                 }
                                 "duration_25" => {
                                     let mut manager = timer_manager.lock().await;
                                     manager.state.duration = 25 * 60;
                                     manager.state.remaining = 25 * 60;
-                                    let count = get_todays_count_from_db(&session_db).await;
-                                    update_tray_menu(&app_handle, &manager.state, count, false).await.ok();
+                                    update_tray_menu(&app_handle, &manager.state, false).await.ok();
                                 }
                                 "duration_45" => {
                                     let mut manager = timer_manager.lock().await;
                                     manager.state.duration = 45 * 60;
                                     manager.state.remaining = 45 * 60;
-                                    let count = get_todays_count_from_db(&session_db).await;
-                                    update_tray_menu(&app_handle, &manager.state, count, false).await.ok();
+                                    update_tray_menu(&app_handle, &manager.state, false).await.ok();
                                 }
                                 "show" => {
                                     if let Some(window) = app_handle.get_webview_window("main") {
@@ -1234,11 +1209,9 @@ pub fn run() {
             // Initialize tray menu
             let app_handle_tray = app_handle.clone();
             let timer_manager_tray = timer_manager.clone();
-            let session_db_tray = session_database.clone();
             tauri::async_runtime::spawn(async move {
                 let manager = timer_manager_tray.lock().await;
-                let count = get_todays_count_from_db(&session_db_tray).await;
-                update_tray_menu(&app_handle_tray, &manager.state, count, false).await.ok();
+                update_tray_menu(&app_handle_tray, &manager.state, false).await.ok();
             });
             
             // Note: Periodic tray updates are now handled more efficiently within the timer loop itself

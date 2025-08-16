@@ -228,13 +228,14 @@ async fn start_timer(
                         break;
                     }
                     
-                    // Update tray more frequently when window is hidden
+                    // Update tray icon periodically - less frequently to avoid interrupting user interactions
                     tray_update_counter += 1;
                     let is_hidden = app_handle.get_webview_window("main")
                         .map(|w| !w.is_visible().unwrap_or(true))
                         .unwrap_or(true);
                     
-                    let update_interval = if is_hidden { 1 } else { 15 };
+                    // Update every 5 seconds when hidden, every 10 seconds when visible
+                    let update_interval = if is_hidden { 50 } else { 100 };
                     
                     if tray_update_counter >= update_interval {
                         update_tray_menu(&app_handle, &manager.state, is_hidden).await.ok();
@@ -252,14 +253,22 @@ async fn start_timer(
 }
 
 #[tauri::command]
-async fn pause_timer(state: State<'_, SharedTimerManager>) -> Result<(), String> {
+async fn pause_timer(
+    state: State<'_, SharedTimerManager>,
+    app_handle: tauri::AppHandle,
+) -> Result<(), String> {
     let mut manager = state.lock().await;
     manager.state.is_paused = true;
+    // Update tray immediately when pausing
+    update_tray_menu(&app_handle, &manager.state, false).await.ok();
     Ok(())
 }
 
 #[tauri::command]
-async fn stop_timer(state: State<'_, SharedTimerManager>) -> Result<(), String> {
+async fn stop_timer(
+    state: State<'_, SharedTimerManager>,
+    app_handle: tauri::AppHandle,
+) -> Result<(), String> {
     let mut manager = state.lock().await;
     
     // Abort the timer loop to immediately stop execution
@@ -268,6 +277,10 @@ async fn stop_timer(state: State<'_, SharedTimerManager>) -> Result<(), String> 
     manager.state.is_running = false;
     manager.state.is_paused = false;
     manager.state.remaining = manager.state.duration;
+    
+    // Update tray immediately when stopping
+    update_tray_menu(&app_handle, &manager.state, false).await.ok();
+    
     Ok(())
 }
 
@@ -552,13 +565,19 @@ async fn tray_start_timer(
 }
 
 #[tauri::command]
-async fn tray_pause_timer(state: State<'_, SharedTimerManager>) -> Result<(), String> {
-    pause_timer(state).await
+async fn tray_pause_timer(
+    state: State<'_, SharedTimerManager>,
+    app_handle: tauri::AppHandle,
+) -> Result<(), String> {
+    pause_timer(state, app_handle).await
 }
 
 #[tauri::command]
-async fn tray_stop_timer(state: State<'_, SharedTimerManager>) -> Result<(), String> {
-    stop_timer(state).await
+async fn tray_stop_timer(
+    state: State<'_, SharedTimerManager>,
+    app_handle: tauri::AppHandle,
+) -> Result<(), String> {
+    stop_timer(state, app_handle).await
 }
 
 #[tauri::command]
@@ -959,12 +978,12 @@ async fn update_tray_menu(app_handle: &tauri::AppHandle, timer_state: &TimerStat
         // Generate dynamic icon based on timer state
         let icon_text = if timer_state.is_running && !timer_state.is_paused {
             if minutes > 0 {
-                format!("{}m", minutes)
+                format!("{{{}m}}", minutes)
             } else {
-                format!("{}s", seconds)
+                format!("{{{}s}}", seconds)
             }
         } else if timer_state.is_paused {
-            "||".to_string()
+            "{||}".to_string()
         } else {
             "".to_string() // Empty for ready state
         };
@@ -1136,7 +1155,8 @@ pub fn run() {
                                                     }
                                                     
                                                     tray_update_counter += 1;
-                                                    if tray_update_counter >= 15 {
+                                                    // Update every 10 seconds (100 ticks at 100ms each)
+                                                    if tray_update_counter >= 100 {
                                                         update_tray_menu(&app_handle_for_loop, &manager.state, false).await.ok();
                                                         tray_update_counter = 0;
                                                     }

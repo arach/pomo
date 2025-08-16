@@ -176,7 +176,6 @@ async fn set_duration(
 async fn start_timer(
     app_handle: tauri::AppHandle,
     state: State<'_, SharedTimerManager>,
-    _db: State<'_, SharedSessionDatabase>,
 ) -> Result<(), String> {
     let mut manager = state.lock().await;
     
@@ -548,9 +547,8 @@ async fn load_custom_watchfaces(
 async fn tray_start_timer(
     app_handle: tauri::AppHandle,
     state: State<'_, SharedTimerManager>,
-    db: State<'_, SharedSessionDatabase>,
 ) -> Result<(), String> {
-    start_timer(app_handle, state, db).await
+    start_timer(app_handle, state).await
 }
 
 #[tauri::command]

@@ -82,7 +82,8 @@
       "Bash(./create_watch_app.sh:*)",
       "Bash(xcodegen generate:*)",
       "Bash(git rm:*)",
-      "Bash(pnpm type-check:*)"
+      "Bash(pnpm type-check:*)",
+      "Bash(pnpm install:*)"
     ],
     "deny": []
   },

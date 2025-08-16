@@ -14,6 +14,7 @@ import { SplitViewComparison } from "./components/dev/SplitViewComparison";
 import { SessionNameInput } from "./components/SessionNameInput";
 import { SessionCompleteModal } from "./components/SessionCompleteModal";
 import { ConfettiCelebration } from "./components/ConfettiCelebration";
+import { DevToolbar } from "./components/DevToolbar";
 
 interface TimerUpdate {
   duration: number;
@@ -452,6 +453,7 @@ function App() {
         isActive={showConfetti} 
         duration={4000}
       />
+      {isDev && <DevToolbar />}
     </WindowWrapper>
   );
 }

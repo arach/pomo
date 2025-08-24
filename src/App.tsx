@@ -14,7 +14,7 @@ import { SplitViewComparison } from "./components/dev/SplitViewComparison";
 import { SessionNameInput } from "./components/SessionNameInput";
 import { SessionCompleteModal } from "./components/SessionCompleteModal";
 import { ConfettiCelebration } from "./components/ConfettiCelebration";
-import { DevToolbar } from "./components/DevToolbar";
+import { PomoDevToolbar } from "./components/PomoDevToolbar";
 
 interface TimerUpdate {
   duration: number;
@@ -98,8 +98,8 @@ function App() {
       
       // Show window if hidden, then bring to front and focus it
       try {
-        const { getCurrent } = await import('@tauri-apps/api/webviewWindow');
-        const window = getCurrent();
+        const { getCurrentWebviewWindow } = await import('@tauri-apps/api/webviewWindow');
+        const window = getCurrentWebviewWindow();
         
         // Check if window is visible, if not, show it first
         const isVisible = await window.isVisible();
@@ -168,7 +168,13 @@ function App() {
     
     // Listen for visibility toggle
     const unlistenVisibility = listen('toggle-visibility', async () => {
-      await invoke('toggle_visibility');
+      console.log('📡 Received toggle-visibility event from backend');
+      try {
+        await invoke('toggle_visibility');
+        console.log('✅ toggle_visibility command invoked successfully');
+      } catch (error) {
+        console.error('❌ Failed to invoke toggle_visibility:', error);
+      }
     });
     
     // Listen for settings changes (from settings window)
@@ -453,7 +459,7 @@ function App() {
         isActive={showConfetti} 
         duration={4000}
       />
-      {isDev && <DevToolbar />}
+      {isDev && <PomoDevToolbar />}
     </WindowWrapper>
   );
 }

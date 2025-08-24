@@ -83,7 +83,13 @@
       "Bash(xcodegen generate:*)",
       "Bash(git rm:*)",
       "Bash(pnpm type-check:*)",
-      "Bash(pnpm install:*)"
+      "Bash(pnpm install:*)",
+      "Bash(git restore:*)",
+      "Bash(pnpm install:*)",
+      "Bash(pnpm ls:*)",
+      "Bash(RUST_BACKTRACE=1 pnpm tauri dev)",
+      "Bash(pgrep:*)",
+      "Bash(pnpm dev:*)"
     ],
     "deny": []
   },

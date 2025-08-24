@@ -28,7 +28,7 @@ export function FocusCards({ cards }: { cards: Card[] }) {
             onClick={() => setSelectedCard(card)}
             className={cn(
               "relative group transition-all duration-500 ease-out cursor-pointer",
-              hovered !== null && hovered !== index && "opacity-50 scale-[0.98]"
+              hovered !== null && hovered !== index && "opacity-50"
             )}
           >
           <div className="flex flex-col h-full">
@@ -37,7 +37,7 @@ export function FocusCards({ cards }: { cards: Card[] }) {
               className={cn(
                 "relative overflow-hidden rounded-xl transition-all duration-500 bg-gray-50 h-44",
                 card.type === 'watch' && 'flex items-center justify-center',
-                hovered === index && "transform scale-[1.02]"
+                hovered === index && "brightness-105"
               )}
             >
               {card.type === 'watch' ? (
@@ -59,9 +59,10 @@ export function FocusCards({ cards }: { cards: Card[] }) {
             <div className="mt-4">
               <h3 
                 className={cn(
-                  "font-mono font-bold uppercase text-gray-900 transition-all duration-300",
+                  "font-mono font-bold uppercase text-gray-900 transition-all duration-[50ms]",
                   hovered === index ? "text-sm" : "text-xs"
                 )}
+                style={{ lineHeight: '1.25rem', minHeight: '1.25rem' }}
               >
                 {card.title}
               </h3>

@@ -3,7 +3,7 @@
 use serde::{Deserialize, Serialize};
 use std::sync::Arc;
 use tauri::{Emitter, Manager, State};
-use tauri_plugin_global_shortcut::{GlobalShortcutExt, Code, Modifiers, Shortcut, ShortcutState};
+use tauri_plugin_global_shortcut::{Code, Modifiers, Shortcut, ShortcutState, GlobalShortcutExt};
 use tauri::tray::TrayIconBuilder;
 use tauri::menu::{Menu, MenuItem, Submenu, PredefinedMenuItem};
 use tokio::sync::Mutex;
@@ -13,6 +13,7 @@ use chrono::{DateTime, Utc};
 use tauri::async_runtime::JoinHandle;
 use image::{ImageBuffer, Rgba, RgbaImage};
 use rusttype::{Font, Scale};
+use log::{debug, info, warn, error};
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct TimerState {
@@ -313,13 +314,30 @@ async fn toggle_collapse(
 
 #[tauri::command]
 async fn toggle_visibility(app_handle: tauri::AppHandle) -> Result<(), String> {
+    info!("toggle_visibility command called");
     if let Some(window) = app_handle.get_webview_window("main") {
-        if window.is_visible().unwrap_or(false) {
-            window.hide().ok();
+        let is_visible = window.is_visible().unwrap_or(false);
+        debug!("Window is currently visible: {}", is_visible);
+        
+        if is_visible {
+            debug!("Hiding window...");
+            match window.hide() {
+                Ok(_) => info!("Window hidden via command"),
+                Err(e) => error!("Failed to hide window: {}", e),
+            }
         } else {
-            window.show().ok();
-            window.set_focus().ok();
+            debug!("Showing window...");
+            match window.show() {
+                Ok(_) => info!("Window shown via command"),
+                Err(e) => error!("Failed to show window: {}", e),
+            }
+            match window.set_focus() {
+                Ok(_) => debug!("Window focused"),
+                Err(e) => warn!("Failed to focus window: {}", e),
+            }
         }
+    } else {
+        error!("Main window not found!");
     }
     Ok(())
 }
@@ -1035,6 +1053,13 @@ async fn update_tray_menu(app_handle: &tauri::AppHandle, timer_state: &TimerStat
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
+    // Initialize logger with timestamp
+    env_logger::Builder::from_default_env()
+        .format_timestamp_millis()
+        .init();
+    
+    info!("Starting Pomo application");
+    
     let timer_manager = Arc::new(Mutex::new(TimerManager::new()));
     let window_state = Arc::new(Mutex::new(WindowState::default()));
     let settings = Arc::new(Mutex::new(Settings::default()));
@@ -1047,14 +1072,42 @@ pub fn run() {
         .plugin(
             tauri_plugin_global_shortcut::Builder::new()
                 .with_handler(|app, shortcut, event| {
-                    if event.state == ShortcutState::Pressed {
-                        let hyperkey_p = Shortcut::new(
-                            Some(Modifiers::SUPER | Modifiers::CONTROL | Modifiers::ALT | Modifiers::SHIFT),
-                            Code::KeyP
-                        );
-                        
-                        if shortcut == &hyperkey_p {
-                            app.emit("toggle-visibility", ()).ok();
+                    debug!("Global shortcut event: {:?}, State: {:?}", shortcut, event.state);
+                    
+                    let hyperkey_p = Shortcut::new(
+                        Some(Modifiers::SUPER | Modifiers::CONTROL | Modifiers::ALT | Modifiers::SHIFT),
+                        Code::KeyP
+                    );
+                    
+                    if shortcut == &hyperkey_p {
+                        info!("Hyperkey+P detected, state: {:?}", event.state);
+                        if event.state == ShortcutState::Pressed {
+                            info!("Toggling window visibility");
+                            // Call toggle_visibility directly instead of emitting an event
+                            if let Some(window) = app.get_webview_window("main") {
+                                let is_visible = window.is_visible().unwrap_or(false);
+                                debug!("Window is currently visible: {}", is_visible);
+                                
+                                if is_visible {
+                                    debug!("Hiding window...");
+                                    match window.hide() {
+                                        Ok(_) => info!("Window hidden successfully"),
+                                        Err(e) => error!("Failed to hide window: {}", e),
+                                    }
+                                } else {
+                                    debug!("Showing window...");
+                                    match window.show() {
+                                        Ok(_) => info!("Window shown successfully"),
+                                        Err(e) => error!("Failed to show window: {}", e),
+                                    }
+                                    match window.set_focus() {
+                                        Ok(_) => debug!("Window focused successfully"),
+                                        Err(e) => warn!("Failed to focus window: {}", e),
+                                    }
+                                }
+                            } else {
+                                error!("Main window not found!");
+                            }
                         }
                     }
                 })
@@ -1206,9 +1259,17 @@ pub fn run() {
                                     update_tray_menu(&app_handle, &manager.state, false).await.ok();
                                 }
                                 "show" => {
+                                    info!("Show menu item clicked");
                                     if let Some(window) = app_handle.get_webview_window("main") {
-                                        window.show().ok();
-                                        window.set_focus().ok();
+                                        debug!("Showing window from menu...");
+                                        match window.show() {
+                                            Ok(_) => info!("Window shown from menu"),
+                                            Err(e) => error!("Failed to show from menu: {}", e),
+                                        }
+                                        match window.set_focus() {
+                                            Ok(_) => debug!("Window focused from menu"),
+                                            Err(e) => warn!("Failed to focus from menu: {}", e),
+                                        }
                                     }
                                 }
                                 "settings" => {
@@ -1242,7 +1303,7 @@ pub fn run() {
                 let loaded_db = load_session_database(&app_handle_db).await;
                 let mut db = session_db_state.lock().await;
                 *db = loaded_db;
-                println!("✅ Loaded {} sessions from database", db.sessions.len());
+                info!("Loaded {} sessions from database", db.sessions.len());
             });
             
             // Load settings from file on startup
@@ -1257,23 +1318,24 @@ pub fn run() {
                             // Update the settings state with loaded settings
                             if let Ok(mut settings) = settings_state.try_lock() {
                                 *settings = loaded_settings.clone();
-                                println!("✅ Loaded settings from file");
+                                info!("Loaded settings from file");
                             }
                         }
                     }
                 }
             }
             
-            // Register global shortcut
+            // Register the global shortcut
             let shortcut_manager = app_handle.global_shortcut();
             let hyperkey_p = Shortcut::new(
                 Some(Modifiers::SUPER | Modifiers::CONTROL | Modifiers::ALT | Modifiers::SHIFT),
                 Code::KeyP
             );
             
+            // Register the shortcut - the handler is already set up in the plugin builder
             match shortcut_manager.register(hyperkey_p) {
-                Ok(_) => println!("✅ Registered global shortcut: Hyperkey+P"),
-                Err(e) => eprintln!("❌ Failed to register shortcut: {}", e),
+                Ok(_) => info!("Global shortcut Hyperkey+P registered successfully"),
+                Err(e) => error!("Failed to register shortcut: {}", e),
             }
             
             // Apply initial window settings

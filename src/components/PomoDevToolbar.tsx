@@ -1,53 +1,16 @@
-// Example: How to integrate the generic DevToolbar into the Pomo app
-// This shows how to adapt from app-specific stores to the generic toolbar
-
 import React from 'react';
-import { DevToolbar, DevToolbarSection, DevToolbarButton, DevToolbarInfo } from '@arach/dev-toolbar-react';
+import { DevToolbar, DevToolbarSection, DevToolbarButton, DevToolbarInfo } from '@arach/devbar';
 import { Timer, Activity, Database, Settings, RefreshCw, Trash2 } from 'lucide-react';
+import { useTimerStore } from '../stores/timer-store';
+import { useSessionStore } from '../stores/session-store';
+import { useSettingsStore } from '../stores/settings-store';
 
-// Example store hooks (these would come from your app)
-interface TimerStore {
-  isRunning: boolean;
-  isPaused: boolean;
-  remaining: number;
-  duration: number;
-  sessionType: string;
-  sessionName: string | null;
-  pauseCount: number;
-  start: () => void;
-  pause: () => void;
-  stop: () => void;
-  reset: () => void;
-}
-
-interface SessionStore {
-  sessions: any[];
-  getSessionStats: () => any;
-  addSession: (session: any) => void;
-}
-
-interface SettingsStore {
-  defaultDuration: number;
-  theme: string;
-  soundEnabled: boolean;
-  volume: number;
-  alwaysOnTop: boolean;
-  opacity: number;
-  watchFace: string;
-  notificationSound: string;
-  updateSettings: (settings: any) => Promise<void>;
-}
-
-// Mock hooks for example
-declare const useTimerStore: () => TimerStore;
-declare const useSessionStore: () => SessionStore;
-declare const useSettingsStore: () => SettingsStore;
-
-export const PomodoroDevToolbar: React.FC = () => {
+export const PomoDevToolbar: React.FC = () => {
   const timerStore = useTimerStore();
   const sessionStore = useSessionStore();
   const settingsStore = useSettingsStore();
-  const stats = sessionStore.getSessionStats();
+  const sessions = useSessionStore(state => state.sessions);
+  const stats = useSessionStore(state => state.getSessionStats());
   
   const addMockSessions = () => {
     const today = new Date();
@@ -70,7 +33,8 @@ export const PomodoroDevToolbar: React.FC = () => {
           sessionType: 'focus',
           completed: true,
           pauseCount: 0,
-          pauseDuration: 0
+          pauseDuration: 0,
+          name: undefined
         });
       }
     }
@@ -83,18 +47,23 @@ export const PomodoroDevToolbar: React.FC = () => {
       icon: Timer,
       content: (
         <DevToolbarSection>
-          <DevToolbarInfo label="Running" value={timerStore.isRunning ? 'Yes' : 'No'} />
-          <DevToolbarInfo label="Paused" value={timerStore.isPaused ? 'Yes' : 'No'} />
-          <DevToolbarInfo 
-            label="Time Left" 
-            value={`${Math.floor(timerStore.remaining / 60)}:${(timerStore.remaining % 60).toString().padStart(2, '0')}`} 
-          />
-          <DevToolbarInfo label="Duration" value={`${Math.floor(timerStore.duration / 60)} min`} />
-          <DevToolbarInfo label="Session Type" value={timerStore.sessionType} />
-          <DevToolbarInfo label="Session Name" value={timerStore.sessionName || 'None'} />
-          <DevToolbarInfo label="Pause Count" value={timerStore.pauseCount} />
+          <div className="grid grid-cols-2 gap-x-3 gap-y-1">
+            <DevToolbarInfo label="Running" value={timerStore.isRunning ? 'Yes' : 'No'} />
+            <DevToolbarInfo label="Paused" value={timerStore.isPaused ? 'Yes' : 'No'} />
+            <DevToolbarInfo 
+              theme="dark"
+              label="Time Left" 
+              value={`${Math.floor(timerStore.remaining / 60)}:${(timerStore.remaining % 60).toString().padStart(2, '0')}`} 
+            />
+            <DevToolbarInfo label="Duration" value={`${Math.floor(timerStore.duration / 60)} min`} />
+            <DevToolbarInfo label="Type" value={timerStore.sessionType} />
+            <DevToolbarInfo label="Pauses" value={timerStore.pauseCount} />
+          </div>
+          {timerStore.sessionName && (
+            <DevToolbarInfo label="Name" value={timerStore.sessionName} />
+          )}
           
-          <div className="pt-2 grid grid-cols-4 gap-0.5">
+          <div className="pt-1 grid grid-cols-4 gap-0.5">
             <DevToolbarButton variant="success" onClick={() => timerStore.start()}>
               Start
             </DevToolbarButton>
@@ -117,10 +86,12 @@ export const PomodoroDevToolbar: React.FC = () => {
       icon: Activity,
       content: (
         <DevToolbarSection title="Activity Stats">
-          <DevToolbarInfo label="Total Sessions" value={stats.totalSessions} />
-          <DevToolbarInfo label="Completed" value={stats.completedSessions} />
-          <DevToolbarInfo label="Total Focus" value={`${Math.round(stats.totalFocusTime / 60)} min`} />
-          <DevToolbarInfo label="Avg Duration" value={`${Math.round(stats.averageSessionDuration / 60)} min`} />
+          <div className="grid grid-cols-2 gap-x-3 gap-y-1">
+            <DevToolbarInfo label="Sessions" value={stats.totalSessions} />
+            <DevToolbarInfo label="Completed" value={stats.completedSessions} />
+            <DevToolbarInfo label="Total" value={`${Math.round(stats.totalFocusTime / 60)}m`} />
+            <DevToolbarInfo label="Avg" value={`${Math.round(stats.averageSessionDuration / 60)}m`} />
+          </div>
           
           <div className="flex gap-1 mt-2">
             <DevToolbarButton onClick={addMockSessions} className="flex items-center gap-0.5">
@@ -144,7 +115,6 @@ export const PomodoroDevToolbar: React.FC = () => {
       label: 'Sessions',
       icon: Database,
       content: () => {
-        const sessions = sessionStore.sessions;
         return (
           <DevToolbarSection title={`Recent Sessions (${sessions.length} total)`}>
             <div className="space-y-0.5 max-h-32 overflow-auto">
@@ -176,14 +146,16 @@ export const PomodoroDevToolbar: React.FC = () => {
       icon: Settings,
       content: (
         <DevToolbarSection>
-          <DevToolbarInfo label="Default Duration" value={`${Math.floor(settingsStore.defaultDuration / 60)} min`} />
-          <DevToolbarInfo label="Theme" value={settingsStore.theme} />
-          <DevToolbarInfo label="Sound" value={settingsStore.soundEnabled ? 'On' : 'Off'} />
-          <DevToolbarInfo label="Volume" value={`${Math.round(settingsStore.volume * 100)}%`} />
-          <DevToolbarInfo label="Always on Top" value={settingsStore.alwaysOnTop ? 'Yes' : 'No'} />
-          <DevToolbarInfo label="Opacity" value={`${Math.round(settingsStore.opacity * 100)}%`} />
-          <DevToolbarInfo label="Watch Face" value={settingsStore.watchFace} />
-          <DevToolbarInfo label="Notification Sound" value={settingsStore.notificationSound} />
+          <div className="grid grid-cols-2 gap-x-3 gap-y-1">
+            <DevToolbarInfo label="Duration" value={`${Math.floor(settingsStore.defaultDuration / 60)}m`} />
+            <DevToolbarInfo label="Theme" value={settingsStore.theme} />
+            <DevToolbarInfo label="Sound" value={settingsStore.soundEnabled ? 'On' : 'Off'} />
+            <DevToolbarInfo label="Volume" value={`${Math.round(settingsStore.volume * 100)}%`} />
+            <DevToolbarInfo label="On Top" value={settingsStore.alwaysOnTop ? 'Yes' : 'No'} />
+            <DevToolbarInfo label="Opacity" value={`${Math.round(settingsStore.opacity * 100)}%`} />
+            <DevToolbarInfo label="Face" value={settingsStore.watchFace} />
+            <DevToolbarInfo label="Alert" value={settingsStore.notificationSound} />
+          </div>
           
           <div className="pt-2">
             <DevToolbarButton
@@ -211,5 +183,5 @@ export const PomodoroDevToolbar: React.FC = () => {
     }
   ];
   
-  return <DevToolbar tabs={tabs} hideInProduction={true} />;
+  return <DevToolbar tabs={tabs} hideInProduction={true} theme="dark" />;
 };

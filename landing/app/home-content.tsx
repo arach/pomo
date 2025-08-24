@@ -113,10 +113,10 @@ export default function HomeContent() {
         <div className="max-w-7xl mx-auto px-8">
           <div className="flex justify-between items-center h-16">
             <div className="flex items-center gap-2">
-              <div className="w-10 h-10 rounded-xl bg-red-500 flex items-center justify-center">
+              <div className="w-10 h-10 rounded-xl bg-gray-900 flex items-center justify-center">
                 <span className="text-xl font-bold text-white font-pixelify-sans">P</span>
               </div>
-              <span className="text-xl font-bold text-gray-900 font-pixelify-sans">Pomo</span>
+              <span className="text-xl font-bold text-red-500 font-pixelify-sans">Pomo</span>
             </div>
             <div className="flex items-center gap-12">
               <div className="hidden md:flex items-center gap-12">
@@ -513,10 +513,10 @@ export default function HomeContent() {
         <div className="max-w-7xl mx-auto px-8">
           <div className="flex flex-col md:flex-row justify-between items-center gap-6">
             <div className="flex items-center gap-2">
-              <div className="w-10 h-10 rounded-xl bg-red-500 flex items-center justify-center">
+              <div className="w-10 h-10 rounded-xl bg-gray-900 flex items-center justify-center">
                 <span className="text-xl font-bold text-white font-pixelify-sans">P</span>
               </div>
-              <span className="text-xl font-bold text-gray-900 font-pixelify-sans">Pomo</span>
+              <span className="text-xl font-bold text-red-500 font-pixelify-sans">Pomo</span>
             </div>
             <div className="flex gap-6">
               <a href="https://github.com/arach/pomo" className="text-gray-600 hover:text-gray-900 transition-colors">

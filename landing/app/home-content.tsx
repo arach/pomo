@@ -75,32 +75,32 @@ export default function HomeContent() {
 
   const features = [
     {
-      icon: <Clock className="w-6 h-6" />,
+      Icon: Clock,
       title: "Floating Timer",
       description: "Always-on-top window that stays out of your way while keeping you focused.",
     },
     {
-      icon: <Zap className="w-6 h-6" />,
+      Icon: Zap,
       title: "Menu Bar Integration",
       description: "Live timer updates in your menu bar with intelligent progress tracking.",
     },
     {
-      icon: <Palette className="w-6 h-6" />,
+      Icon: Palette,
       title: "Custom Themes",
       description: "Multiple beautiful watchfaces from minimal to retro.",
     },
     {
-      icon: <Moon className="w-6 h-6" />,
+      Icon: Moon,
       title: "Focus Modes",
       description: "Deep focus, break time, and planning modes tailored to your workflow.",
     },
     {
-      icon: <Command className="w-6 h-6" />,
+      Icon: Command,
       title: "Keyboard First",
       description: "Complete keyboard control with fully customizable shortcuts.",
     },
     {
-      icon: <RotateCcw className="w-6 h-6" />,
+      Icon: RotateCcw,
       title: "Session Tracking",
       description: "Comprehensive analytics to track your progress and build habits.",
     },
@@ -302,7 +302,7 @@ export default function HomeContent() {
               >
                 <div className="w-14 h-14 rounded-2xl bg-red-50 flex items-center justify-center mb-6 mx-auto border border-red-200 group-hover:bg-red-100 group-hover:border-red-300 transition-all">
                   <div className="text-red-500 group-hover:text-red-600 transition-colors">
-                    {feature.icon}
+                    <feature.Icon className="w-6 h-6" />
                   </div>
                 </div>
                 <h3 className="text-sm font-mono font-normal uppercase tracking-wide mb-3 text-gray-900">{feature.title}</h3>

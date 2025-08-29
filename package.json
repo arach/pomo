@@ -10,6 +10,7 @@
     "preview": "vite preview",
     "tauri": "tauri",
     "tauri:dev": "tauri dev",
+    "dev:port": "node dev-port.js",
     "tauri:build": "tauri build",
     "lint": "eslint . --ext ts,tsx --report-unused-disable-directives --max-warnings 0",
     "format": "prettier --write .",
@@ -36,7 +37,7 @@
     "zustand": "^4.5.2"
   },
   "devDependencies": {
-    "@tauri-apps/cli": "^2.8.1",
+    "@tauri-apps/cli": "^2.8.3",
     "@types/node": "^20.11.30",
     "@types/react": "^18.2.66",
     "@types/react-dom": "^18.2.22",

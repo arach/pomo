@@ -128,7 +128,7 @@ export default function HomeContent() {
                 </a>
               </div>
               <a
-                href="https://github.com/arach/pomo/releases/download/v0.2.0/Pomo-0.2.0-macOS-arm64.dmg"
+                href="https://github.com/arach/pomo/releases/download/v0.2.1/Pomo-v0.2.1-macOS-arm64.dmg"
                 className="bg-gray-900 text-white hover:bg-gray-800 rounded-xl transition-all px-6 py-3 text-sm inline-flex items-center gap-2 font-inter font-semibold shadow-sm hover:shadow-md"
               >
                 <Download className="w-4 h-4" />
@@ -258,7 +258,7 @@ export default function HomeContent() {
 
             <div className="flex flex-col sm:flex-row gap-4 justify-center mb-16 animate-slide-up" style={{ animationDelay: '0.3s' }}>
               <a
-                href="https://github.com/arach/pomo/releases/download/v0.2.0/Pomo-0.2.0-macOS-arm64.dmg"
+                href="https://github.com/arach/pomo/releases/download/v0.2.1/Pomo-v0.2.1-macOS-arm64.dmg"
                 className="bg-black text-white hover:bg-gray-800 rounded-lg transition-all px-6 py-3 inline-flex items-center justify-center gap-2 font-inter font-medium text-sm"
               >
                 <Download className="w-4 h-4" />
@@ -491,7 +491,7 @@ export default function HomeContent() {
           </p>
           <div className="flex flex-col sm:flex-row gap-4 justify-center">
             <a
-              href="https://github.com/arach/pomo/releases/download/v0.2.0/Pomo-0.2.0-macOS-arm64.dmg"
+              href="https://github.com/arach/pomo/releases/download/v0.2.1/Pomo-v0.2.1-macOS-arm64.dmg"
               className="bg-white text-black hover:bg-gray-100 rounded-lg transition-all px-6 py-3 inline-flex items-center justify-center gap-2 font-inter font-medium text-sm"
             >
               <Download className="w-4 h-4" />

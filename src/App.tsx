@@ -8,6 +8,7 @@ import { DurationInput } from "./components/DurationInput";
 import { StatusFooter } from "./components/StatusFooter";
 import { useTimerStore, SessionType } from "./stores/timer-store";
 import { useSettingsStore } from "./stores/settings-store";
+import { useSessionStore } from "./stores/session-store";
 import { AudioService } from "./services/audio";
 import { WatchFaceLoader } from "./services/watchface-loader";
 import { SplitViewComparison } from "./components/dev/SplitViewComparison";
@@ -52,6 +53,7 @@ function App() {
     setDuration: state.setDuration
   }));
   const { soundEnabled, volume, notificationSound, loadSettings, watchFace, updateSettings, alwaysOnTop } = useSettingsStore();
+  const { addSession } = useSessionStore();
   
   useEffect(() => {
     
@@ -144,6 +146,20 @@ function App() {
             sessionId: currentSessionId,
             completed: true, // Timer completed naturally
             actualDuration: duration, // Full duration completed
+            pauseCount,
+            pauseDuration: Math.floor(finalPauseTime / 1000)
+          });
+          
+          // Add completed session to frontend store for stats display
+          addSession({
+            id: currentSessionId,
+            startTime: new Date(Date.now() - duration * 1000), // Approximate start time
+            endTime: new Date(),
+            duration: duration,
+            actualDuration: duration,
+            sessionType: sessionType,
+            name: sessionName || undefined,
+            completed: true,
             pauseCount,
             pauseDuration: Math.floor(finalPauseTime / 1000)
           });

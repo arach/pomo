@@ -268,11 +268,13 @@ function App() {
         
       // Reset timer
       case 'r':
-        if (!isRunning) {
-          e.preventDefault();
-          reset();
-          setShowDurationInput(true);
+        // Allow reset when not running OR when running/paused (reset stops and resets)
+        e.preventDefault();
+        if (isRunning || isPaused) {
+          stop(); // Stop first, then reset
         }
+        reset();
+        setShowDurationInput(true);
         break;
         
       // Stop timer (Escape)
@@ -292,19 +294,19 @@ function App() {
         }
         break;
         
-      // Quick duration set (1-9 for 5-45 minutes)
+      // Quick duration set (1-9 for 5-45 minutes) - only when duration input is NOT visible
       case '1': case '2': case '3': case '4': case '5': 
       case '6': case '7': case '8': case '9':
-        if (!isRunning) {
+        if (!isRunning && !showDurationInput) {
           e.preventDefault();
           const minutes = parseInt(e.key) * 5;
           setDuration(minutes * 60);
         }
         break;
         
-      // Adjust duration with arrow keys
+      // Adjust duration with arrow keys - only when duration input is NOT visible
       case 'arrowup':
-        if (!isRunning) {
+        if (!isRunning && !showDurationInput) {
           e.preventDefault();
           const increment = e.shiftKey ? 5 : 1;
           const newDuration = Math.min(duration + increment * 60, 99 * 60);
@@ -313,7 +315,7 @@ function App() {
         break;
         
       case 'arrowdown':
-        if (!isRunning) {
+        if (!isRunning && !showDurationInput) {
           e.preventDefault();
           const decrement = e.shiftKey ? 5 : 1;
           const newDuration = Math.max(duration - decrement * 60, 60);

@@ -3,27 +3,25 @@ import PackageDescription
 
 // Pomo — a native macOS HUD Pomodoro timer.
 //
-// Consumes the local HudsonKit (the "Hudson" Swift package) for design tokens
-// and window chrome. Only the dependency-free core products are used
-// (HudsonUI + HudsonShell), so the build needs no network access — but always
-// build with `HUDSONKIT_WITH_VOICE=0` so Hudson's manifest does not pull in the
-// optional `vox`/`Termini` git dependencies. scripts/run-app.sh sets this.
+// HudsonKit (design tokens + window chrome) is consumed as prebuilt, closed-source
+// binary XCFrameworks published publicly at:
+//   https://github.com/arach/hudsonkit-xcframework
+// so this repo builds standalone — no private Hudson source checkout required.
+// First resolve downloads the release artifacts; subsequent builds are cached.
 let package = Package(
     name: "Pomo",
     platforms: [
         .macOS(.v14)
     ],
     dependencies: [
-        // HudsonKit lives as a sibling checkout of this monorepo:
-        // <dev>/hudson, reached from apps/macos via three levels up.
-        .package(name: "Hudson", path: "../../../hudson")
+        .package(url: "https://github.com/arach/hudsonkit-xcframework.git", exact: "0.3.1")
     ],
     targets: [
         .executableTarget(
             name: "Pomo",
             dependencies: [
-                .product(name: "HudsonUI", package: "Hudson"),
-                .product(name: "HudsonShell", package: "Hudson"),
+                .product(name: "HudsonUI", package: "hudsonkit-xcframework"),
+                .product(name: "HudsonShell", package: "hudsonkit-xcframework"),
             ],
             path: "Sources/Pomo"
         )

@@ -33,10 +33,11 @@ scripts/run-app.sh --debug    # faster debug build
 scripts/run-app.sh --restart  # quit a running instance first
 ```
 
-**Requires** the sibling [HudsonKit](https://github.com/) package checked out at
-`../../../hudson` (a local SwiftPM path dependency, relative to this `apps/macos`
-directory). The build sets `HUDSONKIT_WITH_VOICE=0` so HudsonKit doesn't pull its
-optional `vox`/`Termini` git dependencies — the build is fully offline.
+**No private source needed.** HudsonKit (design tokens + window chrome) is
+consumed as a public, prebuilt **binary** SwiftPM package —
+[`hudsonkit-xcframework`](https://github.com/arach/hudsonkit-xcframework) — so a
+clean clone builds standalone. The first build downloads the release XCFrameworks
+(macOS `arm64` + `x86_64`); subsequent builds are cached.
 
 ## Keyboard shortcuts (while the HUD is focused)
 

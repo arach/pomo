@@ -23,8 +23,9 @@ background audio, and a `pomo://` URL scheme for agent control.
 cd apps/macos && scripts/run-app.sh        # build, bundle, launch
 ```
 
-Requires the sibling **HudsonKit** package checked out at `../../../hudson`
-(a local SwiftPM path dependency).
+No private checkout needed — HudsonKit is consumed as a public, prebuilt **binary**
+package ([`hudsonkit-xcframework`](https://github.com/arach/hudsonkit-xcframework)),
+fetched on first build.
 
 ### iOS — [`apps/ios`](apps/ios)
 

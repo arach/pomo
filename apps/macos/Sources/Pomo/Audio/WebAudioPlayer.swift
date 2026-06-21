@@ -180,6 +180,29 @@ final class WebAudioPlayer: NSObject {
 
     @objc private func didTapExpand() { setExpanded(!drawerExpanded) }
 
+    @objc private func didTapOpenInBrowser() { openInBrowser() }
+
+    /// Pop the *currently playing* page (playlist/index intact) out to the
+    /// default browser, where playlists, autoplay and the user's extensions work.
+    func openInBrowser() {
+        guard let url = webView?.url ?? (currentURL.isEmpty ? nil : URL(string: currentURL)) else { return }
+        log("open in browser \(url.absoluteString)")
+        NSWorkspace.shared.open(url)
+    }
+
+    private static func overlayButton(symbol: String, tip: String, target: Any?, action: Selector) -> NSButton {
+        let b = NSButton(image: NSImage(systemSymbolName: symbol, accessibilityDescription: tip) ?? NSImage(),
+                         target: target, action: action)
+        b.isBordered = false
+        b.imagePosition = .imageOnly
+        b.contentTintColor = .white
+        b.wantsLayer = true
+        b.layer?.backgroundColor = NSColor.black.withAlphaComponent(0.42).cgColor
+        b.layer?.cornerRadius = 11
+        b.toolTip = tip
+        return b
+    }
+
     // MARK: - Drawer geometry + slide animation
 
     /// First edge (right → left → below → above) with room for the collapsed
@@ -493,21 +516,20 @@ final class WebAudioPlayer: NSObject {
             wv.autoresizingMask = [.width, .height]
             container.addSubview(wv)
 
-            let expand = NSButton(
-                image: NSImage(systemSymbolName: "arrow.up.left.and.arrow.down.right", accessibilityDescription: "Expand") ?? NSImage(),
-                target: self, action: #selector(didTapExpand)
-            )
-            expand.isBordered = false
-            expand.imagePosition = .imageOnly
-            expand.contentTintColor = .white
-            expand.wantsLayer = true
-            expand.layer?.backgroundColor = NSColor.black.withAlphaComponent(0.42).cgColor
-            expand.layer?.cornerRadius = 11
-            let bsize: CGFloat = 22, margin: CGFloat = 8
+            // Corner overlay buttons, pinned top-right: open-in-browser, then expand.
+            let bsize: CGFloat = 22, margin: CGFloat = 8, gap: CGFloat = 6
+            let expand = Self.overlayButton(symbol: "arrow.up.left.and.arrow.down.right",
+                                            tip: "Expand to full page", target: self, action: #selector(didTapExpand))
             expand.frame = NSRect(x: frame.width - bsize - margin, y: frame.height - bsize - margin, width: bsize, height: bsize)
-            expand.autoresizingMask = [.minXMargin, .minYMargin]   // pin to top-right
+            expand.autoresizingMask = [.minXMargin, .minYMargin]
             container.addSubview(expand)
             self.expandButton = expand
+
+            let browser = Self.overlayButton(symbol: "safari",
+                                             tip: "Open in browser", target: self, action: #selector(didTapOpenInBrowser))
+            browser.frame = NSRect(x: frame.width - bsize * 2 - margin - gap, y: frame.height - bsize - margin, width: bsize, height: bsize)
+            browser.autoresizingMask = [.minXMargin, .minYMargin]
+            container.addSubview(browser)
 
             let window = NSWindow(contentRect: frame, styleMask: [.borderless], backing: .buffered, defer: false)
             window.isReleasedWhenClosed = false

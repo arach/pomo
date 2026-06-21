@@ -162,6 +162,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         case .videoShow:   audio.setVideoVisible(true)
         case .videoHide:   audio.setVideoVisible(false)
         case .videoToggle: audio.toggleVideo()
+        case .videoBrowser: audio.openInBrowser()
         case .favoriteAdd(let url, let title):
             favorites.add(url: url, title: title)
         case .favoritePlay(let index):

@@ -49,6 +49,10 @@ final class AudioController {
     func setVideoVisible(_ visible: Bool) { web.setWindowVisible(visible); syncVideo(); notify() }
     func toggleVideo() { web.toggleWindow(); syncVideo(); notify() }
 
+    /// Pop the currently-playing video out to the default browser (where
+    /// playlists, autoplay, queue and the user's extensions all work).
+    func openInBrowser() { web.openInBrowser() }
+
     /// Wire the drawer to the HUD panel when it appears / detach when it hides.
     func attachDrawer(to anchor: NSWindow?) { web.hudDidAppear(anchor: anchor); syncVideo() }
     func detachDrawer() { web.hudWillDisappear() }

@@ -1,0 +1,11 @@
+[package]
+name = "pomo-cookies"
+version = "0.1.0"
+edition = "2021"
+
+[[bin]]
+name = "pomo-cookies"
+path = "src/main.rs"
+
+[dependencies]
+rookie = "0.5.6"

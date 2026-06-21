@@ -44,6 +44,14 @@ if [[ ! -f "$icon_icns" ]]; then
   swift "$repo_root/scripts/generate-app-icon.swift" || echo "  (icon generation failed, continuing without icon)"
 fi
 
+# Build the cookie helper (rookie) — optional; enables `login import`.
+cookie_helper="$repo_root/tools/cookie-helper/target/release/pomo-cookies"
+if command -v cargo >/dev/null 2>&1; then
+  echo "▸ Building cookie helper (rookie)…"
+  ( cd "$repo_root/tools/cookie-helper" && cargo build --release ) >/dev/null 2>&1 \
+    || echo "  (cookie helper build failed; 'login import' will be unavailable)"
+fi
+
 echo "▸ Building Pomo ($configuration)…"
 build_args=()
 if [[ "$configuration" == "release" ]]; then
@@ -60,6 +68,11 @@ chmod +x "$app_path/Contents/MacOS/$app_name"
 
 if [[ -f "$icon_icns" ]]; then
   cp "$icon_icns" "$app_path/Contents/Resources/AppIcon.icns"
+fi
+
+if [[ -f "$cookie_helper" ]]; then
+  cp "$cookie_helper" "$app_path/Contents/MacOS/pomo-cookies"
+  chmod +x "$app_path/Contents/MacOS/pomo-cookies"
 fi
 
 cat > "$app_path/Contents/Info.plist" <<PLIST

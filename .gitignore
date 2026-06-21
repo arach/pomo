@@ -1,42 +1,47 @@
-# Logs
-logs
+# ───────────────────────────── macOS ─────────────────────────────
+.DS_Store
+.AppleDouble
+.LSOverride
+Icon?
+._*
+.Spotlight-V100
+.Trashes
+
+# ─────────────────── Swift Package Manager (primary app) ───────────────────
+.build/
+.swiftpm/
+Package.resolved
+
+# ───────────────────────────── Xcode ─────────────────────────────
+*.xcodeproj
+*.xcworkspace
+DerivedData/
+xcuserdata/
+*.xcuserstate
+*.moved-aside
+
+# ──────────────────────────── Build output ────────────────────────────
+dist/
+*.app
+
+# ──────────────── Tauri / web implementation (apps/tauri/) ────────────────
+# Patterns are unanchored so they also cover the app under apps/tauri/.
+node_modules/
+dist-ssr/
+target/
+*.local
+logs/
 *.log
 npm-debug.log*
-yarn-debug.log*
 yarn-error.log*
 pnpm-debug.log*
-lerna-debug.log*
 
-node_modules
-dist
-dist-ssr
-*.local
-
-# Editor directories and files
+# ───────────────────────────── Editor ─────────────────────────────
 .vscode/*
 !.vscode/extensions.json
 .idea
-.DS_Store
-*.suo
-*.ntvs*
-*.njsproj
-*.sln
 *.sw?
 
-# Tauri
-src-tauri/target/
-src-tauri/WixTools/
-
-# Claude settings
-.claude/
-
-# Xcode user state
-*.xcuserstate
-xcuserdata/
-
-# Landing page unused images
-landing/public/watch-terminal-app.png
-landing/public/watch-app-1.png
-landing/public/watch-app-2.png
-landing/public/watch-app-3.png
-landing/public/watch-app-4.png
+# ────────────────────────────── Misc ──────────────────────────────
+.env
+.env.*

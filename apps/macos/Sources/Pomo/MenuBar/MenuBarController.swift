@@ -1,0 +1,260 @@
+import AppKit
+import SwiftUI
+
+/// The menu-bar presence: a status item that shows the live countdown when a
+/// session is active. **Left-click** opens a frosted SwiftUI popover with the
+/// transport + pickers (`MenuPopoverView`); **right-click / control-click**
+/// opens a small native utility menu. The HUD stays hotkey-driven — the popover
+/// carries a "Show HUD" affordance for discoverability.
+@MainActor
+final class MenuBarController: NSObject, NSPopoverDelegate {
+    private let statusItem: NSStatusItem
+    private let model: TimerModel
+    private let settings: PomoSettings
+    private let audio: AudioController
+    private let favorites: FavoritesStore
+    private var popover: NSPopover?
+
+    var onShowHUD: (() -> Void)?
+    var onToggleHUD: (() -> Void)?
+    var onOpenSettings: (() -> Void)?
+    var onQuit: (() -> Void)?
+    var onToggleAudio: (() -> Void)?
+    var onStopAudio: (() -> Void)?
+    var onPlayFavorite: ((Favorite) -> Void)?
+
+    init(model: TimerModel, settings: PomoSettings, audio: AudioController, favorites: FavoritesStore) {
+        self.statusItem = NSStatusBar.system.statusItem(withLength: NSStatusItem.variableLength)
+        self.model = model
+        self.settings = settings
+        self.audio = audio
+        self.favorites = favorites
+        super.init()
+        configureButton()
+        refresh()
+    }
+
+    private func configureButton() {
+        guard let button = statusItem.button else { return }
+        let image = NSImage(systemSymbolName: "hourglass", accessibilityDescription: "Pomo")
+        image?.isTemplate = true
+        button.image = image
+        button.imagePosition = .imageLeading
+        button.font = NSFont.monospacedDigitSystemFont(ofSize: NSFont.systemFontSize - 1, weight: .medium)
+        button.target = self
+        button.action = #selector(handleClick)
+        button.sendAction(on: [.leftMouseUp, .rightMouseUp])
+    }
+
+    /// Update the countdown title. Called from `TimerModel.onTick`.
+    func refresh() {
+        guard let button = statusItem.button else { return }
+        if model.isIdle {
+            button.title = ""
+        } else {
+            let prefix = model.isPaused ? "❚❚ " : ""
+            button.title = " \(prefix)\(model.clock)"
+        }
+    }
+
+    @objc private func handleClick() {
+        let event = NSApp.currentEvent
+        let wantsMenu = event?.type == .rightMouseUp
+            || event?.modifierFlags.contains(.control) == true
+        if wantsMenu {
+            popUpMenu()
+        } else {
+            togglePopover()
+        }
+    }
+
+    // MARK: - Popover (left-click)
+
+    /// Programmatic open/close (e.g. `pomo://menu`).
+    func toggleMenu() { togglePopover() }
+
+    private func togglePopover() {
+        if let popover, popover.isShown {
+            popover.performClose(nil)
+            return
+        }
+        showPopover()
+    }
+
+    private func showPopover() {
+        guard let button = statusItem.button else { return }
+        let popover = makePopover()
+        popover.show(relativeTo: button.bounds, of: button, preferredEdge: .minY)
+        // An accessory app isn't active by default, so make the popover's window
+        // key — otherwise its buttons/toggles won't take the first click.
+        popover.contentViewController?.view.window?.makeKey()
+    }
+
+    private func makePopover() -> NSPopover {
+        if let popover { return popover }
+        let host = NSHostingController(
+            rootView: MenuPopoverView(
+                model: model,
+                settings: settings,
+                audio: audio,
+                favorites: favorites,
+                onShowHUD: { [weak self] in
+                    self?.popover?.performClose(nil)
+                    self?.onShowHUD?()
+                },
+                onOpenSettings: { [weak self] in
+                    self?.popover?.performClose(nil)
+                    self?.onOpenSettings?()
+                },
+                onToggleAudio: { [weak self] in self?.onToggleAudio?() },
+                onStopAudio: { [weak self] in self?.onStopAudio?() },
+                onPlayFavorite: { [weak self] favorite in self?.onPlayFavorite?(favorite) }
+            )
+        )
+        host.sizingOptions = .preferredContentSize
+        let popover = NSPopover()
+        popover.contentViewController = host
+        popover.behavior = .transient
+        popover.appearance = NSAppearance(named: .darkAqua)
+        popover.delegate = self
+        self.popover = popover
+        return popover
+    }
+
+    // MARK: - Native menu (right-click) — a small utility surface
+
+    private func popUpMenu() {
+        guard let button = statusItem.button else { return }
+        popover?.performClose(nil)
+        let menu = buildMenu()
+        let origin = NSPoint(x: 0, y: button.bounds.height + 4)
+        menu.popUp(positioning: nil, at: origin, in: button)
+    }
+
+    /// The right-click menu is the "old-school list" way to change config —
+    /// session, timer length, watchface, sound — mirroring the visual popover.
+    private func buildMenu() -> NSMenu {
+        let menu = NSMenu()
+        // Manage enablement ourselves so "idle only" items grey out correctly
+        // (autoenable would otherwise re-enable anything with a valid target).
+        menu.autoenablesItems = false
+
+        let toggle = NSMenuItem(title: "Show / Hide HUD", action: #selector(toggleHUD), keyEquivalent: "")
+        toggle.target = self
+        menu.addItem(toggle)
+        let hint = NSMenuItem(title: "    \(settings.hotkeyDisplay)", action: nil, keyEquivalent: "")
+        hint.isEnabled = false
+        menu.addItem(hint)
+
+        menu.addItem(.separator())
+
+        menu.addItem(sessionItem())
+        menu.addItem(durationItem())
+        menu.addItem(watchfaceItem())
+
+        let sound = NSMenuItem(title: "Sound", action: #selector(toggleSound), keyEquivalent: "")
+        sound.target = self
+        sound.state = settings.soundEnabled ? .on : .off
+        menu.addItem(sound)
+
+        menu.addItem(.separator())
+
+        let prefs = NSMenuItem(title: "Settings…", action: #selector(openSettings), keyEquivalent: ",")
+        prefs.target = self
+        menu.addItem(prefs)
+
+        let quit = NSMenuItem(title: "Quit Pomo", action: #selector(quit), keyEquivalent: "q")
+        quit.target = self
+        menu.addItem(quit)
+
+        return menu
+    }
+
+    private func subMenu() -> NSMenu {
+        let m = NSMenu()
+        m.autoenablesItems = false
+        return m
+    }
+
+    /// Session ▸ — pick the interval (only meaningful while idle).
+    private func sessionItem() -> NSMenuItem {
+        let item = NSMenuItem(title: "Session", action: nil, keyEquivalent: "")
+        item.isEnabled = model.isIdle
+        let sub = subMenu()
+        for type in SessionType.allCases {
+            let row = NSMenuItem(title: type.shortLabel, action: #selector(selectSession(_:)), keyEquivalent: "")
+            row.target = self
+            row.representedObject = type.rawValue
+            row.state = (type == model.sessionType) ? .on : .off
+            row.isEnabled = model.isIdle
+            sub.addItem(row)
+        }
+        item.submenu = sub
+        return item
+    }
+
+    /// Duration ▸ — quick-set the current session's length (persists; idle only).
+    private func durationItem() -> NSMenuItem {
+        let current = settings.minutes(for: model.sessionType)
+        let item = NSMenuItem(title: "Duration: \(current) min", action: nil, keyEquivalent: "")
+        item.isEnabled = model.isIdle
+        let sub = subMenu()
+        let presets = [5, 10, 15, 20, 25, 30, 45, 60]
+        let values = Array(Set(presets + [current])).sorted()
+        for minutes in values {
+            let row = NSMenuItem(title: "\(minutes) min", action: #selector(selectDuration(_:)), keyEquivalent: "")
+            row.target = self
+            row.representedObject = minutes
+            row.state = (minutes == current) ? .on : .off
+            row.isEnabled = model.isIdle
+            sub.addItem(row)
+        }
+        item.submenu = sub
+        return item
+    }
+
+    /// Watchface ▸ — switch the face (always available).
+    private func watchfaceItem() -> NSMenuItem {
+        let item = NSMenuItem(title: "Watchface", action: nil, keyEquivalent: "")
+        let sub = subMenu()
+        for face in Watchface.allCases {
+            let row = NSMenuItem(title: face.displayName, action: #selector(selectFace(_:)), keyEquivalent: "")
+            row.target = self
+            row.representedObject = face.rawValue
+            row.state = (face == settings.watchface) ? .on : .off
+            sub.addItem(row)
+        }
+        item.submenu = sub
+        return item
+    }
+
+    // MARK: - Actions
+
+    @objc private func toggleHUD() { onToggleHUD?() }
+    @objc private func openSettings() { onOpenSettings?() }
+    @objc private func quit() { onQuit?() }
+
+    @objc private func toggleSound() {
+        settings.soundEnabled.toggle()
+        settings.saveNow()
+    }
+
+    @objc private func selectSession(_ sender: NSMenuItem) {
+        guard let raw = sender.representedObject as? String,
+              let type = SessionType(rawValue: raw) else { return }
+        model.setSessionType(type)
+        refresh()
+    }
+
+    @objc private func selectDuration(_ sender: NSMenuItem) {
+        guard let minutes = sender.representedObject as? Int else { return }
+        settings.setMinutes(minutes, for: model.sessionType)
+    }
+
+    @objc private func selectFace(_ sender: NSMenuItem) {
+        guard let raw = sender.representedObject as? String,
+              let face = Watchface(rawValue: raw) else { return }
+        settings.watchface = face
+        settings.saveNow()
+    }
+}

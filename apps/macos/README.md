@@ -33,6 +33,19 @@ scripts/run-app.sh --debug    # faster debug build
 scripts/run-app.sh --restart  # quit a running instance first
 ```
 
+### Unsigned build (Gatekeeper)
+
+Pomo isn't code-signed or notarized, so a copy you download or move into
+`/Applications` gets quarantined by Gatekeeper ("…can't be opened because Apple
+cannot check it for malicious software"). Clear the quarantine flag to run it:
+
+```sh
+xattr -d com.apple.quarantine /Applications/Pomo.app
+```
+
+`scripts/run-app.sh` already strips this from the bundle it builds, so a local
+build launches without the prompt.
+
 **No private source needed.** HudsonKit (design tokens + window chrome) is
 consumed as a public, prebuilt **binary** SwiftPM package —
 [`hudsonkit-xcframework`](https://github.com/arach/hudsonkit-xcframework) — so a

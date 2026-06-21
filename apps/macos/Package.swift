@@ -14,7 +14,7 @@ let package = Package(
         .macOS(.v14)
     ],
     dependencies: [
-        .package(url: "https://github.com/arach/hudsonkit-xcframework.git", exact: "0.3.1")
+        .package(url: "https://github.com/arach/hudsonkit-xcframework.git", exact: "0.3.2")
     ],
     targets: [
         .executableTarget(

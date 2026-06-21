@@ -1,0 +1,33 @@
+name: macOS Swift
+
+on:
+  pull_request:
+    paths:
+      - "apps/macos/**"
+      - ".github/workflows/macos-swift.yml"
+  push:
+    branches:
+      - master
+      - native-swift-primary
+    paths:
+      - "apps/macos/**"
+      - ".github/workflows/macos-swift.yml"
+
+concurrency:
+  group: macos-swift-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  build:
+    name: Build Pomo
+    runs-on: macos-15
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Resolve package
+        run: swift package resolve --package-path apps/macos
+
+      - name: Build
+        run: swift build --package-path apps/macos --product Pomo

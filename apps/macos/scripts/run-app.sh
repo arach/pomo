@@ -108,6 +108,10 @@ cat > "$app_path/Contents/Info.plist" <<PLIST
 </plist>
 PLIST
 
+# Strip the quarantine flag so the unsigned, locally-built bundle launches
+# without a Gatekeeper prompt — handy for devs who can't code-sign.
+xattr -dr com.apple.quarantine "$app_path" 2>/dev/null || true
+
 echo "▸ Built $app_path"
 
 if [[ "$restart" == true ]]; then

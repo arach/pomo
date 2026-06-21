@@ -27,26 +27,54 @@ struct FaceControls: View {
     var tint: Color
     var subtle: Bool = false
 
+    @Environment(\.audioControls) private var audio
+
     var body: some View {
-        HStack(spacing: HudSpacing.xl) {
-            Button(action: { model.reset() }) {
-                Image(systemName: "arrow.counterclockwise")
-            }
-            .buttonStyle(FaceControlStyle(tint: tint, prominent: false, subtle: subtle))
-            .help("Reset (R)")
+        HStack(spacing: HudSpacing.lg) {
+            // Timer transport — the original reset / play-pause / skip cluster.
+            HStack(spacing: HudSpacing.xl) {
+                Button(action: { model.reset() }) {
+                    Image(systemName: "arrow.counterclockwise")
+                }
+                .buttonStyle(FaceControlStyle(tint: tint, prominent: false, subtle: subtle))
+                .help("Reset (R)")
 
-            Button(action: { model.toggle() }) {
-                Image(systemName: model.isRunning ? "pause.fill" : "play.fill")
-            }
-            .buttonStyle(FaceControlStyle(tint: tint, prominent: true, subtle: subtle))
-            .help(model.isRunning ? "Pause (Space)" : "Start (Space)")
+                Button(action: { model.toggle() }) {
+                    Image(systemName: model.isRunning ? "pause.fill" : "play.fill")
+                }
+                .buttonStyle(FaceControlStyle(tint: tint, prominent: true, subtle: subtle))
+                .help(model.isRunning ? "Pause (Space)" : "Start (Space)")
 
-            Button(action: { model.skip() }) {
-                Image(systemName: "forward.end.fill")
+                Button(action: { model.skip() }) {
+                    Image(systemName: "forward.end.fill")
+                }
+                .buttonStyle(FaceControlStyle(tint: tint, prominent: false, subtle: subtle))
+                .help("Skip to next session (N)")
             }
-            .buttonStyle(FaceControlStyle(tint: tint, prominent: false, subtle: subtle))
-            .help("Skip to next session (N)")
+
+            // Audio cluster — appears only once a station is set/playing.
+            if audio.enabled {
+                Rectangle()
+                    .fill(tint.opacity(subtle ? 0.18 : 0.3))
+                    .frame(width: 1, height: 16)
+
+                HStack(spacing: HudSpacing.lg) {
+                    Button(action: audio.togglePlay) {
+                        Image(systemName: audio.isPlaying ? "pause.fill" : "music.note")
+                    }
+                    .buttonStyle(FaceControlStyle(tint: tint, prominent: false, subtle: subtle))
+                    .help(audio.isPlaying ? "Pause music" : "Play music")
+
+                    Button(action: audio.toggleDrawer) {
+                        Image(systemName: audio.drawerOpen ? "rectangle.fill" : "play.rectangle")
+                    }
+                    .buttonStyle(FaceControlStyle(tint: tint, prominent: false, subtle: subtle))
+                    .help(audio.drawerOpen ? "Hide video" : "Show video")
+                }
+                .transition(.opacity.combined(with: .move(edge: .trailing)))
+            }
         }
+        .animation(.easeOut(duration: 0.2), value: audio.enabled)
     }
 }
 

@@ -9,6 +9,9 @@ import AppKit
 ///
 /// Cookies/login persist in the default (disk-backed) `WKWebsiteDataStore`, which
 /// the sign-in window shares, so a one-time login sticks across launches.
+/// Which edge of the HUD the drawer docks against (and slides out from).
+enum DrawerEdge { case right, left, below, above }
+
 @MainActor
 final class WebAudioPlayer: NSObject {
     private static let desktopUA = "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/17.0 Safari/605.1.15"
@@ -23,8 +26,25 @@ final class WebAudioPlayer: NSObject {
     private(set) var currentURL: String = ""
     private var volume: Int = 60
 
-    /// Whether the mini-player window is shown. Toggleable at runtime.
-    private(set) var windowVisible = true
+    /// User intent: whether the video drawer is open. Toggleable at runtime; kept
+    /// across HUD hide/show so the drawer returns alongside the panel.
+    private(set) var drawerOpen = false
+
+    /// Edge the drawer last docked to — drives the HUD's seam-squaring.
+    private(set) var drawerEdge: DrawerEdge = .right
+
+    /// Expanded = full page (playlist/related) at a larger size; collapsed =
+    /// chrome-stripped "screen" matched to the HUD.
+    private(set) var drawerExpanded = false
+
+    /// The HUD panel the drawer attaches to and slides out from. Weak — the
+    /// panel owns its own lifecycle; we just track and dock against it.
+    private weak var anchorWindow: NSWindow?
+
+    /// Rounded container hosting the web view + the expand button overlay.
+    private var drawerContainer: NSView?
+    private var expandButton: NSButton?
+    private static let drawerRadius: CGFloat = 12
 
     /// Fired when playback state changes (from JS player events).
     var onStateChange: (() -> Void)?
@@ -71,7 +91,7 @@ final class WebAudioPlayer: NSObject {
         webView?.load(URLRequest(url: URL(string: "about:blank")!))
         currentURL = ""
         isPlaying = false
-        hostWindow?.orderOut(nil)
+        setWindowVisible(false)
     }
 
     func setVolume(_ value: Double) {
@@ -97,17 +117,217 @@ final class WebAudioPlayer: NSObject {
         ]))
     }
 
-    // MARK: - Window (show video) toggle
+    // MARK: - Attached video drawer
 
-    var isWindowVisible: Bool { hostWindow?.isVisible ?? false }
+    /// Reflects user intent (not raw window visibility) so the on-face toggle
+    /// stays correct even mid-animation.
+    var isWindowVisible: Bool { drawerOpen }
 
+    /// Show/hide the drawer with a slide animation. Opening lazily builds the
+    /// web view if it doesn't exist yet.
     func setWindowVisible(_ visible: Bool) {
-        windowVisible = visible
-        guard let hostWindow else { return }
-        if visible { hostWindow.orderFrontRegardless() } else { hostWindow.orderOut(nil) }
+        drawerOpen = visible
+        if visible {
+            ensureWebView()
+            openDrawer()
+        } else {
+            closeDrawer()
+        }
     }
 
-    func toggleWindow() { setWindowVisible(!isWindowVisible) }
+    func toggleWindow() { setWindowVisible(!drawerOpen) }
+
+    /// The HUD appeared: anchor to it and, if the drawer was open, slide it back
+    /// out alongside the (possibly repositioned) panel.
+    func hudDidAppear(anchor: NSWindow?) {
+        anchorWindow = anchor
+        if drawerOpen { openDrawer() }
+    }
+
+    /// The HUD is hiding: tuck the drawer away with it, keeping the open intent
+    /// so it returns on the next summon.
+    func hudWillDisappear() {
+        guard let host = hostWindow else { return }
+        if let anchor = anchorWindow, host.parent === anchor { anchor.removeChildWindow(host) }
+        host.orderOut(nil)
+        host.alphaValue = 1
+    }
+
+    /// Expand the drawer to the full page (playlist/related, chrome shown) or
+    /// collapse it back to the chrome-stripped "screen" that matches the HUD.
+    func setExpanded(_ on: Bool) {
+        guard drawerOpen, let host = hostWindow, let anchor = anchorWindow else { return }
+        drawerExpanded = on
+        applyBare(!on)                      // bare (chrome hidden) only when collapsed
+        applyDrawerCorners()
+        updateExpandButton()
+        let a = anchor.frame
+        let open = drawerFrame(size: size(for: drawerEdge, in: a), edge: drawerEdge, anchor: a)
+        if host.parent === anchor { anchor.removeChildWindow(host) }
+        host.order(.below, relativeTo: anchor.windowNumber)
+        NSAnimationContext.runAnimationGroup({ ctx in
+            ctx.duration = 0.26
+            ctx.timingFunction = CAMediaTimingFunction(name: .easeInEaseOut)
+            host.animator().setFrame(open, display: true)
+        }, completionHandler: { [weak self] in
+            MainActor.assumeIsolated {
+                guard let self, let host = self.hostWindow, let anchor = self.anchorWindow,
+                      self.drawerOpen, host.parent !== anchor else { return }
+                anchor.addChildWindow(host, ordered: .below)
+            }
+        })
+    }
+
+    @objc private func didTapExpand() { setExpanded(!drawerExpanded) }
+
+    // MARK: - Drawer geometry + slide animation
+
+    /// First edge (right → left → below → above) with room for the collapsed
+    /// drawer beside the HUD.
+    private func chooseEdge(_ a: NSRect, _ screen: NSRect) -> DrawerEdge {
+        let sideW = collapsedSize(.right).width, vertH = collapsedSize(.below).height
+        if a.maxX - seam + sideW <= screen.maxX { return .right }
+        if a.minX + seam - sideW >= screen.minX { return .left }
+        if a.minY + seam - vertH >= screen.minY { return .below }
+        if a.maxY - seam + vertH <= screen.maxY { return .above }
+        return .right
+    }
+
+    private static let seamOverlap: CGFloat = 2     // hairline tuck so no desktop shows through
+    private var seam: CGFloat { Self.seamOverlap }
+
+    /// Collapsed matches the HUD across the shared edge; height/width filled in
+    /// from the anchor at call sites that have it.
+    private func collapsedSize(_ edge: DrawerEdge, hud: NSRect = .zero) -> NSSize {
+        switch edge {
+        case .right, .left: return NSSize(width: 360, height: hud.height == 0 ? 244 : hud.height)
+        case .below, .above: return NSSize(width: hud.width == 0 ? 352 : hud.width, height: 202)
+        }
+    }
+
+    private func expandedSize(_ edge: DrawerEdge, hud: NSRect) -> NSSize {
+        switch edge {
+        case .right, .left: return NSSize(width: 480, height: max(hud.height, 340))
+        case .below, .above: return NSSize(width: max(hud.width, 460), height: 360)
+        }
+    }
+
+    private func size(for edge: DrawerEdge, in hud: NSRect) -> NSSize {
+        drawerExpanded ? expandedSize(edge, hud: hud) : collapsedSize(edge, hud: hud)
+    }
+
+    /// Place a drawer of `size` flush against `edge` of the HUD, centred on the
+    /// cross axis and tucked `seam` px behind it.
+    private func drawerFrame(size s: NSSize, edge: DrawerEdge, anchor a: NSRect) -> NSRect {
+        switch edge {
+        case .right: return NSRect(x: a.maxX - seam,            y: a.midY - s.height / 2, width: s.width, height: s.height)
+        case .left:  return NSRect(x: a.minX + seam - s.width,  y: a.midY - s.height / 2, width: s.width, height: s.height)
+        case .below: return NSRect(x: a.midX - s.width / 2,     y: a.minY + seam - s.height, width: s.width, height: s.height)
+        case .above: return NSRect(x: a.midX - s.width / 2,     y: a.maxY - seam, width: s.width, height: s.height)
+        }
+    }
+
+    /// The collapsed open frame shifted fully behind the HUD along the slide axis.
+    private func tuckedFrame(_ open: NSRect, edge: DrawerEdge) -> NSRect {
+        switch edge {
+        case .right: return open.offsetBy(dx: -open.width, dy: 0)
+        case .left:  return open.offsetBy(dx:  open.width, dy: 0)
+        case .below: return open.offsetBy(dx: 0, dy:  open.height)
+        case .above: return open.offsetBy(dx: 0, dy: -open.height)
+        }
+    }
+
+    /// Slide the drawer out from behind the HUD, then adopt it as a child window
+    /// so it tracks the panel when dragged.
+    private func openDrawer() {
+        guard let host = hostWindow else { return }
+        guard let anchor = anchorWindow else { host.orderFrontRegardless(); return }
+        let a = anchor.frame
+        let screen = (anchor.screen ?? NSScreen.main)?.visibleFrame ?? a
+        drawerEdge = chooseEdge(a, screen)
+        applyDrawerCorners()
+        applyBare(!drawerExpanded)
+        applyVideoQuality()              // bump if it was playing audio-only at low res
+
+        let collapsedOpen = drawerFrame(size: collapsedSize(drawerEdge, hud: a), edge: drawerEdge, anchor: a)
+        let open = drawerFrame(size: size(for: drawerEdge, in: a), edge: drawerEdge, anchor: a)
+        host.setFrame(tuckedFrame(collapsedOpen, edge: drawerEdge), display: false)
+        host.alphaValue = 0
+        host.order(.below, relativeTo: anchor.windowNumber)        // emerge from behind
+        NSAnimationContext.runAnimationGroup({ ctx in
+            ctx.duration = 0.32
+            ctx.timingFunction = CAMediaTimingFunction(name: .easeOut)
+            host.animator().setFrame(open, display: true)
+            host.animator().alphaValue = 1
+        }, completionHandler: { [weak self] in
+            MainActor.assumeIsolated {       // NSAnimationContext fires on the main thread
+                guard let self, let host = self.hostWindow, let anchor = self.anchorWindow,
+                      self.drawerOpen, host.parent !== anchor else { return }
+                anchor.addChildWindow(host, ordered: .below)
+            }
+        })
+    }
+
+    /// Slide the drawer back behind the HUD and order it out (resetting to the
+    /// collapsed screen so the next open is compact).
+    private func closeDrawer() {
+        guard let host = hostWindow, host.isVisible else {
+            hostWindow?.orderOut(nil); return
+        }
+        let target: NSRect
+        if let anchor = anchorWindow {
+            let a = anchor.frame
+            let collapsedOpen = drawerFrame(size: collapsedSize(drawerEdge, hud: a), edge: drawerEdge, anchor: a)
+            target = tuckedFrame(collapsedOpen, edge: drawerEdge)
+            if host.parent === anchor { anchor.removeChildWindow(host) }
+            host.order(.below, relativeTo: anchor.windowNumber)
+        } else {
+            target = host.frame
+        }
+        NSAnimationContext.runAnimationGroup({ ctx in
+            ctx.duration = 0.24
+            ctx.timingFunction = CAMediaTimingFunction(name: .easeIn)
+            host.animator().setFrame(target, display: true)
+            host.animator().alphaValue = 0
+        }, completionHandler: { [weak self] in
+            MainActor.assumeIsolated {       // NSAnimationContext fires on the main thread
+                guard let self, let host = self.hostWindow, !self.drawerOpen else { return }
+                host.orderOut(nil)
+                host.alphaValue = 1
+                self.drawerExpanded = false
+                self.updateExpandButton()
+            }
+        })
+    }
+
+    /// Round only the *outer* corners when collapsed (so the inner edge butts the
+    /// HUD square — one block); round all four when expanded (free-floating panel).
+    private func applyDrawerCorners() {
+        guard let layer = drawerContainer?.layer else { return }
+        layer.cornerRadius = Self.drawerRadius
+        if drawerExpanded {
+            layer.maskedCorners = [.layerMinXMinYCorner, .layerMaxXMinYCorner,
+                                   .layerMinXMaxYCorner, .layerMaxXMaxYCorner]
+            return
+        }
+        switch drawerEdge {                                       // keep the 2 corners away from the HUD
+        case .right: layer.maskedCorners = [.layerMaxXMinYCorner, .layerMaxXMaxYCorner]
+        case .left:  layer.maskedCorners = [.layerMinXMinYCorner, .layerMinXMaxYCorner]
+        case .below: layer.maskedCorners = [.layerMinXMinYCorner, .layerMaxXMinYCorner]
+        case .above: layer.maskedCorners = [.layerMinXMaxYCorner, .layerMaxXMaxYCorner]
+        }
+    }
+
+    /// Toggle the injected "bare" class that strips YouTube to just the player.
+    private func applyBare(_ bare: Bool) {
+        eval("(function(){var h=document.documentElement;if(h){h.classList[\(bare ? "add" : "remove")]('pomo-bare');}})();")
+    }
+
+    private func updateExpandButton() {
+        let symbol = drawerExpanded ? "arrow.down.right.and.arrow.up.left" : "arrow.up.left.and.arrow.down.right"
+        expandButton?.image = NSImage(systemSymbolName: symbol, accessibilityDescription: drawerExpanded ? "Collapse" : "Expand")
+        expandButton?.toolTip = drawerExpanded ? "Collapse to screen" : "Expand to full page"
+    }
 
     // MARK: - Sign in (persistent profile)
 
@@ -193,6 +413,53 @@ final class WebAudioPlayer: NSObject {
 
     private func eval(_ js: String) { webView?.evaluateJavaScript(js, completionHandler: nil) }
 
+    /// Injected as a "content script": a user stylesheet that, while the
+    /// `pomo-bare` class is on `<html>`, strips YouTube down to just the player +
+    /// its transport controls. Toggling the class (see `applyBare`) flips between
+    /// the bare screen and the full page with no reload.
+    private static let bareScript = """
+    (function(){
+      var CSS = `
+      html.pomo-bare, html.pomo-bare body { overflow:hidden!important; background:#000!important; }
+      html.pomo-bare ytd-masthead, html.pomo-bare #masthead-container, html.pomo-bare #masthead,
+      html.pomo-bare tp-yt-app-header, html.pomo-bare #secondary, html.pomo-bare #secondary-inner,
+      html.pomo-bare #below, html.pomo-bare ytd-watch-metadata, html.pomo-bare #comments,
+      html.pomo-bare #chat, html.pomo-bare ytmusic-nav-bar, html.pomo-bare #merch-shelf,
+      html.pomo-bare ytd-watch-next-secondary-results-renderer { display:none!important; }
+      html.pomo-bare #movie_player, html.pomo-bare .html5-video-player {
+        position:fixed!important; inset:0!important; width:100vw!important; height:100vh!important;
+        max-width:none!important; max-height:none!important; margin:0!important;
+        z-index:2147483640!important; background:#000!important;
+      }
+      html.pomo-bare .html5-video-container { width:100%!important; height:100%!important; }
+      html.pomo-bare video.html5-main-video {
+        width:100%!important; height:100%!important; top:0!important; left:0!important; object-fit:cover!important;
+      }
+      html.pomo-bare .ytp-chrome-top, html.pomo-bare .ytp-gradient-top, html.pomo-bare .ytp-pause-overlay,
+      html.pomo-bare .ytp-ce-element, html.pomo-bare .ytp-show-cards-title { display:none!important; }
+      html.pomo-bare ::-webkit-scrollbar { display:none!important; }
+      `;
+      function inject(){
+        var h = document.head || document.documentElement;
+        if (h && !document.getElementById('pomo-skin')) {
+          var s = document.createElement('style'); s.id = 'pomo-skin'; s.textContent = CSS; h.appendChild(s);
+        }
+        if (document.documentElement) document.documentElement.classList.add('pomo-bare');
+      }
+      inject();
+      document.addEventListener('DOMContentLoaded', inject);
+    })();
+    """
+
+    /// Crisp while the drawer is visible; lowest (audio-only) while hidden to
+    /// save bandwidth.
+    private var videoQuality: String { drawerOpen ? "hd720" : "tiny" }
+
+    private func applyVideoQuality() {
+        let q = videoQuality
+        eval("(function(){var mp=document.getElementById('movie_player');if(mp){try{mp.setPlaybackQualityRange&&mp.setPlaybackQualityRange('\(q)','\(q)');}catch(e){}try{mp.setPlaybackQuality&&mp.setPlaybackQuality('\(q)');}catch(e){}}})();")
+    }
+
     private func ensureWebView() {
         if webView == nil {
             let config = WKWebViewConfiguration()
@@ -202,25 +469,60 @@ final class WebAudioPlayer: NSObject {
             let messageProxy = MessageProxy(self)
             self.messageProxy = messageProxy
             config.userContentController.add(messageProxy, name: "pomo")
+            // Our "extension": strip the page to just the player while bare.
+            config.userContentController.addUserScript(
+                WKUserScript(source: Self.bareScript, injectionTime: .atDocumentStart, forMainFrameOnly: false)
+            )
 
-            let frame = NSRect(x: 0, y: 0, width: 380, height: 214)
+            let frame = NSRect(x: 0, y: 0, width: 360, height: 244)
             let wv = WKWebView(frame: frame, configuration: config)
             wv.customUserAgent = Self.desktopUA
             let navProxy = NavProxy(self)
             self.navProxy = navProxy
             wv.navigationDelegate = navProxy
 
-            let window = NSWindow(contentRect: frame, styleMask: [.titled, .closable], backing: .buffered, defer: false)
-            window.title = "Pomo · Audio"
+            // Rounded container clips the web view and hosts the expand button, so
+            // the drawer reads as a screen tucked against the HUD. Per-corner
+            // rounding (see applyDrawerCorners) squares the edge facing the HUD.
+            let container = NSView(frame: frame)
+            container.wantsLayer = true
+            container.layer?.cornerRadius = Self.drawerRadius
+            container.layer?.masksToBounds = true
+            container.layer?.backgroundColor = NSColor.black.cgColor
+            wv.frame = container.bounds
+            wv.autoresizingMask = [.width, .height]
+            container.addSubview(wv)
+
+            let expand = NSButton(
+                image: NSImage(systemSymbolName: "arrow.up.left.and.arrow.down.right", accessibilityDescription: "Expand") ?? NSImage(),
+                target: self, action: #selector(didTapExpand)
+            )
+            expand.isBordered = false
+            expand.imagePosition = .imageOnly
+            expand.contentTintColor = .white
+            expand.wantsLayer = true
+            expand.layer?.backgroundColor = NSColor.black.withAlphaComponent(0.42).cgColor
+            expand.layer?.cornerRadius = 11
+            let bsize: CGFloat = 22, margin: CGFloat = 8
+            expand.frame = NSRect(x: frame.width - bsize - margin, y: frame.height - bsize - margin, width: bsize, height: bsize)
+            expand.autoresizingMask = [.minXMargin, .minYMargin]   // pin to top-right
+            container.addSubview(expand)
+            self.expandButton = expand
+
+            let window = NSWindow(contentRect: frame, styleMask: [.borderless], backing: .buffered, defer: false)
             window.isReleasedWhenClosed = false
+            window.isOpaque = false
+            window.backgroundColor = .clear
+            window.hasShadow = true
             window.level = .floating
             window.collectionBehavior = [.canJoinAllSpaces, .fullScreenAuxiliary]
-            window.contentView = wv
+            window.contentView = container
             positionBottomRight(window)
             hostWindow = window
             webView = wv
+            drawerContainer = container
+            updateExpandButton()
         }
-        if windowVisible { hostWindow?.orderFrontRegardless() }
     }
 
     private func positionBottomRight(_ window: NSWindow) {
@@ -240,12 +542,12 @@ final class WebAudioPlayer: NSObject {
             var v = document.querySelector('video,audio');
             if (v) {
               try { v.volume = \(volume)/100.0; } catch(e){}
-              // Lowest video quality — we only want the audio. (Audio is served
-              // independently, so it stays full quality.)
+              // Crisp while the drawer is on screen; lowest (audio-only) when
+              // hidden. Audio is served independently, so it stays full quality.
               var mp = document.getElementById('movie_player');
               if (mp) {
-                try { mp.setPlaybackQualityRange && mp.setPlaybackQualityRange('tiny','tiny'); } catch(e){}
-                try { mp.setPlaybackQuality && mp.setPlaybackQuality('tiny'); } catch(e){}
+                try { mp.setPlaybackQualityRange && mp.setPlaybackQualityRange('\(videoQuality)','\(videoQuality)'); } catch(e){}
+                try { mp.setPlaybackQuality && mp.setPlaybackQuality('\(videoQuality)'); } catch(e){}
               }
               v.play().then(function(){ post('playing'); }).catch(function(e){ post('playfail:'+e); });
               if (!v.__pomo) {
@@ -262,6 +564,7 @@ final class WebAudioPlayer: NSObject {
         })();
         """
         eval(js)
+        applyBare(!drawerExpanded)        // a fresh navigation re-asserts the bare default
     }
 
     fileprivate func handlePlayerEvent(_ body: Any) {

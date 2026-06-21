@@ -33,21 +33,35 @@ struct ChronographFace: View {
 
     private var ticks: some View {
         Canvas { ctx, size in
-            let c = CGPoint(x: size.width / 2, y: size.height / 2)
-            let outer = min(size.width, size.height) / 2 - 4
-            for i in 0..<60 {
-                let major = i % 5 == 0
-                let angle = Double(i) / 60.0 * 2 * .pi - .pi / 2
-                let inner = outer - (major ? 10 : 5)
-                let p1 = CGPoint(x: c.x + cos(angle) * inner, y: c.y + sin(angle) * inner)
-                let p2 = CGPoint(x: c.x + cos(angle) * outer, y: c.y + sin(angle) * outer)
+            for mark in Self.tickMarks(in: size) {
                 var path = Path()
-                path.move(to: p1)
-                path.addLine(to: p2)
-                ctx.stroke(path, with: .color(.white.opacity(major ? 0.55 : 0.22)), lineWidth: major ? 2 : 1)
+                path.move(to: mark.start)
+                path.addLine(to: mark.end)
+                ctx.stroke(
+                    path,
+                    with: .color(.white.opacity(mark.major ? 0.55 : 0.22)),
+                    lineWidth: mark.major ? 2 : 1
+                )
             }
         }
         .padding(6)
+    }
+
+    /// Tick-mark geometry computed in a plain function — keeps the heavy
+    /// trig out of the SwiftUI result-builder, which otherwise times out.
+    private static func tickMarks(in size: CGSize) -> [(start: CGPoint, end: CGPoint, major: Bool)] {
+        let center = CGPoint(x: size.width / 2, y: size.height / 2)
+        let outer: CGFloat = min(size.width, size.height) / 2 - 4
+        var marks: [(start: CGPoint, end: CGPoint, major: Bool)] = []
+        for i in 0..<60 {
+            let major = i % 5 == 0
+            let angle: CGFloat = CGFloat(i) / 60 * 2 * .pi - .pi / 2
+            let inner: CGFloat = outer - (major ? 10 : 5)
+            let start = CGPoint(x: center.x + cos(angle) * inner, y: center.y + sin(angle) * inner)
+            let end = CGPoint(x: center.x + cos(angle) * outer, y: center.y + sin(angle) * outer)
+            marks.append((start, end, major))
+        }
+        return marks
     }
 
     private var progressArc: some View {

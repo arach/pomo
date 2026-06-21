@@ -62,7 +62,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
 
         hud.onOpenSettings = { [weak self] in self?.showSettings() }
 
-        // Audio playback state can change asynchronously (after a yt-dlp resolve),
+        // Audio playback state can change asynchronously (web player events),
         // so refresh the state file whenever it does.
         audio.onStateChange = { [weak self] in self?.writeState() }
 
@@ -153,6 +153,15 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             settings.audioVolume = Double(max(0, min(100, v))) / 100.0
             settings.saveNow()
             audio.setVolume(settings.audioVolume)
+        case .audioNext:   audio.next()
+        case .audioPrev:   audio.previous()
+        case .login:       audio.signIn()
+        case .importCookies(let browser, let profile): audio.importCookies(browser: browser, profile: profile)
+        case .logout: audio.clearLogin()
+        case .selectAccount(let index): audio.setAccount(index)
+        case .videoShow:   audio.setVideoVisible(true)
+        case .videoHide:   audio.setVideoVisible(false)
+        case .videoToggle: audio.toggleVideo()
         case .favoriteAdd(let url, let title):
             favorites.add(url: url, title: title)
         case .favoritePlay(let index):

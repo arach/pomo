@@ -13,6 +13,15 @@ enum PomoCommand {
     case audioPause
     case audioStop
     case audioVolume(Int)       // 0–100
+    case audioNext
+    case audioPrev
+    case login
+    case importCookies(browser: String?, profile: String?)
+    case logout
+    case selectAccount(Int)
+    case videoShow
+    case videoHide
+    case videoToggle
     case favoriteAdd(url: String, title: String?)
     case favoritePlay(Int)      // 1-based
     case favoriteRemove(Int)    // 1-based
@@ -41,8 +50,30 @@ enum PomoCommand {
         case "hide":       self = .hideHUD
         case "toggle-hud", "togglehud", "hud": self = .toggleHUD
         case "menu":       self = .openMenu
+        case "login":
+            switch arg {
+            case "import":
+                self = .importCookies(
+                    browser: query?.first(where: { $0.name == "browser" })?.value,
+                    profile: query?.first(where: { $0.name == "profile" })?.value
+                )
+            case "account":
+                guard path.count > 1, let index = Int(path[1]) else { return nil }
+                self = .selectAccount(index)
+            default:
+                self = .login
+            }
+        case "logout":     self = .logout
         case "settings":   self = .openSettings
         case "quit":       self = .quit
+
+        case "video":
+            switch arg {
+            case "show":   self = .videoShow
+            case "hide":   self = .videoHide
+            case "toggle", nil: self = .videoToggle
+            default: return nil
+            }
 
         case "session":
             guard let arg, let type = SessionType(command: arg) else { return nil }
@@ -64,6 +95,8 @@ enum PomoCommand {
                 case "play":  self = .audioPlay(nil)
                 case "pause": self = .audioPause
                 case "stop":  self = .audioStop
+                case "next":  self = .audioNext
+                case "prev", "previous": self = .audioPrev
                 case "volume":
                     guard path.count > 1, let v = Int(path[1]) else { return nil }
                     self = .audioVolume(v)
@@ -143,7 +176,7 @@ struct PomoState: Codable {
     var hudVisible: Bool
     var audioPlaying: Bool
     var audioURL: String
-    var audioEngine: String   // "native" (yt-dlp→AVPlayer) | "web" | "none"
+    var audioEngine: String   // "web" | "none"
     var favorites: [Favorite]
 
     static let fileURL: URL = {

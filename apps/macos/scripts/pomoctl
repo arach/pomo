@@ -15,6 +15,76 @@ urlencode() {
   python3 -c 'import sys,urllib.parse; print(urllib.parse.quote(sys.argv[1], safe=""))' "$1"
 }
 
+list_chrome_profiles() {
+  python3 - <<'PY'
+import json, os
+ls = os.path.expanduser("~/Library/Application Support/Google/Chrome/Local State")
+try:
+    cache = json.load(open(ls)).get("profile", {}).get("info_cache", {})
+    if not cache:
+        print("  (no Chrome profiles found)")
+    for k, v in sorted(cache.items()):
+        print("  %-12s %s" % (k, v.get("name", "?")))
+except Exception as e:
+    print("  could not read Chrome profiles:", e)
+PY
+}
+
+# Emits "browser<TAB>profileDir<TAB>accountName" for every detected Chromium profile.
+_browser_profiles() {
+  python3 - <<'PY'
+import json, os
+# Chrome + any other installed Chromium browsers, "for free" (skipped if absent).
+# Deliberately excluding Arc and Edge.
+bases = [("chrome", "Google/Chrome"),
+         ("brave", "BraveSoftware/Brave-Browser"),
+         ("chromium", "Chromium")]
+for browser, base in bases:
+    ls = os.path.expanduser(f"~/Library/Application Support/{base}/Local State")
+    if not os.path.exists(ls):
+        continue
+    try:
+        cache = json.load(open(ls)).get("profile", {}).get("info_cache", {})
+        for k, v in sorted(cache.items()):
+            print("%s\t%s\t%s" % (browser, k, v.get("name", "?")))
+    except Exception:
+        pass
+PY
+}
+
+# Interactive picker for `pomoctl login import` (no args / --interactive).
+interactive_import() {
+  local browsers=() profiles=() labels=()
+  while IFS=$'\t' read -r b dir name; do
+    [[ -z "$b" ]] && continue
+    browsers+=("$b"); profiles+=("$dir")
+    labels+=("$(printf '%-8s %s  (%s)' "$b" "$name" "$dir")")
+  done < <(_browser_profiles)
+  # whole-browser fallbacks (no profile concept exposed here)
+  local wb
+  for wb in safari firefox; do
+    browsers+=("$wb"); profiles+=(""); labels+=("$(printf '%-8s default' "$wb")")
+  done
+
+  if [[ ${#labels[@]} -eq 0 ]]; then echo "No browser profiles found." >&2; return 1; fi
+
+  echo "Import YouTube login from:"
+  local i=0
+  while [[ $i -lt ${#labels[@]} ]]; do printf "  %2d) %s\n" "$((i + 1))" "${labels[$i]}"; i=$((i + 1)); done
+  printf "Select [1-%d] (q to cancel): " "${#labels[@]}"
+  local choice; read -r choice
+  [[ "$choice" == "q" || -z "$choice" ]] && { echo "cancelled"; return 0; }
+  case "$choice" in *[!0-9]*) echo "invalid selection" >&2; return 1 ;; esac
+  local idx=$((choice - 1))
+  if [[ $idx -lt 0 || $idx -ge ${#labels[@]} ]]; then echo "out of range" >&2; return 1; fi
+
+  local b="${browsers[$idx]}" p="${profiles[$idx]}"
+  local qs="browser=$(urlencode "$b")"
+  [[ -n "$p" ]] && qs="$qs&profile=$(urlencode "$p")"
+  echo "→ importing from ${labels[$idx]} …"
+  send "login/import?$qs"
+}
+
 usage() {
   cat <<EOF
 pomoctl — control the Pomo HUD
@@ -30,10 +100,18 @@ HUD:
 Watchface:
   pomoctl face <minimal|terminal|neon|retro|rolodex|chrono>
 
-Audio (YouTube / web link):
-  pomoctl audio <url>              # load + play (playlist=webview, single=yt-dlp)
+Audio (YouTube / YouTube Music / web):
+  pomoctl audio <url>              # load + play (yt + ytmusic urls)
   pomoctl audio play|pause|stop
+  pomoctl audio next|prev          # skip track (playlists / radio / YT Music)
   pomoctl audio volume <0-100>
+  pomoctl login                    # open sign-in window (Premium → ad-free)
+  pomoctl login import             # interactive: list profiles, pick one, import
+  pomoctl login import <browser> [profile]   # non-interactive (e.g. chrome "Profile 1")
+  pomoctl login profiles           # list your Chrome profiles (dir → account name)
+  pomoctl logout                   # clear the imported login
+  pomoctl login account <N>        # pick multi-login account index (rarely needed)
+  pomoctl video show|hide|toggle   # mini-player window
 
 Favorites (cached stations/tracks):
   pomoctl fav add <url> [title]
@@ -50,13 +128,31 @@ EOF
 case "$cmd" in
   start|pause|toggle|reset|skip|show|hide|settings|quit|menu) send "$cmd" ;;
   hud)      send "toggle-hud" ;;
+  video)    send "video/$arg" ;;
+  login)
+    case "$arg" in
+      import)
+        b="${3:-}"; p="${4:-}"
+        if [[ -z "$b" || "$b" == "--interactive" || "$b" == "-i" ]]; then
+          interactive_import
+        else
+          qs="browser=$(urlencode "$b")"
+          [[ -n "$p" ]] && qs="$qs&profile=$(urlencode "$p")"
+          send "login/import?$qs"
+        fi ;;
+      account)  send "login/account/${3:-0}" ;;
+      profiles) list_chrome_profiles ;;
+      *)        send "login" ;;
+    esac
+    ;;
+  logout)   send "logout" ;;
   session)  send "session/$arg" ;;
   duration) send "duration/$arg" ;;
   face)     send "face/$arg" ;;
   volume)   send "volume/$arg" ;;
   audio)
     case "$arg" in
-      play|pause|stop) send "audio/$arg" ;;
+      play|pause|stop|next|prev|previous) send "audio/$arg" ;;
       volume)          send "audio/volume/${3:-}" ;;
       "" )             echo "usage: pomoctl audio <url|play|pause|stop|volume N>" >&2; exit 64 ;;
       *)               send "audio?url=$(urlencode "$arg")" ;;

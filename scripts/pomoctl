@@ -1,0 +1,98 @@
+#!/usr/bin/env bash
+# pomoctl — control the Pomo HUD from the shell or an agent.
+#
+# Commands are sent fire-and-forget over the `pomo://` URL scheme; `status`
+# reads the state file the app writes on every tick.
+set -euo pipefail
+
+state_file="$HOME/Library/Application Support/Pomo/state.json"
+cmd="${1:-}"
+arg="${2:-}"
+
+send() { open "pomo://$1"; }
+
+urlencode() {
+  python3 -c 'import sys,urllib.parse; print(urllib.parse.quote(sys.argv[1], safe=""))' "$1"
+}
+
+usage() {
+  cat <<EOF
+pomoctl — control the Pomo HUD
+
+Timer:
+  pomoctl start | pause | toggle | reset | skip
+  pomoctl session <focus|short|long>
+  pomoctl duration <minutes>
+
+HUD:
+  pomoctl show | hide | hud        # hud = toggle
+
+Watchface:
+  pomoctl face <minimal|terminal|neon|retro|rolodex|chrono>
+
+Audio (YouTube / web link):
+  pomoctl audio <url>              # load + play (playlist=webview, single=yt-dlp)
+  pomoctl audio play|pause|stop
+  pomoctl audio volume <0-100>
+
+Favorites (cached stations/tracks):
+  pomoctl fav add <url> [title]
+  pomoctl fav list
+  pomoctl fav play <n>             # 1-based
+  pomoctl fav remove <n>
+
+Other:
+  pomoctl settings | quit
+  pomoctl status                   # print current state JSON
+EOF
+}
+
+case "$cmd" in
+  start|pause|toggle|reset|skip|show|hide|settings|quit|menu) send "$cmd" ;;
+  hud)      send "toggle-hud" ;;
+  session)  send "session/$arg" ;;
+  duration) send "duration/$arg" ;;
+  face)     send "face/$arg" ;;
+  volume)   send "volume/$arg" ;;
+  audio)
+    case "$arg" in
+      play|pause|stop) send "audio/$arg" ;;
+      volume)          send "audio/volume/${3:-}" ;;
+      "" )             echo "usage: pomoctl audio <url|play|pause|stop|volume N>" >&2; exit 64 ;;
+      *)               send "audio?url=$(urlencode "$arg")" ;;
+    esac
+    ;;
+  fav|favorite|favorites)
+    sub="${2:-}"
+    case "$sub" in
+      add)
+        url="${3:-}"; title="${4:-}"
+        [[ -z "$url" ]] && { echo "usage: pomoctl fav add <url> [title]" >&2; exit 64; }
+        q="favorite/add?url=$(urlencode "$url")"
+        [[ -n "$title" ]] && q="$q&title=$(urlencode "$title")"
+        send "$q" ;;
+      play)   send "favorite/play/${3:-}" ;;
+      remove) send "favorite/remove/${3:-}" ;;
+      list|"")
+        open "pomo://favorites" 2>/dev/null || true
+        sleep 0.3
+        if [[ -f "$state_file" ]]; then
+          python3 -c '
+import json,sys
+favs=json.load(open(sys.argv[1])).get("favorites",[])
+if not favs:
+    print("(no favorites)")
+else:
+    for i,f in enumerate(favs):
+        print("%d. %s  (%s)" % (i+1, f.get("title",""), f.get("url","")))
+' "$state_file"
+        else echo "Pomo not running"; fi ;;
+      *) echo "usage: pomoctl fav <add|play|remove|list> ..." >&2; exit 64 ;;
+    esac
+    ;;
+  status)
+    if [[ -f "$state_file" ]]; then cat "$state_file"; else echo '{"error":"Pomo not running or no state yet"}'; fi
+    ;;
+  ""|-h|--help|help) usage ;;
+  *) echo "Unknown command: $cmd" >&2; usage; exit 64 ;;
+esac

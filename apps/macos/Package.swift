@@ -14,7 +14,9 @@ let package = Package(
         .macOS(.v14)
     ],
     dependencies: [
-        .package(name: "Hudson", path: "../hudson")
+        // HudsonKit lives as a sibling checkout of this monorepo:
+        // <dev>/hudson, reached from apps/macos via three levels up.
+        .package(name: "Hudson", path: "../../../hudson")
     ],
     targets: [
         .executableTarget(

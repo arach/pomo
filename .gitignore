@@ -24,8 +24,8 @@ xcuserdata/
 dist/
 *.app
 
-# ──────────────── Legacy Tauri / web implementation (legacy/) ────────────────
-# Patterns are unanchored so they also cover the archived app under legacy/.
+# ──────────────── Tauri / web implementation (apps/tauri/) ────────────────
+# Patterns are unanchored so they also cover the app under apps/tauri/.
 node_modules/
 dist-ssr/
 target/

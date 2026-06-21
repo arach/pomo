@@ -12,7 +12,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     private let chime = CompletionChime()
     private let audio = AudioController()
     private let favorites = FavoritesStore()
-    private lazy var hud = HUDController(model: model, settings: settings)
+    private lazy var hud = HUDController(model: model, settings: settings, audio: audio)
     private lazy var menuBar = MenuBarController(model: model, settings: settings, audio: audio, favorites: favorites)
     private var settingsWindow: NSWindow?
 
@@ -162,6 +162,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         case .videoShow:   audio.setVideoVisible(true)
         case .videoHide:   audio.setVideoVisible(false)
         case .videoToggle: audio.toggleVideo()
+        case .videoBrowser: audio.openInBrowser()
         case .favoriteAdd(let url, let title):
             favorites.add(url: url, title: title)
         case .favoritePlay(let index):

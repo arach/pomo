@@ -22,6 +22,7 @@ enum PomoCommand {
     case videoShow
     case videoHide
     case videoToggle
+    case videoBrowser           // open the current video in the default browser
     case favoriteAdd(url: String, title: String?)
     case favoritePlay(Int)      // 1-based
     case favoriteRemove(Int)    // 1-based
@@ -71,6 +72,7 @@ enum PomoCommand {
             switch arg {
             case "show":   self = .videoShow
             case "hide":   self = .videoHide
+            case "browser", "open": self = .videoBrowser
             case "toggle", nil: self = .videoToggle
             default: return nil
             }

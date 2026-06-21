@@ -8,6 +8,7 @@ import SwiftUI
 final class HUDController {
     private let model: TimerModel
     private let settings: PomoSettings
+    private let audio: AudioController
 
     /// Opens the settings window (⌘,). Wired by AppDelegate.
     var onOpenSettings: (() -> Void)?
@@ -18,9 +19,10 @@ final class HUDController {
     private var hasPositioned = false
     private(set) var isShown = false
 
-    init(model: TimerModel, settings: PomoSettings) {
+    init(model: TimerModel, settings: PomoSettings, audio: AudioController) {
         self.model = model
         self.settings = settings
+        self.audio = audio
     }
 
     // MARK: - Panel lifecycle
@@ -29,7 +31,7 @@ final class HUDController {
         if let panel { return panel }
         let panel = HUDPanel(contentSize: contentSize)
         let hosting = NSHostingView(
-            rootView: HUDRootView(model: model, settings: settings, size: contentSize)
+            rootView: HUDRootView(model: model, settings: settings, audio: audio, size: contentSize)
         )
         hosting.frame = NSRect(origin: .zero, size: contentSize)
         hosting.autoresizingMask = [.width, .height]
@@ -61,12 +63,15 @@ final class HUDController {
             ctx.timingFunction = CAMediaTimingFunction(name: .easeOut)
             panel.animator().alphaValue = CGFloat(settings.panelOpacity)
         }
+        // Dock the video drawer to the panel (slides back out if it was open).
+        audio.attachDrawer(to: panel)
     }
 
     func hide() {
         guard let panel, isShown else { return }
         isShown = false
         removeKeyMonitor()
+        audio.detachDrawer()
         NSAnimationContext.runAnimationGroup({ ctx in
             ctx.duration = 0.14
             ctx.timingFunction = CAMediaTimingFunction(name: .easeIn)

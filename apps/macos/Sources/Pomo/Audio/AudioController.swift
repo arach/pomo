@@ -1,3 +1,4 @@
+import AppKit
 import Foundation
 import Observation
 
@@ -18,6 +19,14 @@ final class AudioController {
     private(set) var engineName = "none"   // "web" | "none" (kept in state.json)
     private(set) var currentURL = ""
 
+    /// Whether the video drawer is open. Stored (not computed) so the on-face
+    /// buttons observe it and re-render when it toggles.
+    private(set) var videoOpen = false
+
+    /// Edge the drawer is docked to — the HUD reads this to square the matching
+    /// corners so the two read as one block.
+    private(set) var videoEdge: DrawerEdge = .right
+
     var videoVisible: Bool { web.isWindowVisible }
 
     init() {
@@ -37,8 +46,21 @@ final class AudioController {
     func importCookies(browser: String?, profile: String?) { web.importCookies(fromBrowser: browser, profile: profile) }
     func clearLogin() { web.clearLogin() }
     func setAccount(_ index: Int) { web.setAccount(index) }
-    func setVideoVisible(_ visible: Bool) { web.setWindowVisible(visible) }
-    func toggleVideo() { web.toggleWindow() }
+    func setVideoVisible(_ visible: Bool) { web.setWindowVisible(visible); syncVideo(); notify() }
+    func toggleVideo() { web.toggleWindow(); syncVideo(); notify() }
+
+    /// Pop the currently-playing video out to the default browser (where
+    /// playlists, autoplay, queue and the user's extensions all work).
+    func openInBrowser() { web.openInBrowser() }
+
+    /// Wire the drawer to the HUD panel when it appears / detach when it hides.
+    func attachDrawer(to anchor: NSWindow?) { web.hudDidAppear(anchor: anchor); syncVideo() }
+    func detachDrawer() { web.hudWillDisappear() }
+
+    private func syncVideo() {
+        videoOpen = web.isWindowVisible
+        videoEdge = web.drawerEdge
+    }
 
     private func notify() {
         isPlaying = web.isPlaying

@@ -1,0 +1,222 @@
+name: Release App macOS
+
+on:
+  push:
+    tags:
+      - "app-macos-v*"
+  workflow_dispatch:
+    inputs:
+      version:
+        description: "Release version, for example 0.2.2. Defaults to 0.1.0."
+        required: false
+        type: string
+      publish:
+        description: "Sign, notarize, and upload to the GitHub release."
+        required: true
+        default: false
+        type: boolean
+
+permissions:
+  contents: write
+
+jobs:
+  dmg:
+    name: Build DMG
+    runs-on: macos-15
+    environment: release
+    timeout-minutes: 60
+
+    env:
+      SHOULD_PUBLISH: ${{ (github.ref_type == 'tag' || (github.event_name == 'workflow_dispatch' && inputs.publish)) && '1' || '0' }}
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Resolve package
+        run: swift package resolve --package-path apps/macos
+
+      - name: Resolve version
+        id: version
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          if [[ "${GITHUB_REF_TYPE:-}" == "tag" ]]; then
+            tag="$GITHUB_REF_NAME"
+            if [[ "$tag" == app-macos-v* ]]; then
+              version="${tag#app-macos-v}"
+            else
+              version="${tag#v}"
+            fi
+          elif [[ -n "${{ inputs.version || '' }}" ]]; then
+            version="${{ inputs.version }}"
+          else
+            version="0.1.0"
+          fi
+
+          if [[ ! "$version" =~ ^[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
+            echo "::error::Release version must look like X.Y.Z, got: $version"
+            exit 1
+          fi
+
+          echo "version=$version" >> "$GITHUB_OUTPUT"
+          echo "VERSION=$version" >> "$GITHUB_ENV"
+          echo "POMO_VERSION=$version" >> "$GITHUB_ENV"
+
+      - name: Resolve release signing mode
+        env:
+          CERT_BASE64: ${{ secrets.DEVELOPER_ID_APPLICATION_CERT_BASE64 }}
+          CERT_PASSWORD: ${{ secrets.DEVELOPER_ID_APPLICATION_CERT_PASSWORD }}
+          KEYCHAIN_PASSWORD: ${{ secrets.KEYCHAIN_PASSWORD }}
+          APP_STORE_CONNECT_API_KEY_P8: ${{ secrets.APP_STORE_CONNECT_API_KEY_P8 }}
+          APP_STORE_CONNECT_KEY_ID: ${{ vars.APP_STORE_CONNECT_KEY_ID || secrets.APP_STORE_CONNECT_KEY_ID }}
+          APP_STORE_CONNECT_ISSUER_ID: ${{ vars.APP_STORE_CONNECT_ISSUER_ID || secrets.APP_STORE_CONNECT_ISSUER_ID }}
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          if [[ "$SHOULD_PUBLISH" != "1" ]]; then
+            echo "::notice::Publish was not requested. Building an unsigned DMG artifact without creating a GitHub release."
+            exit 0
+          fi
+
+          missing=()
+          [[ -n "$CERT_BASE64" ]] || missing+=("DEVELOPER_ID_APPLICATION_CERT_BASE64")
+          [[ -n "$CERT_PASSWORD" ]] || missing+=("DEVELOPER_ID_APPLICATION_CERT_PASSWORD")
+          [[ -n "$KEYCHAIN_PASSWORD" ]] || missing+=("KEYCHAIN_PASSWORD")
+          [[ -n "$APP_STORE_CONNECT_API_KEY_P8" ]] || missing+=("APP_STORE_CONNECT_API_KEY_P8")
+          [[ -n "$APP_STORE_CONNECT_KEY_ID" ]] || missing+=("APP_STORE_CONNECT_KEY_ID")
+
+          if (( ${#missing[@]} > 0 )); then
+            printf 'Missing release signing/notary configuration: %s\n' "${missing[*]}" >&2
+            echo "::error::Publish was requested, but release signing/notary configuration is incomplete."
+            exit 1
+          fi
+
+      - name: Import Developer ID certificate
+        if: env.SHOULD_PUBLISH == '1'
+        env:
+          CERT_BASE64: ${{ secrets.DEVELOPER_ID_APPLICATION_CERT_BASE64 }}
+          CERT_PASSWORD: ${{ secrets.DEVELOPER_ID_APPLICATION_CERT_PASSWORD }}
+          KEYCHAIN_PASSWORD: ${{ secrets.KEYCHAIN_PASSWORD }}
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          keychain="$RUNNER_TEMP/pomo-release.keychain-db"
+          cert_path="$RUNNER_TEMP/developer-id-application.p12"
+
+          printf '%s' "$CERT_BASE64" | tr -d '[:space:]' | base64 -D > "$cert_path"
+          security create-keychain -p "$KEYCHAIN_PASSWORD" "$keychain"
+          security set-keychain-settings -lut 21600 "$keychain"
+          security unlock-keychain -p "$KEYCHAIN_PASSWORD" "$keychain"
+          security import "$cert_path" \
+            -k "$keychain" \
+            -P "$CERT_PASSWORD" \
+            -T /usr/bin/codesign \
+            -T /usr/bin/security
+          security set-key-partition-list \
+            -S apple-tool:,apple:,codesign: \
+            -s \
+            -k "$KEYCHAIN_PASSWORD" \
+            "$keychain"
+          security list-keychains -d user -s "$keychain" $(security list-keychains -d user | tr -d '"')
+          security default-keychain -d user -s "$keychain"
+
+          identity="$(security find-identity -v -p codesigning "$keychain" | awk '/"Developer ID Application:/{print $2; exit}')"
+          if [[ -z "$identity" ]]; then
+            echo "Developer ID Application identity was not imported" >&2
+            security find-identity -v -p codesigning "$keychain" >&2
+            exit 1
+          fi
+
+          echo "POMO_SIGN_IDENTITY=$identity" >> "$GITHUB_ENV"
+          security find-identity -v -p codesigning "$keychain"
+
+      - name: Configure App Store Connect notarization
+        if: env.SHOULD_PUBLISH == '1'
+        env:
+          APP_STORE_CONNECT_API_KEY_P8: ${{ secrets.APP_STORE_CONNECT_API_KEY_P8 }}
+          APP_STORE_CONNECT_KEY_ID: ${{ vars.APP_STORE_CONNECT_KEY_ID || secrets.APP_STORE_CONNECT_KEY_ID }}
+          APP_STORE_CONNECT_ISSUER_ID: ${{ vars.APP_STORE_CONNECT_ISSUER_ID || secrets.APP_STORE_CONNECT_ISSUER_ID }}
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          key_path="$RUNNER_TEMP/AuthKey_${APP_STORE_CONNECT_KEY_ID}.p8"
+          printf '%s' "$APP_STORE_CONNECT_API_KEY_P8" > "$key_path"
+          chmod 600 "$key_path"
+
+          notary_args=(
+            --key-id "$APP_STORE_CONNECT_KEY_ID"
+            --key "$key_path"
+          )
+          if [[ -n "$APP_STORE_CONNECT_ISSUER_ID" ]]; then
+            notary_args+=(--issuer "$APP_STORE_CONNECT_ISSUER_ID")
+          fi
+
+          xcrun notarytool store-credentials pomo-notarytool "${notary_args[@]}"
+          echo "POMO_NOTARY_PROFILE=pomo-notarytool" >> "$GITHUB_ENV"
+
+      - name: Build DMG
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          if [[ "$SHOULD_PUBLISH" == "1" ]]; then
+            apps/macos/scripts/build-dmg.sh
+          else
+            apps/macos/scripts/build-dmg.sh --local
+          fi
+
+      - name: Verify DMG
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          hdiutil verify apps/macos/dist/Pomo.dmg
+          if [[ "$SHOULD_PUBLISH" == "1" ]]; then
+            codesign --verify --verbose apps/macos/dist/Pomo.dmg
+            spctl --assess --type open --context context:primary-signature --verbose apps/macos/dist/Pomo.dmg
+          fi
+
+      - name: Upload workflow artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: Pomo-${{ steps.version.outputs.version }}-dmg
+          path: apps/macos/dist/Pomo.dmg
+          if-no-files-found: error
+
+      - name: Publish GitHub release
+        if: env.SHOULD_PUBLISH == '1'
+        env:
+          GH_TOKEN: ${{ github.token }}
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          release_tag="v$VERSION"
+          dmg_path="$RUNNER_TEMP/Pomo.dmg"
+          versioned_dmg_path="$RUNNER_TEMP/Pomo-$VERSION.dmg"
+          notes_path="$RUNNER_TEMP/release-notes.md"
+
+          cp apps/macos/dist/Pomo.dmg "$dmg_path"
+          cp apps/macos/dist/Pomo.dmg "$versioned_dmg_path"
+          cat > "$notes_path" <<EOF
+          Release $VERSION
+
+          Download and install Pomo for Mac.
+          EOF
+
+          if gh release view "$release_tag" >/dev/null 2>&1; then
+            gh release upload "$release_tag" "$dmg_path" "$versioned_dmg_path" --clobber
+            gh release edit "$release_tag" \
+              --title "Pomo $VERSION" \
+              --notes-file "$notes_path"
+          else
+            gh release create "$release_tag" "$dmg_path" "$versioned_dmg_path" \
+              --target "$GITHUB_SHA" \
+              --title "Pomo $VERSION" \
+              --notes-file "$notes_path"
+          fi

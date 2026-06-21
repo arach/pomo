@@ -25,26 +25,160 @@ tokens and window chrome. The primary Pomo implementation.
 - **`pomo://` URL scheme** for agent control (start/pause/skip/face/audio/…) with
   a JSON state file written back for status reads.
 
-## Run it
+## Quick commands
 
 ```sh
-scripts/run-app.sh            # build (release), bundle Pomo.app, launch
-scripts/run-app.sh --debug    # faster debug build
-scripts/run-app.sh --restart  # quit a running instance first
+cd apps/macos
+scripts/run-app.sh
 ```
 
-### Unsigned build (Gatekeeper)
+That builds a release binary, assembles `dist/Pomo.app`, and launches it.
+
+Useful variants:
+
+```sh
+scripts/run-app.sh --debug    # faster local build
+scripts/run-app.sh --restart  # quit a running copy before launching
+scripts/run-app.sh --no-open  # build dist/Pomo.app without launching
+scripts/run-app.sh --no-open --sign -  # local ad-hoc signature
+scripts/build-dmg.sh --local  # build a local smoke-test dist/Pomo.dmg
+open dist/Pomo.app            # launch the built app later
+```
+
+Build to a custom app path:
+
+```sh
+POMO_APP_PATH="/Applications/Pomo.app" scripts/run-app.sh --no-open
+```
+
+### Unsigned app blocked by macOS
 
 Pomo isn't code-signed or notarized, so a copy you download or move into
 `/Applications` gets quarantined by Gatekeeper ("…can't be opened because Apple
-cannot check it for malicious software"). Clear the quarantine flag to run it:
+cannot check it for malicious software", or "`Pomo.app` is damaged and can't be
+opened").
+
+If you trust the build and have a source checkout, clear the quarantine flag on
+the app bundle you are actually opening:
 
 ```sh
-xattr -d com.apple.quarantine /Applications/Pomo.app
+scripts/dequarantine-app.sh /Applications/Pomo.app
 ```
 
-`scripts/run-app.sh` already strips this from the bundle it builds, so a local
-build launches without the prompt.
+For the default local build path:
+
+```sh
+scripts/dequarantine-app.sh dist/Pomo.app
+```
+
+The helper validates that the path looks like a `.app` bundle, removes only the
+`com.apple.quarantine` attribute recursively, and prints the `open` command to
+launch it.
+
+If you only downloaded `Pomo.app` and do not have this repo, use the raw command:
+
+```sh
+xattr -d -r com.apple.quarantine /Applications/Pomo.app
+```
+
+`scripts/run-app.sh` also runs this helper against the bundle it builds, so local
+builds should launch without the prompt.
+
+### Signed builds
+
+For local development, ad-hoc signing is enough to give the bundle a code
+signature on your Mac:
+
+```sh
+scripts/run-app.sh --no-open --sign -
+codesign --verify --deep --strict --verbose=2 dist/Pomo.app
+open dist/Pomo.app
+```
+
+To package the app as a drag-to-Applications DMG for local testing:
+
+```sh
+scripts/build-dmg.sh --local
+open dist/Pomo.dmg
+```
+
+That DMG is convenient for local testing, but it is still not a publicly trusted
+download unless you sign and notarize it.
+
+For a build you plan to share, use an Apple Developer ID Application certificate
+and notarize the DMG. Replace the identity and notary profile names with your own:
+
+```sh
+POMO_SIGN_IDENTITY="Developer ID Application: Your Name (TEAMID)" \
+POMO_NOTARY_PROFILE="notarytool-profile" \
+  scripts/build-dmg.sh
+```
+
+Attach the notarized DMG to a GitHub Release:
+
+```sh
+gh release upload "$(gh release view --json tagName -q .tagName)" dist/Pomo.dmg --clobber
+```
+
+### GitHub release workflow
+
+The **Release App macOS** workflow builds, signs, notarizes, staples, verifies,
+and uploads the public DMG. It publishes to GitHub Releases only when run from
+an `app-macos-v<version>` tag or when manually run with `publish=true`.
+
+Release from a tag:
+
+```sh
+git tag -a app-macos-v0.2.2 -m "Pomo macOS 0.2.2"
+git push origin app-macos-v0.2.2
+```
+
+Or run it manually:
+
+```sh
+gh workflow run release-app-macos.yml --ref master -f version=0.2.2 -f publish=true
+```
+
+The workflow creates or updates release `v<version>` with:
+
+```text
+Pomo.dmg
+Pomo-<version>.dmg
+```
+
+The landing page downloads from:
+
+```text
+https://github.com/arach/pomo/releases/latest/download/Pomo.dmg
+```
+
+Configure these GitHub Actions secrets before relying on that artifact:
+
+| Secret | Value |
+| --- | --- |
+| `DEVELOPER_ID_APPLICATION_CERT_BASE64` | Base64-encoded Developer ID Application `.p12` |
+| `DEVELOPER_ID_APPLICATION_CERT_PASSWORD` | Password for the exported `.p12` |
+| `KEYCHAIN_PASSWORD` | Throwaway CI keychain password |
+| `APP_STORE_CONNECT_API_KEY_P8` | App Store Connect API key `.p8` contents |
+
+Optional GitHub Actions variable:
+
+| Variable | Value |
+| --- | --- |
+| `APP_STORE_CONNECT_KEY_ID` | App Store Connect API key ID. Can also be a secret. |
+| `APP_STORE_CONNECT_ISSUER_ID` | App Store Connect issuer ID. Optional for individual API keys. Can also be a secret. |
+
+Create `DEVELOPER_ID_APPLICATION_CERT_BASE64` from the exported certificate:
+
+```sh
+base64 < DeveloperIDApplication.p12 | tr -d '\n' | pbcopy
+```
+
+For a smoke test, run **Release App macOS** manually with `publish=false`. That
+builds an unsigned workflow artifact and intentionally skips the GitHub release.
+
+Signing alone is useful for local builds, but downloadable DMGs still need
+notarization and stapling to avoid Gatekeeper warnings for other users.
 
 **No private source needed.** HudsonKit (design tokens + window chrome) is
 consumed as a public, prebuilt **binary** SwiftPM package —

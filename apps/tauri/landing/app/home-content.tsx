@@ -5,6 +5,8 @@ import { Download, Clock, Zap, Palette, Moon, Command, RotateCcw, Github } from 
 import { useSearchParams, useRouter, usePathname } from "next/navigation";
 import { FocusCardsDemo } from "../components/focus-cards";
 
+const MACOS_DOWNLOAD_URL = "https://github.com/arach/pomo/releases/latest/download/Pomo.dmg";
+
 export default function HomeContent() {
   const [currentIndex, setCurrentIndex] = useState(0);
   const searchParams = useSearchParams();
@@ -128,7 +130,7 @@ export default function HomeContent() {
                 </a>
               </div>
               <a
-                href="https://github.com/arach/pomo/releases/download/v0.2.1/Pomo-v0.2.1-macOS-arm64.dmg"
+                href={MACOS_DOWNLOAD_URL}
                 className="bg-gray-900 text-white hover:bg-gray-800 rounded-xl transition-all px-6 py-3 text-sm inline-flex items-center gap-2 font-inter font-semibold shadow-sm hover:shadow-md"
               >
                 <Download className="w-4 h-4" />
@@ -258,7 +260,7 @@ export default function HomeContent() {
 
             <div className="flex flex-col sm:flex-row gap-4 justify-center mb-16 animate-slide-up" style={{ animationDelay: '0.3s' }}>
               <a
-                href="https://github.com/arach/pomo/releases/download/v0.2.1/Pomo-v0.2.1-macOS-arm64.dmg"
+                href={MACOS_DOWNLOAD_URL}
                 className="bg-black text-white hover:bg-gray-800 rounded-lg transition-all px-6 py-3 inline-flex items-center justify-center gap-2 font-inter font-medium text-sm"
               >
                 <Download className="w-4 h-4" />
@@ -491,7 +493,7 @@ export default function HomeContent() {
           </p>
           <div className="flex flex-col sm:flex-row gap-4 justify-center">
             <a
-              href="https://github.com/arach/pomo/releases/download/v0.2.1/Pomo-v0.2.1-macOS-arm64.dmg"
+              href={MACOS_DOWNLOAD_URL}
               className="bg-white text-black hover:bg-gray-100 rounded-lg transition-all px-6 py-3 inline-flex items-center justify-center gap-2 font-inter font-medium text-sm"
             >
               <Download className="w-4 h-4" />

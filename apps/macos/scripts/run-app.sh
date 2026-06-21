@@ -11,16 +11,19 @@ repo_root="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 app_name="Pomo"
 bundle_id="dev.pomo.hud"
 app_path="${POMO_APP_PATH:-$repo_root/dist/$app_name.app}"
+version="${POMO_VERSION:-0.1.0}"
 configuration=release
 restart=false
+sign_identity=""
 
 usage() {
   cat <<EOF
-Usage: run-app.sh [--debug] [--restart] [--no-open]
+Usage: run-app.sh [--debug] [--restart] [--no-open] [--sign IDENTITY]
 
   --debug     Build the debug configuration (faster iteration)
   --restart   Quit a running Pomo before launching
   --no-open   Build + bundle only; don't launch
+  --sign IDENTITY  Code-sign the app bundle; use "-" for local ad-hoc signing
 EOF
 }
 
@@ -30,6 +33,15 @@ while [[ $# -gt 0 ]]; do
     --debug) configuration=debug; shift ;;
     --restart) restart=true; shift ;;
     --no-open) open_app=false; shift ;;
+    --sign)
+      if [[ $# -lt 2 || "${2:-}" == --* ]]; then
+        echo "--sign requires an identity, for example: --sign -" >&2
+        usage
+        exit 64
+      fi
+      sign_identity="$2"
+      shift 2
+      ;;
     -h|--help) usage; exit 0 ;;
     *) echo "Unknown option: $1" >&2; usage; exit 64 ;;
   esac
@@ -95,9 +107,9 @@ cat > "$app_path/Contents/Info.plist" <<PLIST
   <key>CFBundlePackageType</key>
   <string>APPL</string>
   <key>CFBundleShortVersionString</key>
-  <string>0.1.0</string>
+  <string>$version</string>
   <key>CFBundleVersion</key>
-  <string>1</string>
+  <string>$version</string>
   <key>LSMinimumSystemVersion</key>
   <string>14.0</string>
   <key>LSUIElement</key>
@@ -121,11 +133,34 @@ cat > "$app_path/Contents/Info.plist" <<PLIST
 </plist>
 PLIST
 
-# Strip the quarantine flag so the unsigned, locally-built bundle launches
-# without a Gatekeeper prompt — handy for devs who can't code-sign.
-xattr -dr com.apple.quarantine "$app_path" 2>/dev/null || true
+if [[ -n "$sign_identity" ]]; then
+  if ! command -v codesign >/dev/null 2>&1; then
+    echo "codesign is required for --sign." >&2
+    exit 69
+  fi
+
+  echo "▸ Signing $app_name.app…"
+  codesign_args=(--force --deep --sign "$sign_identity")
+  if [[ "$sign_identity" != "-" ]]; then
+    codesign_args+=(--options runtime --timestamp)
+  fi
+  codesign "${codesign_args[@]}" "$app_path"
+  codesign --verify --deep --strict --verbose=2 "$app_path"
+fi
+
+# Strip the quarantine flag so the locally-built bundle launches without a
+# Gatekeeper prompt. Signed release builds still need notarization for sharing.
+"$repo_root/scripts/dequarantine-app.sh" "$app_path" >/dev/null 2>&1 || true
 
 echo "▸ Built $app_path"
+if [[ -n "$sign_identity" ]]; then
+  echo "  Signed with: $sign_identity"
+  echo "  For distribution, notarize and staple the app before publishing."
+else
+  echo "  Unsigned build. If macOS blocks it after moving or copying, run:"
+  printf '  scripts/dequarantine-app.sh %q\n' "$app_path"
+  echo "  Use the path to the copy you actually open, such as /Applications/Pomo.app."
+fi
 
 if [[ "$restart" == true ]]; then
   killall "$app_name" 2>/dev/null || true

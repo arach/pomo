@@ -36,6 +36,17 @@ struct MinimalFace: View {
                 .contentTransition(.numericText())
                 .animation(.snappy(duration: 0.2), value: model.remainingSeconds)
 
+            // Intent — what this session is for, when named.
+            if !model.intent.isEmpty {
+                Text(model.intent)
+                    .font(HudFont.ui(HudTextSize.sm))
+                    .foregroundStyle(HudPalette.muted)
+                    .lineLimit(1)
+                    .truncationMode(.tail)
+                    .frame(maxWidth: .infinity)
+                    .transition(.opacity)
+            }
+
             // Progress rule
             GeometryReader { geo in
                 ZStack(alignment: .leading) {

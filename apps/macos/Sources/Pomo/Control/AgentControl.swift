@@ -27,6 +27,8 @@ enum PomoCommand {
     case favoritePlay(Int)      // 1-based
     case favoriteRemove(Int)    // 1-based
     case favoritesList
+    case setIntent(String)      // set the current session's focus intent ("" clears)
+    case openStats
     case openMenu
     case openSettings
     case quit
@@ -66,7 +68,17 @@ enum PomoCommand {
             }
         case "logout":     self = .logout
         case "settings":   self = .openSettings
+        case "stats":      self = .openStats
         case "quit":       self = .quit
+
+        case "intent":
+            if let text = query?.first(where: { $0.name == "text" })?.value {
+                self = .setIntent(text)
+            } else if arg == "clear" {
+                self = .setIntent("")
+            } else {
+                return nil
+            }
 
         case "video":
             switch arg {
@@ -174,12 +186,17 @@ struct PomoState: Codable {
     var clock: String
     var progress: Double
     var completedFocusCount: Int
+    var intent: String
     var watchface: String
     var hudVisible: Bool
     var audioPlaying: Bool
     var audioURL: String
     var audioEngine: String   // "web" | "none"
     var favorites: [Favorite]
+    // Focus history (see SessionHistoryStore).
+    var focusToday: Int
+    var focusTotal: Int
+    var streakDays: Int
 
     static let fileURL: URL = {
         let base = FileManager.default

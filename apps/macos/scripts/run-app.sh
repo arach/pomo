@@ -16,6 +16,58 @@ configuration=release
 restart=false
 sign_identity=""
 
+copy_framework() {
+  local framework_name="$1"
+  local search_root="$2"
+  local destination="$3"
+  local source
+
+  source="$(find "$search_root" -maxdepth 8 -path "*/$framework_name" -type d 2>/dev/null | head -n 1 || true)"
+  if [[ -z "$source" ]]; then
+    return 1
+  fi
+
+  ditto "$source" "$destination/$framework_name"
+  return 0
+}
+
+bundle_swiftpm_frameworks() {
+  local executable="$1"
+  local build_bin_dir="$2"
+  local frameworks_dir="$app_path/Contents/Frameworks"
+  local framework_names=()
+  local framework_name
+
+  while IFS= read -r framework_name; do
+    framework_names+=("$framework_name")
+  done < <(
+    otool -L "$executable" |
+      awk '/@rpath\/.*\.framework\// { split($1, parts, "/"); print parts[2] }' |
+      sort -u
+  )
+
+  if (( ${#framework_names[@]} == 0 )); then
+    return 0
+  fi
+
+  mkdir -p "$frameworks_dir"
+  for framework_name in "${framework_names[@]}"; do
+    if copy_framework "$framework_name" "$build_bin_dir" "$frameworks_dir"; then
+      continue
+    fi
+    if copy_framework "$framework_name" "$repo_root/.build/artifacts" "$frameworks_dir"; then
+      continue
+    fi
+
+    echo "Could not find required framework: $framework_name" >&2
+    exit 1
+  done
+
+  if ! otool -l "$executable" | grep -q '@executable_path/../Frameworks'; then
+    install_name_tool -add_rpath "@executable_path/../Frameworks" "$executable"
+  fi
+}
+
 usage() {
   cat <<EOF
 Usage: run-app.sh [--debug] [--restart] [--no-open] [--sign IDENTITY]
@@ -70,13 +122,15 @@ if [[ "$configuration" == "release" ]]; then
   build_args+=(-c release)
 fi
 swift build ${build_args[@]+"${build_args[@]}"} --product Pomo
-bin_path="$(swift build ${build_args[@]+"${build_args[@]}"} --show-bin-path)/Pomo"
+build_bin_dir="$(swift build ${build_args[@]+"${build_args[@]}"} --show-bin-path)"
+bin_path="$build_bin_dir/Pomo"
 
 echo "▸ Assembling $app_name.app…"
 rm -rf "$app_path"
 mkdir -p "$app_path/Contents/MacOS" "$app_path/Contents/Resources"
 cp "$bin_path" "$app_path/Contents/MacOS/$app_name"
 chmod +x "$app_path/Contents/MacOS/$app_name"
+bundle_swiftpm_frameworks "$app_path/Contents/MacOS/$app_name" "$build_bin_dir"
 
 if [[ -f "$icon_icns" ]]; then
   cp "$icon_icns" "$app_path/Contents/Resources/AppIcon.icns"

@@ -1,0 +1,65 @@
+name: Publish CLI to npm
+
+# Publishes the `@arach/pomo` CLI (apps/cli) to npm.
+#
+# The CLI versions independently of the macOS app (which ships via `v*` tags in
+# release-app-macos.yml), so this rides its own `cli-v*` tag namespace — e.g.
+# `cli-v0.1.0`. Also runnable on demand via the Actions tab.
+#
+# Requires a repo secret `NPM_TOKEN` (an npm automation token with publish
+# rights to the `@arach` scope).
+
+on:
+  push:
+    tags:
+      - "cli-v*"
+  workflow_dispatch:
+    inputs:
+      dry_run:
+        description: "Pack and validate only; do not publish."
+        type: boolean
+        default: false
+
+permissions:
+  contents: read
+
+jobs:
+  publish:
+    name: npm publish @arach/pomo
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: apps/cli
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          registry-url: https://registry.npmjs.org
+
+      - name: Check tag matches package version
+        if: github.ref_type == 'tag'
+        shell: bash
+        run: |
+          set -euo pipefail
+          tag_version="${GITHUB_REF_NAME#cli-v}"
+          pkg_version="$(node -p "require('./package.json').version")"
+          if [[ "$tag_version" != "$pkg_version" ]]; then
+            echo "::error::Tag cli-v$tag_version does not match apps/cli/package.json version $pkg_version"
+            exit 1
+          fi
+
+      - name: Publish
+        env:
+          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          if [[ "${{ inputs.dry_run || false }}" == "true" ]]; then
+            npm publish --dry-run --access public
+          else
+            npm publish --access public
+          fi

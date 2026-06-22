@@ -9,7 +9,12 @@ set -euo pipefail
 
 repo_root="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 app_name="Pomo"
-bundle_id="dev.pomo.hud"
+# Local dev builds get a `.dev` bundle id + label so they don't collide with an
+# installed Pomo — LaunchServices would otherwise dedupe launches (and `pomo://`
+# routing) to the wrong copy. DMG/release builds (build-dmg.sh) override these
+# back to the canonical id, so signing / notarization / installs are unaffected.
+bundle_id="${POMO_BUNDLE_ID:-dev.pomo.hud.dev}"
+display_name="${POMO_DISPLAY_NAME:-Pomo Dev}"
 app_path="${POMO_APP_PATH:-$repo_root/dist/$app_name.app}"
 version="${POMO_VERSION:-0.1.0}"
 configuration=release
@@ -166,7 +171,9 @@ cat > "$app_path/Contents/Info.plist" <<PLIST
   <key>CFBundleInfoDictionaryVersion</key>
   <string>6.0</string>
   <key>CFBundleName</key>
-  <string>$app_name</string>
+  <string>$display_name</string>
+  <key>CFBundleDisplayName</key>
+  <string>$display_name</string>
   <key>CFBundlePackageType</key>
   <string>APPL</string>
   <key>CFBundleShortVersionString</key>

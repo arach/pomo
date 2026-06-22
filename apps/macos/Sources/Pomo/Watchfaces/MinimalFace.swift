@@ -6,7 +6,7 @@ import HudsonUI
 struct MinimalFace: View {
     let model: TimerModel
 
-    private var accent: Color { model.sessionType.tint.color }
+    private var accent: Color { model.sessionType.accentColor }
 
     var body: some View {
         VStack(spacing: HudSpacing.lg) {

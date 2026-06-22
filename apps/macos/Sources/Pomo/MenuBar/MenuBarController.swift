@@ -36,14 +36,53 @@ final class MenuBarController: NSObject, NSPopoverDelegate {
 
     private func configureButton() {
         guard let button = statusItem.button else { return }
-        let image = NSImage(systemSymbolName: "hourglass", accessibilityDescription: "Pomo")
-        image?.isTemplate = true
-        button.image = image
+        button.image = MenuBarController.ringMarkImage()
         button.imagePosition = .imageLeading
         button.font = NSFont.monospacedDigitSystemFont(ofSize: NSFont.systemFontSize - 1, weight: .medium)
         button.target = self
         button.action = #selector(handleClick)
         button.sendAction(on: [.leftMouseUp, .rightMouseUp])
+    }
+
+    /// The Pomo ring mark, drawn as a template image so the menu bar tints it
+    /// to match the system appearance. Mirrors the website / app logo: a faint
+    /// ring, a brighter top-right progress arc, a 12 o'clock tick, a centre dot.
+    private static func ringMarkImage() -> NSImage {
+        let image = NSImage(size: NSSize(width: 18, height: 18), flipped: false) { _ in
+            let center = NSPoint(x: 9, y: 9)
+            let radius: CGFloat = 6.0
+
+            let ring = NSBezierPath()
+            ring.appendArc(withCenter: center, radius: radius, startAngle: 0, endAngle: 360)
+            ring.lineWidth = 1.3
+            NSColor.black.withAlphaComponent(0.5).setStroke()
+            ring.stroke()
+
+            let arc = NSBezierPath()
+            arc.appendArc(withCenter: center, radius: radius, startAngle: 90, endAngle: 0, clockwise: true)
+            arc.lineWidth = 1.7
+            arc.lineCapStyle = .round
+            NSColor.black.setStroke()
+            arc.stroke()
+
+            let tick = NSBezierPath()
+            tick.move(to: NSPoint(x: center.x, y: center.y + radius + 1.8))
+            tick.line(to: NSPoint(x: center.x, y: center.y + radius - 0.4))
+            tick.lineWidth = 1.5
+            tick.lineCapStyle = .round
+            NSColor.black.setStroke()
+            tick.stroke()
+
+            let dotRadius: CGFloat = 1.4
+            let dotRect = NSRect(x: center.x - dotRadius, y: center.y - dotRadius,
+                                 width: dotRadius * 2, height: dotRadius * 2)
+            NSColor.black.setFill()
+            NSBezierPath(ovalIn: dotRect).fill()
+
+            return true
+        }
+        image.isTemplate = true
+        return image
     }
 
     /// Update the countdown title. Called from `TimerModel.onTick`.

@@ -13,7 +13,7 @@ struct RolodexFace: View {
         return [m / 10, m % 10, sec / 10, sec % 10]
     }
 
-    private var accent: Color { model.sessionType.tint.color }
+    private var accent: Color { model.sessionType.accentColor }
 
     var body: some View {
         VStack(spacing: HudSpacing.lg) {

@@ -10,7 +10,7 @@ struct ChronographFace: View {
     let model: TimerModel
 
     private let dial: CGFloat = 170
-    private var accent: Color { model.sessionType.tint.color }
+    private var accent: Color { model.sessionType.accentColor }
 
     var body: some View {
         ZStack {

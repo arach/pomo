@@ -1,7 +1,7 @@
 import React from "react";
 
 const DOWNLOAD_URL =
-  "https://github.com/arach/pomo/releases/download/v0.2.1/Pomo_0.2.1_aarch64.dmg";
+  "https://github.com/arach/pomo/releases/latest/download/Pomo.dmg";
 const GITHUB_URL = "https://github.com/arach/pomo";
 
 // Inner var() fallback keeps text sans/mono even if next/font's variable ever fails to inject
@@ -88,7 +88,7 @@ function Nav() {
           <a href="#stats" style={link}><span style={{ color: "#6b6055" }}>:</span>stats</a>
         </nav>
         <div style={{ display: "flex", alignItems: "center", gap: 18 }}>
-          <span style={{ fontFamily: mono, fontSize: 11, color: "#6b6055", letterSpacing: "0.06em" }}>v0.2.1 · macOS</span>
+          <span style={{ fontFamily: mono, fontSize: 11, color: "#6b6055", letterSpacing: "0.06em" }}>v0.2.2 · macOS</span>
           <a
             href={DOWNLOAD_URL}
             style={{
@@ -754,7 +754,7 @@ function DownloadCTA() {
             >
               View source
             </a>
-            <span style={{ fontFamily: mono, fontSize: 11, letterSpacing: "0.06em", color: "#6b6055" }}>v0.2.1 · 7.2 MB · macOS 13+</span>
+            <span style={{ fontFamily: mono, fontSize: 11, letterSpacing: "0.06em", color: "#6b6055" }}>v0.2.2 · macOS 13+</span>
           </div>
         </div>
       </div>

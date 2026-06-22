@@ -1,5 +1,6 @@
 import WebKit
 import AppKit
+import SwiftUI
 
 /// Plays YouTube / YouTube Music audio by driving the **real watch page's
 /// `<video>` element** in a small on-screen "mini-player" window. The IFrame
@@ -21,6 +22,7 @@ final class WebAudioPlayer: NSObject {
     private var navProxy: NavProxy?          // retained — navigationDelegate is weak
     private var messageProxy: MessageProxy?
     private var signInWindow: NSWindow?
+    private var importLoginWindow: NSWindow?
 
     private(set) var isPlaying = false
     private(set) var currentURL: String = ""
@@ -396,21 +398,28 @@ final class WebAudioPlayer: NSObject {
     /// and reload signed-in. Clears any prior Google/YouTube cookies first so
     /// accounts/profiles don't mix. `browser` nil = all; `profile` e.g. "Profile 1".
     func importCookies(fromBrowser browser: String?, profile: String?) {
+        Task { @MainActor in _ = await importLogin(fromBrowser: browser, profile: profile) }
+    }
+
+    /// Awaitable import that returns how many auth cookies were found, so callers
+    /// (e.g. the import panel) can report success vs "nothing found". Clears any
+    /// prior Google/YouTube cookies first so accounts/profiles don't mix.
+    @discardableResult
+    func importLogin(fromBrowser browser: String?, profile: String?) async -> Int {
         ensureWebView()
-        guard let webView else { return }
+        guard let webView else { return 0 }
         let label = [browser, profile].compactMap { $0 }.joined(separator: " / ")
         log("importing cookies from \(label.isEmpty ? "all browsers" : label)…")
-        Task { @MainActor in
-            let store = webView.configuration.websiteDataStore.httpCookieStore
-            let cleared = await Self.clearAuthCookies(store)
-            let cookies = await CookieImporter.cookies(fromBrowser: browser, profile: profile)
-            for cookie in cookies { await store.setCookie(cookie) }
-            self.authUser = 0   // a profile's default account is the intended one
-            self.log("cleared \(cleared), imported \(cookies.count) cookies")
-            if !self.currentURL.isEmpty, let base = Self.watchURL(from: self.currentURL) {
-                webView.load(URLRequest(url: Self.withAuthUser(base, 0)))
-            }
+        let store = webView.configuration.websiteDataStore.httpCookieStore
+        let cleared = await Self.clearAuthCookies(store)
+        let cookies = await CookieImporter.cookies(fromBrowser: browser, profile: profile)
+        for cookie in cookies { await store.setCookie(cookie) }
+        authUser = 0   // a profile's default account is the intended one
+        log("cleared \(cleared), imported \(cookies.count) cookies")
+        if !currentURL.isEmpty, let base = Self.watchURL(from: currentURL) {
+            webView.load(URLRequest(url: Self.withAuthUser(base, 0)))
         }
+        return cookies.count
     }
 
     /// Sign out: drop all Google/YouTube cookies and reload.
@@ -438,6 +447,92 @@ final class WebAudioPlayer: NSObject {
     private static func isAuthDomain(_ domain: String) -> Bool {
         let d = domain.lowercased()
         return d.contains("youtube.com") || d.contains("google.com") || d.contains("google.")
+    }
+
+    // MARK: - Video-pane context menu + import panel
+
+    /// Right-click menu shown over the drawer's video pane (see `DrawerWebView`).
+    /// A compact Pomo surface — transport, open-in-browser, and account actions —
+    /// in place of WebKit's default web context menu.
+    func makeContextMenu() -> NSMenu {
+        let menu = NSMenu()
+        menu.autoenablesItems = false
+
+        addItem(to: menu, isPlaying ? "Pause" : "Play", #selector(ctxTogglePlay),
+                icon: isPlaying ? "pause.fill" : "play.fill")
+        addItem(to: menu, "Next", #selector(ctxNext), icon: "forward.end.fill")
+        addItem(to: menu, "Previous", #selector(ctxPrevious), icon: "backward.end.fill")
+        menu.addItem(.separator())
+        addItem(to: menu, "Open in Browser", #selector(ctxOpenInBrowser), icon: "safari")
+        addItem(to: menu, "Hide Video", #selector(ctxHideVideo), icon: "eye.slash")
+        menu.addItem(.separator())
+
+        if account.signedIn {
+            let who = NSMenuItem(title: "Signed in\(account.name.map { " as \($0)" } ?? "")",
+                                 action: nil, keyEquivalent: "")
+            who.isEnabled = false
+            who.image = NSImage(systemSymbolName: "person.crop.circle.fill", accessibilityDescription: nil)
+            menu.addItem(who)
+            addItem(to: menu, "Sign Out", #selector(ctxSignOut), icon: "rectangle.portrait.and.arrow.right")
+        } else {
+            addItem(to: menu, "Sign In to YouTube…", #selector(ctxSignIn), icon: "person.crop.circle.badge.plus")
+        }
+        addItem(to: menu, "Import Login from Browser…", #selector(ctxImportLogin), icon: "key.horizontal")
+        return menu
+    }
+
+    private func addItem(to menu: NSMenu, _ title: String, _ action: Selector, icon: String? = nil) {
+        let item = NSMenuItem(title: title, action: action, keyEquivalent: "")
+        item.target = self
+        if let icon {
+            item.image = NSImage(systemSymbolName: icon, accessibilityDescription: nil)
+        }
+        menu.addItem(item)
+    }
+
+    @objc private func ctxTogglePlay() {
+        if isPlaying {
+            pause()
+        } else {
+            eval("(function(){var v=document.querySelector('video,audio'); if(v){v.play();}})();")
+            isPlaying = true
+        }
+        onStateChange?()
+    }
+    @objc private func ctxNext() { next() }
+    @objc private func ctxPrevious() { previous() }
+    @objc private func ctxOpenInBrowser() { openInBrowser() }
+    @objc private func ctxHideVideo() { setWindowVisible(false) }
+    @objc private func ctxSignIn() { signIn() }
+    @objc private func ctxSignOut() { clearLogin() }
+    @objc private func ctxImportLogin() { showImportLogin() }
+
+    /// A tiny, guided window for importing a browser login (see `CookieImportPanel`).
+    func showImportLogin() {
+        NSApp.setActivationPolicy(.regular)
+        if let importLoginWindow {
+            NSApp.activate(ignoringOtherApps: true)
+            importLoginWindow.makeKeyAndOrderFront(nil)
+            return
+        }
+        let view = CookieImportPanel(
+            account: account,
+            onImport: { [weak self] browser in await self?.importLogin(fromBrowser: browser, profile: nil) ?? 0 },
+            onClose: { [weak self] in self?.importLoginWindow?.close() }
+        )
+        let window = NSWindow(contentViewController: NSHostingController(rootView: view))
+        window.title = "Import YouTube Login"
+        window.styleMask = [.titled, .closable]
+        // The panel draws its own titled header, so hide the window title (and
+        // blend the titlebar into the content) to avoid showing it twice.
+        window.titleVisibility = .hidden
+        window.titlebarAppearsTransparent = true
+        window.isReleasedWhenClosed = false
+        window.delegate = self
+        window.center()
+        importLoginWindow = window
+        NSApp.activate(ignoringOtherApps: true)
+        window.makeKeyAndOrderFront(nil)
     }
 
     // MARK: - Web view plumbing
@@ -506,7 +601,8 @@ final class WebAudioPlayer: NSObject {
             )
 
             let frame = NSRect(x: 0, y: 0, width: 360, height: 244)
-            let wv = WKWebView(frame: frame, configuration: config)
+            let wv = DrawerWebView(frame: frame, configuration: config)
+            wv.owner = self
             wv.customUserAgent = Self.desktopUA
             let navProxy = NavProxy(self)
             self.navProxy = navProxy
@@ -786,9 +882,14 @@ final class WebAudioPlayer: NSObject {
 
 extension WebAudioPlayer: NSWindowDelegate {
     func windowWillClose(_ notification: Notification) {
-        guard (notification.object as? NSWindow) === signInWindow else { return }
-        signInWindow = nil
-        NSApp.setActivationPolicy(.accessory)
+        let window = notification.object as? NSWindow
+        if window === signInWindow {
+            signInWindow = nil
+            NSApp.setActivationPolicy(.accessory)
+        } else if window === importLoginWindow {
+            importLoginWindow = nil
+            NSApp.setActivationPolicy(.accessory)
+        }
     }
 }
 
@@ -809,5 +910,18 @@ private final class NavProxy: NSObject, WKNavigationDelegate {
     }
     func webView(_ webView: WKWebView, didFinish navigation: WKNavigation!) {
         Task { @MainActor in self.owner?.didFinishNavigation() }
+    }
+}
+
+/// The drawer's video pane. Right-click shows a compact Pomo menu (transport +
+/// account actions) rather than WebKit's default web context menu.
+final class DrawerWebView: WKWebView {
+    weak var owner: WebAudioPlayer?
+
+    override func rightMouseDown(with event: NSEvent) {
+        MainActor.assumeIsolated {
+            guard let menu = owner?.makeContextMenu() else { return }
+            menu.popUp(positioning: nil, at: convert(event.locationInWindow, from: nil), in: self)
+        }
     }
 }

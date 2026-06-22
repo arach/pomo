@@ -1,25 +1,20 @@
 import type React from "react"
 import type { Metadata } from "next"
-import { Inter, IBM_Plex_Mono, Pixelify_Sans } from "next/font/google"
+import { Space_Grotesk, JetBrains_Mono } from "next/font/google"
 import "./globals.css"
 
-const inter = Inter({
+const spaceGrotesk = Space_Grotesk({
+  weight: ["300", "400", "500", "600", "700"],
   subsets: ["latin"],
   display: "swap",
-  variable: "--font-inter",
+  variable: "--font-space-grotesk",
 })
 
-const ibmPlexMono = IBM_Plex_Mono({
-  weight: ["400", "500", "600", "700"],
+const jetbrainsMono = JetBrains_Mono({
+  weight: ["300", "400", "500", "600"],
   subsets: ["latin"],
   display: "swap",
-  variable: "--font-ibm-plex-mono",
-})
-
-const pixelifySans = Pixelify_Sans({
-  subsets: ["latin"],
-  display: "swap",
-  variable: "--font-pixelify-sans",
+  variable: "--font-jetbrains-mono",
 })
 
 export const metadata: Metadata = {
@@ -61,7 +56,7 @@ export default function RootLayout({
   children: React.ReactNode
 }>) {
   return (
-    <html lang="en" className={`${inter.variable} ${ibmPlexMono.variable} ${pixelifySans.variable}`}>
+    <html lang="en" className={`${spaceGrotesk.variable} ${jetbrainsMono.variable}`}>
       <body>{children}</body>
     </html>
   )

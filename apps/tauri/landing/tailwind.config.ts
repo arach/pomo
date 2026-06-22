@@ -20,9 +20,9 @@ const config: Config = {
         "primary-foreground": "var(--primary-foreground)",
       },
       fontFamily: {
-        sans: ["var(--font-sans)", "-apple-system", "BlinkMacSystemFont", "Segoe UI", "sans-serif"],
+        sans: ["var(--font-space-grotesk)", "-apple-system", "BlinkMacSystemFont", "Segoe UI", "sans-serif"],
         serif: ["var(--font-serif)", "Georgia", "serif"],
-        mono: ["JetBrains Mono", "SF Mono", "Monaco", "monospace"],
+        mono: ["var(--font-jetbrains-mono)", "SF Mono", "Monaco", "monospace"],
       },
       animation: {
         "fade-in": "fade-in 0.5s ease-in-out",

@@ -16,6 +16,7 @@ struct MenuPopoverView: View {
     let favorites: FavoritesStore
     var onShowHUD: () -> Void
     var onOpenSettings: () -> Void
+    var onOpenStats: () -> Void
     var onToggleAudio: () -> Void
     var onStopAudio: () -> Void
     var onPlayFavorite: (Favorite) -> Void
@@ -27,6 +28,7 @@ struct MenuPopoverView: View {
         VStack(alignment: .leading, spacing: HudSpacing.xl) {
             header
             timer
+            section("INTENT") { intentField }
             transport
             section("SESSION") { sessionPills }
             section("WATCHFACE") { watchfaceChips }
@@ -84,6 +86,30 @@ struct MenuPopoverView: View {
             }
             .frame(height: 4)
         }
+    }
+
+    // MARK: - Intent
+
+    /// Free-text "what am I focusing on" field. Writes straight to the model
+    /// (which persists it + shows it on the HUD). Editable in any phase.
+    private var intentField: some View {
+        TextField(
+            "What are you focusing on?",
+            text: Binding(get: { model.intent }, set: { model.setIntent($0) })
+        )
+        .textFieldStyle(.plain)
+        .font(HudFont.mono(HudTextSize.sm))
+        .foregroundStyle(HudPalette.ink)
+        .padding(.horizontal, HudSpacing.lg)
+        .frame(height: 30)
+        .background(
+            RoundedRectangle(cornerRadius: HudRadius.standard)
+                .fill(HudPalette.bg)
+                .overlay(
+                    RoundedRectangle(cornerRadius: HudRadius.standard)
+                        .stroke(HudPalette.border, lineWidth: 1)
+                )
+        )
     }
 
     // MARK: - Transport
@@ -243,6 +269,7 @@ struct MenuPopoverView: View {
                     settings.soundEnabled.toggle()
                     settings.saveNow()
                 }
+                iconButton("chart.bar.fill", help: "Focus stats", action: onOpenStats)
                 iconButton("gearshape.fill", help: "Settings", action: onOpenSettings)
             }
         }

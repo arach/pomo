@@ -9,6 +9,7 @@ final class HUDController {
     private let model: TimerModel
     private let settings: PomoSettings
     private let audio: AudioController
+    private let favorites: FavoritesStore
 
     /// Opens the settings window (⌘,). Wired by AppDelegate.
     var onOpenSettings: (() -> Void)?
@@ -19,10 +20,11 @@ final class HUDController {
     private var hasPositioned = false
     private(set) var isShown = false
 
-    init(model: TimerModel, settings: PomoSettings, audio: AudioController) {
+    init(model: TimerModel, settings: PomoSettings, audio: AudioController, favorites: FavoritesStore) {
         self.model = model
         self.settings = settings
         self.audio = audio
+        self.favorites = favorites
     }
 
     // MARK: - Panel lifecycle
@@ -31,7 +33,7 @@ final class HUDController {
         if let panel { return panel }
         let panel = HUDPanel(contentSize: contentSize)
         let hosting = NSHostingView(
-            rootView: HUDRootView(model: model, settings: settings, audio: audio, size: contentSize)
+            rootView: HUDRootView(model: model, settings: settings, audio: audio, favorites: favorites, size: contentSize)
         )
         hosting.frame = NSRect(origin: .zero, size: contentSize)
         hosting.autoresizingMask = [.width, .height]
@@ -70,6 +72,8 @@ final class HUDController {
     func hide() {
         guard let panel, isShown else { return }
         isShown = false
+        // Don't leave a quick field armed for the next summon.
+        model.cancelEditing()
         removeKeyMonitor()
         audio.detachDrawer()
         NSAnimationContext.runAnimationGroup({ ctx in
@@ -118,6 +122,14 @@ final class HUDController {
 
     /// Returns true if the event was consumed.
     private func handle(_ event: NSEvent) -> Bool {
+        // While a quick-entry field is open, the text field owns the keyboard:
+        // let every key through to it (so paste/typing works), except Escape,
+        // which closes the field rather than hiding the whole HUD.
+        if model.isEditingQuickField {
+            if event.keyCode == 53 { model.cancelEditing(); return true }
+            return false
+        }
+
         let flags = event.modifierFlags.intersection(.deviceIndependentFlagsMask)
         let command = flags.contains(.command)
         let shift = flags.contains(.shift)
@@ -150,6 +162,8 @@ final class HUDController {
         case "r": model.reset(); return true
         case "n": model.skip(); return true
         case "c": model.cycleSessionType(); return true
+        case "i": model.beginEditing(.intent); return true
+        case "v": model.beginEditing(.video); return true
         case "q": hide(); return true
         case "t":
             settings.watchface = settings.watchface.next

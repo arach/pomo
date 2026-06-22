@@ -19,6 +19,8 @@ final class MenuBarController: NSObject, NSPopoverDelegate {
     var onShowHUD: (() -> Void)?
     var onToggleHUD: (() -> Void)?
     var onOpenSettings: (() -> Void)?
+    var onOpenStats: (() -> Void)?
+    var onSetIntent: (() -> Void)?
     var onQuit: (() -> Void)?
     var onToggleAudio: (() -> Void)?
     var onStopAudio: (() -> Void)?
@@ -163,6 +165,10 @@ final class MenuBarController: NSObject, NSPopoverDelegate {
                     self?.popover?.performClose(nil)
                     self?.onOpenSettings?()
                 },
+                onOpenStats: { [weak self] in
+                    self?.popover?.performClose(nil)
+                    self?.onOpenStats?()
+                },
                 onToggleAudio: { [weak self] in self?.onToggleAudio?() },
                 onStopAudio: { [weak self] in self?.onStopAudio?() },
                 onPlayFavorite: { [weak self] favorite in self?.onPlayFavorite?(favorite) }
@@ -207,6 +213,10 @@ final class MenuBarController: NSObject, NSPopoverDelegate {
 
         menu.addItem(.separator())
 
+        menu.addItem(intentItem())
+
+        menu.addItem(.separator())
+
         menu.addItem(sessionItem())
         menu.addItem(durationItem())
         menu.addItem(watchfaceItem())
@@ -217,6 +227,10 @@ final class MenuBarController: NSObject, NSPopoverDelegate {
         menu.addItem(sound)
 
         menu.addItem(.separator())
+
+        let stats = NSMenuItem(title: "Stats…", action: #selector(openStats), keyEquivalent: "")
+        stats.target = self
+        menu.addItem(stats)
 
         let prefs = NSMenuItem(title: "Settings…", action: #selector(openSettings), keyEquivalent: ",")
         prefs.target = self
@@ -233,6 +247,47 @@ final class MenuBarController: NSObject, NSPopoverDelegate {
         let m = NSMenu()
         m.autoenablesItems = false
         return m
+    }
+
+    /// Intent ▸ — set / clear "what you're working on", and re-pick a recent
+    /// one. The title reflects the live intent so it reads at a glance.
+    private func intentItem() -> NSMenuItem {
+        let hasIntent = !model.intent.isEmpty
+        let title = hasIntent ? "Intent: \(truncated(model.intent))" : "Intent: none"
+        let item = NSMenuItem(title: title, action: nil, keyEquivalent: "")
+        let sub = subMenu()
+
+        let set = NSMenuItem(title: hasIntent ? "Change…" : "Set Intent…",
+                             action: #selector(setIntent), keyEquivalent: "i")
+        set.target = self
+        sub.addItem(set)
+
+        let clear = NSMenuItem(title: "Clear Intent", action: #selector(clearIntent), keyEquivalent: "")
+        clear.target = self
+        clear.isEnabled = hasIntent
+        sub.addItem(clear)
+
+        // Recently used intents — one click to bring one back.
+        let recents = settings.recentIntents.filter { $0.caseInsensitiveCompare(model.intent) != .orderedSame }
+        if !recents.isEmpty {
+            sub.addItem(.separator())
+            let header = NSMenuItem(title: "Recent", action: nil, keyEquivalent: "")
+            header.isEnabled = false
+            sub.addItem(header)
+            for intent in recents {
+                let row = NSMenuItem(title: truncated(intent), action: #selector(selectRecentIntent(_:)), keyEquivalent: "")
+                row.target = self
+                row.representedObject = intent
+                sub.addItem(row)
+            }
+        }
+
+        item.submenu = sub
+        return item
+    }
+
+    private func truncated(_ text: String, max: Int = 40) -> String {
+        text.count > max ? String(text.prefix(max - 1)) + "…" : text
     }
 
     /// Session ▸ — pick the interval (only meaningful while idle).
@@ -291,11 +346,21 @@ final class MenuBarController: NSObject, NSPopoverDelegate {
 
     @objc private func toggleHUD() { onToggleHUD?() }
     @objc private func openSettings() { onOpenSettings?() }
+    @objc private func openStats() { onOpenStats?() }
     @objc private func quit() { onQuit?() }
 
     @objc private func toggleSound() {
         settings.soundEnabled.toggle()
         settings.saveNow()
+    }
+
+    @objc private func setIntent() { onSetIntent?() }
+
+    @objc private func clearIntent() { model.setIntent("") }
+
+    @objc private func selectRecentIntent(_ sender: NSMenuItem) {
+        guard let intent = sender.representedObject as? String else { return }
+        model.setIntent(intent)
     }
 
     @objc private func selectSession(_ sender: NSMenuItem) {

@@ -12,9 +12,11 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     private let chime = CompletionChime()
     private let audio = AudioController()
     private let favorites = FavoritesStore()
-    private lazy var hud = HUDController(model: model, settings: settings, audio: audio)
+    private let history = SessionHistoryStore()
+    private lazy var hud = HUDController(model: model, settings: settings, audio: audio, favorites: favorites)
     private lazy var menuBar = MenuBarController(model: model, settings: settings, audio: audio, favorites: favorites)
     private var settingsWindow: NSWindow?
+    private var statsWindow: NSWindow?
 
     func applicationDidFinishLaunching(_ notification: Notification) {
         NSApp.setActivationPolicy(.accessory)
@@ -25,12 +27,35 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             self.menuBar.refresh()
             self.writeState()
         }
-        model.onComplete = { [weak self] _ in
+        model.onComplete = { [weak self] type in
             guard let self else { return }
             if self.settings.soundEnabled {
                 self.chime.play(volume: self.settings.volume)
             }
+            // Log finished focus sessions for the stats heatmap. `totalSeconds`
+            // is still the finished session's length here (advanceSession runs
+            // after onComplete fires).
+            if type == .focus {
+                self.history.record(SessionRecord(
+                    type: type,
+                    completedAt: Date(),
+                    durationSeconds: self.model.totalSeconds,
+                    intent: self.model.intent
+                ))
+            }
             self.hud.show() // surface the HUD when a session ends
+            self.writeState()
+        }
+
+        // Seed the session intent from the last run, then keep it persisted as
+        // the user edits it. Seeding before wiring the callback avoids a
+        // redundant save of the value we just loaded.
+        if !settings.intent.isEmpty { model.setIntent(settings.intent) }
+        model.onIntentChange = { [weak self] in
+            guard let self else { return }
+            self.settings.updateIntent(self.model.intent)
+            self.settings.noteRecentIntent(self.model.intent)
+            self.menuBar.refresh()
             self.writeState()
         }
 
@@ -55,6 +80,12 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         menuBar.onShowHUD = { [weak self] in self?.hud.show() }
         menuBar.onToggleHUD = { [weak self] in self?.hud.toggle() }
         menuBar.onOpenSettings = { [weak self] in self?.showSettings() }
+        menuBar.onOpenStats = { [weak self] in self?.showStats() }
+        menuBar.onSetIntent = { [weak self] in
+            // The quick field lives on the HUD, so summon it, then arm the field.
+            self?.hud.show()
+            self?.model.beginEditing(.intent)
+        }
         menuBar.onQuit = { NSApp.terminate(nil) }
         menuBar.onToggleAudio = { [weak self] in self?.toggleAudio() }
         menuBar.onStopAudio = { [weak self] in self?.audio.stop() }
@@ -171,6 +202,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             favorites.remove(at: index)
         case .favoritesList:
             break // state (with favorites) is written below
+        case .setIntent(let text): model.setIntent(text)
+        case .openStats:   showStats()
         case .openMenu:    menuBar.toggleMenu()
         case .openSettings: showSettings()
         case .quit:        NSApp.terminate(nil)
@@ -187,12 +220,16 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             clock: model.clock,
             progress: model.progress,
             completedFocusCount: model.completedFocusCount,
+            intent: model.intent,
             watchface: settings.watchface.rawValue,
             hudVisible: hud.isShown,
             audioPlaying: audio.isPlaying,
             audioURL: audio.currentURL.isEmpty ? settings.audioURL : audio.currentURL,
             audioEngine: audio.engineName,
-            favorites: favorites.items
+            favorites: favorites.items,
+            focusToday: history.focusCountToday(),
+            focusTotal: history.totalFocusCount,
+            streakDays: history.currentStreak()
         ).write()
     }
 
@@ -236,13 +273,67 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
 
         NSApp.activate(ignoringOtherApps: true)
         window.makeKeyAndOrderFront(nil)
+        // The audio URL field is the window's only text input, so AppKit makes it
+        // first responder and selects-all on open. Clear focus so nothing is
+        // highlighted on load — now (sync become-key) and next tick (async
+        // become-key after activation), so it sticks either way.
+        window.makeFirstResponder(nil)
+        DispatchQueue.main.async { [weak window] in window?.makeFirstResponder(nil) }
+    }
+
+    private func showStats() {
+        // Same accessory→regular dance as Settings so the window is focusable.
+        NSApp.setActivationPolicy(.regular)
+
+        if let statsWindow {
+            NSApp.activate(ignoringOtherApps: true)
+            statsWindow.makeKeyAndOrderFront(nil)
+            return
+        }
+        let view = StatsView(
+            history: history,
+            onClose: { [weak self] in self?.statsWindow?.close() }
+        )
+        let window = NSWindow(contentViewController: NSHostingController(rootView: view))
+        window.title = "Pomo Stats"
+        // Frosted, chromeless treatment to match the HUD: keep `.titled` (for the
+        // rounded-corner mask + window management) but hide the bar, let the
+        // content fill it, drop the standard buttons, and make it transparent so
+        // the SwiftUI behind-window frost shows through. Drag anywhere to move;
+        // close with the Done button or Esc.
+        window.styleMask = [.titled, .closable, .fullSizeContentView]
+        window.titleVisibility = .hidden
+        window.titlebarAppearsTransparent = true
+        window.isMovableByWindowBackground = true
+        window.isOpaque = false
+        window.backgroundColor = .clear
+        // Force dark appearance so the behind-window frost renders as dark glass
+        // (like the menu popover), not a milky light-gray in Light Mode.
+        window.appearance = NSAppearance(named: .darkAqua)
+        window.standardWindowButton(.closeButton)?.isHidden = true
+        window.standardWindowButton(.miniaturizeButton)?.isHidden = true
+        window.standardWindowButton(.zoomButton)?.isHidden = true
+        window.isReleasedWhenClosed = false
+        window.delegate = self
+        window.center()
+        statsWindow = window
+
+        NSApp.activate(ignoringOtherApps: true)
+        window.makeKeyAndOrderFront(nil)
     }
 }
 
 extension AppDelegate: NSWindowDelegate {
     func windowWillClose(_ notification: Notification) {
-        guard (notification.object as? NSWindow) === settingsWindow else { return }
-        // Back to a menu-bar-only app once Settings is dismissed.
-        NSApp.setActivationPolicy(.accessory)
+        guard let closing = notification.object as? NSWindow,
+              closing === settingsWindow || closing === statsWindow else { return }
+        // Back to a menu-bar-only app once our last auxiliary window closes —
+        // but stay regular while the other one is still on screen.
+        let stillOpen = [settingsWindow, statsWindow]
+            .compactMap { $0 }
+            .contains { $0 !== closing && $0.isVisible }
+        if !stillOpen {
+            NSApp.setActivationPolicy(.accessory)
+        }
     }
 }

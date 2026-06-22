@@ -35,6 +35,13 @@ final class PomoSettings {
     var audioURL: String = ""
     var audioVolume: Double = 0.6
 
+    // The current session intent, persisted so it survives a relaunch.
+    var intent: String = ""
+
+    // Most-recent intents (newest first) for one-click re-use from the menu.
+    var recentIntents: [String] = []
+    private static let maxRecentIntents = 6
+
     // Global summon hotkey. Stored as a Carbon key code + Carbon modifier mask,
     // plus a pre-rendered display string (e.g. "⌃⌥⇧⌘P"). Defaults to Hyper+P.
     var hotkeyKeyCode: Int = Int(CarbonKeyCode.p)
@@ -53,6 +60,26 @@ final class PomoSettings {
         hotkeyDisplay = display
         saveNow()
         onChange?()
+    }
+
+    /// Persist the session intent (debounced). Doesn't fire `onChange` — intent
+    /// isn't a timer/hotkey/audio setting, so nothing needs re-syncing.
+    func updateIntent(_ text: String) {
+        intent = text
+        scheduleSave()
+    }
+
+    /// Remember a committed intent for quick re-use: de-dupe (case-insensitive),
+    /// move to front, cap the list, persist. No `onChange` (nothing to re-sync).
+    func noteRecentIntent(_ text: String) {
+        let trimmed = text.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !trimmed.isEmpty else { return }
+        recentIntents.removeAll { $0.caseInsensitiveCompare(trimmed) == .orderedSame }
+        recentIntents.insert(trimmed, at: 0)
+        if recentIntents.count > Self.maxRecentIntents {
+            recentIntents = Array(recentIntents.prefix(Self.maxRecentIntents))
+        }
+        saveNow()
     }
 
     /// Called whenever a persisted value changes (after save).
@@ -135,6 +162,8 @@ final class PomoSettings {
         var hotkeyDisplay: String?
         var audioURL: String?
         var audioVolume: Double?
+        var intent: String?
+        var recentIntents: [String]?
     }
 
     private func snapshot() -> DTO {
@@ -153,7 +182,9 @@ final class PomoSettings {
             hotkeyModifiers: hotkeyModifiers,
             hotkeyDisplay: hotkeyDisplay,
             audioURL: audioURL,
-            audioVolume: audioVolume
+            audioVolume: audioVolume,
+            intent: intent,
+            recentIntents: recentIntents
         )
     }
 
@@ -173,6 +204,10 @@ final class PomoSettings {
         if let display = dto.hotkeyDisplay, !display.isEmpty { hotkeyDisplay = display }
         if let url = dto.audioURL { audioURL = url }
         if let vol = dto.audioVolume { audioVolume = min(1.0, max(0.0, vol)) }
+        if let intent = dto.intent { self.intent = intent }
+        if let intents = dto.recentIntents {
+            recentIntents = Array(intents.prefix(Self.maxRecentIntents))
+        }
     }
 
     private func load() {

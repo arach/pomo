@@ -14,6 +14,11 @@ final class TimerModel {
         case paused
     }
 
+    /// Which on-HUD quick-entry field is open, if any. Pure presentation state,
+    /// but observed by `HUDRootView`'s overlay and gated by `HUDController`'s key
+    /// monitor, so it lives on the shared model.
+    enum QuickField { case none, intent, video }
+
     private(set) var phase: Phase = .idle
     private(set) var sessionType: SessionType = .focus
     private(set) var totalSeconds: Int
@@ -23,10 +28,20 @@ final class TimerModel {
     /// long break is offered.
     private(set) var completedFocusCount: Int = 0
 
+    /// Free-text intent for the current session ("Writing the launch post").
+    /// Shown on the HUD and recorded with each completed focus session.
+    /// Settable in any phase via `setIntent(_:)`.
+    private(set) var intent: String = ""
+
+    /// The open quick-entry field (intent / video), if any.
+    var quickField: QuickField = .none
+
     /// Fired once when a session reaches zero (play sound, summon panel, flash).
     @ObservationIgnored var onComplete: ((SessionType) -> Void)?
     /// Fired every display tick + on any state change (menu-bar refresh).
     @ObservationIgnored var onTick: (() -> Void)?
+    /// Fired when the focus intent changes (persist it + refresh chrome).
+    @ObservationIgnored var onIntentChange: (() -> Void)?
 
     @ObservationIgnored private let settings: PomoSettings
     @ObservationIgnored private var endDate: Date?
@@ -135,6 +150,21 @@ final class TimerModel {
         remainingSeconds = totalSeconds
         notify()
     }
+
+    /// Set the focus intent. Allowed in any phase (you can name — or rename —
+    /// what you're doing mid-session). Notifies so it can be persisted + shown.
+    func setIntent(_ text: String) {
+        guard text != intent else { return }
+        intent = text
+        onIntentChange?()
+    }
+
+    // MARK: - Quick-entry fields (HUD overlay)
+
+    var isEditingQuickField: Bool { quickField != .none }
+
+    func beginEditing(_ field: QuickField) { quickField = field }
+    func cancelEditing() { quickField = .none }
 
     // MARK: - Ticking
 

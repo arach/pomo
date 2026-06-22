@@ -132,6 +132,15 @@ cp "$bin_path" "$app_path/Contents/MacOS/$app_name"
 chmod +x "$app_path/Contents/MacOS/$app_name"
 bundle_swiftpm_frameworks "$app_path/Contents/MacOS/$app_name" "$build_bin_dir"
 
+# Bundle the HudsonKit frameworks next to the executable. The binary links them
+# via @rpath (which includes Contents/MacOS), so without this the app aborts at
+# launch with "Library not loaded: @rpath/HudsonUI.framework".
+bin_dir="$(dirname "$bin_path")"
+for fw in "$bin_dir"/*.framework; do
+  [ -e "$fw" ] || continue
+  ditto "$fw" "$app_path/Contents/MacOS/$(basename "$fw")"
+done
+
 if [[ -f "$icon_icns" ]]; then
   cp "$icon_icns" "$app_path/Contents/Resources/AppIcon.icns"
 fi

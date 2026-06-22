@@ -13,7 +13,7 @@ final class HUDController {
     /// Opens the settings window (⌘,). Wired by AppDelegate.
     var onOpenSettings: (() -> Void)?
 
-    private let contentSize = NSSize(width: 352, height: 244)
+    private let contentSize = NSSize(width: 352, height: 268)
     private var panel: HUDPanel?
     private var keyMonitor: Any?
     private var hasPositioned = false

@@ -44,6 +44,8 @@ final class WebAudioPlayer: NSObject {
     /// Rounded container hosting the web view + the expand button overlay.
     private var drawerContainer: NSView?
     private var expandButton: NSButton?
+    private var loadingView: PomoLoadingView?
+    private var loadingHideWork: DispatchWorkItem?
     private static let drawerRadius: CGFloat = 12
 
     /// Fired when playback state changes (from JS player events).
@@ -294,6 +296,7 @@ final class WebAudioPlayer: NSObject {
     /// Slide the drawer back behind the HUD and order it out (resetting to the
     /// collapsed screen so the next open is compact).
     private func closeDrawer() {
+        showLoading(false)
         guard let host = hostWindow, host.isVisible else {
             hostWindow?.orderOut(nil); return
         }
@@ -516,6 +519,13 @@ final class WebAudioPlayer: NSObject {
             wv.autoresizingMask = [.width, .height]
             container.addSubview(wv)
 
+            // Branded loading overlay — masks the cold YouTube player load.
+            let loading = PomoLoadingView(frame: container.bounds)
+            loading.autoresizingMask = [.width, .height]
+            loading.alphaValue = 0
+            container.addSubview(loading)
+            self.loadingView = loading
+
             // Corner overlay buttons, pinned top-right: open-in-browser, then expand.
             let bsize: CGFloat = 22, margin: CGFloat = 8, gap: CGFloat = 6
             let expand = Self.overlayButton(symbol: "arrow.up.left.and.arrow.down.right",
@@ -592,10 +602,46 @@ final class WebAudioPlayer: NSObject {
     fileprivate func handlePlayerEvent(_ body: Any) {
         let message = "\(body)"
         log("event: \(message)")
-        if message.contains("state:1") || message == "playing" { isPlaying = true }
+        if message.contains("state:1") || message == "playing" {
+            isPlaying = true
+            showLoading(false)          // video is rendering — reveal it
+        }
         if message.contains("state:2") || message.contains("state:0")
-            || message.hasPrefix("playfail") || message == "no-video" { isPlaying = false }
+            || message.hasPrefix("playfail") || message == "no-video" {
+            isPlaying = false
+            if message.hasPrefix("playfail") || message == "no-video" { showLoading(false) }
+        }
         onStateChange?()
+    }
+
+    // MARK: - Loading overlay (branded shimmer over the cold YouTube load)
+
+    /// A fresh main-frame navigation started — if the drawer is on screen, cover
+    /// it with the branded shimmer until the player reports it's rendering.
+    fileprivate func navigationStarted() {
+        if drawerOpen { showLoading(true) }
+    }
+
+    private func showLoading(_ show: Bool) {
+        guard let loading = loadingView else { return }
+        loadingHideWork?.cancel()
+        loadingHideWork = nil
+        if show {
+            loading.start()
+            NSAnimationContext.runAnimationGroup { ctx in
+                ctx.duration = 0.12
+                loading.animator().alphaValue = 1
+            }
+            // Never let the shimmer outstay the load.
+            let work = DispatchWorkItem { [weak self] in self?.showLoading(false) }
+            loadingHideWork = work
+            DispatchQueue.main.asyncAfter(deadline: .now() + 9, execute: work)
+        } else {
+            NSAnimationContext.runAnimationGroup({ ctx in
+                ctx.duration = 0.3
+                loading.animator().alphaValue = 0
+            }, completionHandler: { [weak loading] in loading?.stop() })
+        }
     }
 
     private func log(_ line: String) {
@@ -678,6 +724,9 @@ private final class MessageProxy: NSObject, WKScriptMessageHandler {
 private final class NavProxy: NSObject, WKNavigationDelegate {
     weak var owner: WebAudioPlayer?
     init(_ owner: WebAudioPlayer) { self.owner = owner }
+    func webView(_ webView: WKWebView, didStartProvisionalNavigation navigation: WKNavigation!) {
+        Task { @MainActor in self.owner?.navigationStarted() }
+    }
     func webView(_ webView: WKWebView, didFinish navigation: WKNavigation!) {
         Task { @MainActor in self.owner?.didFinishNavigation() }
     }

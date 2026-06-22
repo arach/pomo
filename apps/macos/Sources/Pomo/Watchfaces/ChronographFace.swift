@@ -22,6 +22,7 @@ struct ChronographFace: View {
             labels
         }
         .frame(width: dial, height: dial)
+        .offset(y: -12)   // lift the dial; the extra window height goes to the controls below
         .frame(maxWidth: .infinity, maxHeight: .infinity)
         .overlay(alignment: .bottom) { controls }
         .background(dialBackground)
@@ -108,7 +109,7 @@ struct ChronographFace: View {
 
     private var controls: some View {
         FaceControls(model: model, tint: accent)
-            .padding(.bottom, HudSpacing.xs)
+            .padding(.bottom, HudSpacing.lg)
     }
 
     private var dialBackground: some View {

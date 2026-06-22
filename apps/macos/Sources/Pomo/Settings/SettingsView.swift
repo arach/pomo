@@ -48,10 +48,12 @@ struct SettingsView: View {
                 }
 
                 section("BACKGROUND AUDIO") {
-                    TextField("Paste a YouTube link…", text: settings.binding(\.audioURL))
-                        .textFieldStyle(.plain)
-                        .font(HudFont.mono(HudTextSize.sm))
-                        .foregroundStyle(HudPalette.ink)
+                    BrandTextField(
+                        text: settings.binding(\.audioURL),
+                        placeholder: "Paste a YouTube link…",
+                        textColor: HudPalette.ink,
+                        selectionColor: PomoBrand.accent
+                    )
                         .padding(.horizontal, HudSpacing.lg)
                         .frame(height: 30)
                         .background(

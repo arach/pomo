@@ -20,13 +20,14 @@ struct CookieImportPanel: View {
         let note: String?
     }
 
+    // Ordered most-common first so the browsers people actually use lead the list.
     private let browsers: [Browser] = [
         .init(id: "chrome",  name: "Chrome",  note: "Keychain prompt"),
+        .init(id: "safari",  name: "Safari",  note: "Full Disk Access"),
+        .init(id: "firefox", name: "Firefox", note: nil),
+        .init(id: "edge",    name: "Edge",    note: nil),
         .init(id: "brave",   name: "Brave",   note: "Keychain prompt"),
         .init(id: "arc",     name: "Arc",     note: nil),
-        .init(id: "edge",    name: "Edge",    note: nil),
-        .init(id: "firefox", name: "Firefox", note: nil),
-        .init(id: "safari",  name: "Safari",  note: "Full Disk Access"),
     ]
 
     private enum Phase { case choose, working, done }

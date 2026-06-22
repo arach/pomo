@@ -46,6 +46,11 @@ final class WebAudioPlayer: NSObject {
     private var expandButton: NSButton?
     private var loadingView: PomoLoadingView?
     private var loadingHideWork: DispatchWorkItem?
+    private var avatarView: NSImageView?
+
+    /// Signed-in YouTube identity, surfaced in Settings + the drawer avatar.
+    let account = AccountStatus()
+
     private static let drawerRadius: CGFloat = 12
 
     /// Fired when playback state changes (from JS player events).
@@ -541,6 +546,23 @@ final class WebAudioPlayer: NSObject {
             browser.autoresizingMask = [.minXMargin, .minYMargin]
             container.addSubview(browser)
 
+            // Signed-in avatar, pinned top-left (the top-right corner is taken by the
+            // open-in-browser / expand controls). Hidden until we know the identity.
+            let avatarSize: CGFloat = 22
+            let avatar = NSImageView(frame: NSRect(x: margin, y: frame.height - avatarSize - margin, width: avatarSize, height: avatarSize))
+            avatar.wantsLayer = true
+            avatar.layer?.cornerRadius = avatarSize / 2
+            avatar.layer?.masksToBounds = true
+            avatar.layer?.borderWidth = 1
+            avatar.layer?.borderColor = NSColor.white.withAlphaComponent(0.5).cgColor
+            avatar.imageScaling = .scaleProportionallyUpOrDown
+            avatar.autoresizingMask = [.maxXMargin, .minYMargin]
+            avatar.isHidden = !(account.signedIn && account.avatar != nil)
+            avatar.image = account.avatar
+            avatar.toolTip = "Signed in to YouTube"
+            container.addSubview(avatar)
+            self.avatarView = avatar
+
             let window = NSWindow(contentRect: frame, styleMask: [.borderless], backing: .buffered, defer: false)
             window.isReleasedWhenClosed = false
             window.isOpaque = false
@@ -597,11 +619,37 @@ final class WebAudioPlayer: NSObject {
         """
         eval(js)
         applyBare(!drawerExpanded)        // a fresh navigation re-asserts the bare default
+        eval(Self.accountJS)              // read the signed-in identity off the masthead
     }
+
+    /// Reads the signed-in avatar (and best-effort name) from the YouTube /
+    /// YT Music masthead, or detects the sign-in button. Retries since the
+    /// masthead hydrates asynchronously.
+    private static let accountJS = """
+    (function(){
+      function post(m){ try{ window.webkit.messageHandlers.pomo.postMessage(m); }catch(e){} }
+      function check(n){
+        var img = document.querySelector('#avatar-btn img, ytd-topbar-menu-button-renderer img, #masthead #avatar-btn img, ytmusic-settings-button img, ytmusic-nav-bar img#right-content-icon');
+        var signin = document.querySelector('a[href*="ServiceLogin"], a[href*="accounts.google.com"][aria-label], ytd-button-renderer#sign-in-button a, tp-yt-paper-button[aria-label="Sign in"], a.sign-in-link');
+        if (img && img.src && img.src.indexOf('http') === 0) {
+          post('account:1|' + (img.alt || '').replace(/[|]/g,' ') + '|' + img.src);
+        } else if (signin) {
+          post('account:0||');
+        } else if (n > 0) {
+          setTimeout(function(){ check(n - 1); }, 800);
+        }
+      }
+      check(8);
+    })();
+    """
 
     fileprivate func handlePlayerEvent(_ body: Any) {
         let message = "\(body)"
         log("event: \(message)")
+        if message.hasPrefix("account:") {
+            handleAccount(String(message.dropFirst("account:".count)))
+            return
+        }
         if message.contains("state:1") || message == "playing" {
             isPlaying = true
             showLoading(false)          // video is rendering — reveal it
@@ -642,6 +690,38 @@ final class WebAudioPlayer: NSObject {
                 loading.animator().alphaValue = 0
             }, completionHandler: { [weak loading] in loading?.stop() })
         }
+    }
+
+    // MARK: - Account identity
+
+    private func handleAccount(_ payload: String) {
+        let parts = payload.components(separatedBy: "|")
+        let signedIn = parts.first == "1"
+        let name = parts.count > 1 ? parts[1].trimmingCharacters(in: .whitespaces) : ""
+        let avatarURL = parts.count > 2 ? parts[2] : ""
+
+        account.signedIn = signedIn
+        account.name = name.isEmpty ? nil : name
+        if signedIn {
+            if !avatarURL.isEmpty { loadAvatar(avatarURL) }
+        } else {
+            account.avatar = nil
+            avatarView?.image = nil
+            avatarView?.isHidden = true
+        }
+    }
+
+    private func loadAvatar(_ urlString: String) {
+        guard let url = URL(string: urlString) else { return }
+        URLSession.shared.dataTask(with: url) { [weak self] data, _, _ in
+            guard let data, let image = NSImage(data: data) else { return }
+            Task { @MainActor in
+                guard let self else { return }
+                self.account.avatar = image
+                self.avatarView?.image = image
+                self.avatarView?.isHidden = !self.account.signedIn
+            }
+        }.resume()
     }
 
     private func log(_ line: String) {

@@ -5,10 +5,14 @@ import HudsonUI
 /// controls dressed in Hudson tokens for a consistent look.
 struct SettingsView: View {
     @Bindable var settings: PomoSettings
+    var account: AccountStatus
     var onClose: () -> Void
     var onAudioPlay: (String) -> Void = { _ in }
     var onAudioPause: () -> Void = {}
     var onAudioStop: () -> Void = {}
+    var onSignIn: () -> Void = {}
+    var onSignOut: () -> Void = {}
+    var onImportLogin: () -> Void = {}
 
     var body: some View {
         ScrollView {
@@ -81,6 +85,33 @@ struct SettingsView: View {
                         .foregroundStyle(HudPalette.dim)
                 }
 
+                section("YOUTUBE ACCOUNT") {
+                    HStack(spacing: HudSpacing.md) {
+                        accountAvatar
+                            .frame(width: 30, height: 30)
+                            .clipShape(Circle())
+                            .overlay(Circle().stroke(HudPalette.border, lineWidth: 1))
+                        VStack(alignment: .leading, spacing: 2) {
+                            Text(account.signedIn ? (account.name ?? "Signed in") : "Not signed in")
+                                .font(HudFont.mono(HudTextSize.sm))
+                                .foregroundStyle(HudPalette.ink)
+                            Text(account.signedIn ? "Ad-free with Premium" : "Sign in to skip ads")
+                                .font(HudFont.mono(HudTextSize.xs))
+                                .foregroundStyle(HudPalette.dim)
+                        }
+                        Spacer()
+                        if account.signedIn {
+                            HudButton("Sign out", style: .secondary, action: onSignOut)
+                        } else {
+                            HudButton("Sign in", icon: "person.crop.circle", style: .primary(.green), action: onSignIn)
+                        }
+                    }
+                    HStack {
+                        HudButton("Import login from browser", style: .secondary, action: onImportLogin)
+                        Spacer()
+                    }
+                }
+
                 section("SHORTCUT") {
                     HStack {
                         rowLabel("Summon HUD")
@@ -127,6 +158,16 @@ struct SettingsView: View {
     }
 
     // MARK: - Building blocks
+
+    @ViewBuilder private var accountAvatar: some View {
+        if let img = account.avatar {
+            Image(nsImage: img).resizable().aspectRatio(contentMode: .fill)
+        } else {
+            Image(systemName: account.signedIn ? "person.crop.circle.fill" : "person.crop.circle")
+                .resizable().aspectRatio(contentMode: .fit)
+                .foregroundStyle(account.signedIn ? PomoBrand.accent : HudPalette.dim)
+        }
+    }
 
     private func section<Content: View>(_ title: String, @ViewBuilder content: () -> Content) -> some View {
         VStack(alignment: .leading, spacing: HudSpacing.lg) {

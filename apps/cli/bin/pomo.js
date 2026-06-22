@@ -214,8 +214,10 @@ async function install(args) {
 
 /** Detected Chromium-family browser profiles, for cookie import. */
 function browserProfiles() {
+  // Most-common first, so the browsers people actually use lead the picker.
   const bases = [
     ['chrome', 'Google/Chrome'],
+    ['edge', 'Microsoft Edge'],
     ['brave', 'BraveSoftware/Brave-Browser'],
     ['chromium', 'Chromium'],
   ];

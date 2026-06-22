@@ -217,10 +217,14 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         }
         let view = SettingsView(
             settings: settings,
+            account: audio.account,
             onClose: { [weak self] in self?.settingsWindow?.close() },
             onAudioPlay: { [weak self] url in self?.audio.play(urlString: url) },
             onAudioPause: { [weak self] in self?.audio.pause() },
-            onAudioStop: { [weak self] in self?.audio.stop() }
+            onAudioStop: { [weak self] in self?.audio.stop() },
+            onSignIn: { [weak self] in self?.audio.signIn() },
+            onSignOut: { [weak self] in self?.audio.clearLogin() },
+            onImportLogin: { [weak self] in self?.audio.importCookies(browser: nil, profile: nil) }
         )
         let window = NSWindow(contentViewController: NSHostingController(rootView: view))
         window.title = "Pomo Settings"

@@ -1,534 +1,845 @@
-"use client";
+import React from "react";
 
-import React, { useState, useEffect } from "react";
-import { Download, Clock, Zap, Palette, Moon, Command, RotateCcw, Github } from "lucide-react";
-import { useSearchParams, useRouter, usePathname } from "next/navigation";
-import { FocusCardsDemo } from "../components/focus-cards";
+const DOWNLOAD_URL =
+  "https://github.com/arach/pomo/releases/download/v0.2.1/Pomo_0.2.1_aarch64.dmg";
+const GITHUB_URL = "https://github.com/arach/pomo";
 
-export default function HomeContent() {
-  const [currentIndex, setCurrentIndex] = useState(0);
-  const searchParams = useSearchParams();
-  const router = useRouter();
-  const pathname = usePathname();
-  
-  // Get style from URL params, with fallback to 'original'
-  const styleParam = searchParams.get('style') as 'original' | 'tag' | 'underline' | 'glossy' | null;
-  const validStyles = ['original', 'tag', 'underline', 'glossy'];
-  const initialStyle = styleParam && validStyles.includes(styleParam) ? styleParam : 'original';
-  const [professionStyle, setProfessionStyle] = useState<'original' | 'tag' | 'underline' | 'glossy'>(initialStyle);
-  const [wavyPath, setWavyPath] = useState("");
-  
-  const professions = [
-    "developers",
-    "designers",
-    "writers",
-    "students",
-    "creators",
-    "founders",
-    "engineers",
-    "researchers",
-    "artists",
-    "makers"
-  ];
-  
-  // Generate a slightly random wavy path based on hour
-  const generateWavyPath = () => {
-    const time = new Date();
-    // Use hour as primary seed, changes every hour
-    const hourSeed = time.getHours();
-    // Add day of month for more variation across days
-    const daySeed = time.getDate();
-    const seed = hourSeed + daySeed * 0.1;
-    
-    // Generate control points with slight variations
-    const y1 = 6.5 + Math.sin(seed * 0.8) * 0.3;
-    const y2 = 5.5 + Math.cos(seed * 1.3) * 0.4;
-    const y3 = 6 + Math.sin(seed * 0.7) * 0.3;
-    const y4 = 6.5 + Math.cos(seed * 0.9) * 0.35;
-    const y5 = 6 + Math.sin(seed * 1.1) * 0.3;
-    
-    return `M2,${y1} Q30,${y2} 60,${y3} T120,${y4} Q150,${y2} 180,${y1} T198,${y5}`;
-  };
+// Inner var() fallback keeps text sans/mono even if next/font's variable ever fails to inject
+// (otherwise an undefined custom property makes the whole declaration invalid → serif).
+const sans = "var(--font-space-grotesk, ui-sans-serif), sans-serif";
+const mono = "var(--font-jetbrains-mono, ui-monospace), monospace";
 
-  useEffect(() => {
-    const interval = setInterval(() => {
-      setCurrentIndex((prevIndex) => (prevIndex + 1) % professions.length);
-    }, 2500);
-    
-    return () => clearInterval(interval);
-  }, []);
-
-  useEffect(() => {
-    // Generate path once on mount
-    setWavyPath(generateWavyPath());
-  }, []);
-
-  // Update style when URL params change
-  useEffect(() => {
-    const style = searchParams.get('style') as 'original' | 'tag' | 'underline' | 'glossy' | null;
-    if (style && validStyles.includes(style)) {
-      setProfessionStyle(style);
-    } else {
-      setProfessionStyle('original');
+// Deterministic focus heatmap — 17 weeks × 7 days (matches the design's generator).
+function buildHeatmap(): number[] {
+  const cells: number[] = [];
+  for (let w = 0; w < 17; w++) {
+    for (let d = 0; d < 7; d++) {
+      const seed = w * 7 + d;
+      const weekday = d < 5;
+      const base = weekday ? 0.55 : 0.18;
+      const noise = (((Math.sin(seed * 12.9898) * 43758.5453) % 1) + 1) % 1;
+      let op = base + noise * 0.5 - 0.18;
+      if (w > 13 && weekday) op = Math.max(op, 0.72);
+      if (w === 16 && d > 4) op = 0.08;
+      op = Math.max(0.08, Math.min(1, op));
+      cells.push(Number(op.toFixed(2)));
     }
-  }, [searchParams]);
+  }
+  return cells;
+}
 
-  const features = [
-    {
-      Icon: Clock,
-      title: "Floating Timer",
-      description: "Always-on-top window that stays out of your way while keeping you focused.",
-    },
-    {
-      Icon: Zap,
-      title: "Menu Bar Integration",
-      description: "Live timer updates in your menu bar with intelligent progress tracking.",
-    },
-    {
-      Icon: Palette,
-      title: "Custom Themes",
-      description: "Multiple beautiful watchfaces from minimal to retro.",
-    },
-    {
-      Icon: Moon,
-      title: "Focus Modes",
-      description: "Deep focus, break time, and planning modes tailored to your workflow.",
-    },
-    {
-      Icon: Command,
-      title: "Keyboard First",
-      description: "Complete keyboard control with fully customizable shortcuts.",
-    },
-    {
-      Icon: RotateCcw,
-      title: "Session Tracking",
-      description: "Comprehensive analytics to track your progress and build habits.",
-    },
-  ];
+const AppleGlyph = ({ size = 15 }: { size?: number }) => (
+  <svg width={size} height={size} viewBox="0 0 384 512" fill="currentColor">
+    <path d="M318.7 268.7c-.2-36.7 16.4-64.4 50-84.8-18.8-26.9-47.2-41.7-84.7-44.6-35.5-2.8-74.3 20.7-88.5 20.7-15 0-49.4-19.7-76.4-19.7C63.3 141.2 4 184.8 4 273.5q0 39.3 14.4 81.2c12.8 36.7 59 126.7 107.2 125.2 25.2-.6 43-17.9 75.8-17.9 31.8 0 48.3 17.9 76.4 17.9 48.6-.7 90.4-82.5 102.6-119.3-65.2-30.7-61.7-90-61.7-91.9zm-56.6-164.2c27.3-32.4 24.8-61.9 24-72.5-24.1 1.4-52 16.4-67.9 34.9-17.5 19.8-27.8 44.3-25.6 71.9 26.1 2 49.9-11.4 69.5-34.3z" />
+  </svg>
+);
+
+const Mark = ({ size = 22, dim = false }: { size?: number; dim?: boolean }) => {
+  const stroke = dim ? "#6b6055" : "#f2ece3";
+  return (
+    <svg width={size} height={size} viewBox="0 0 24 24" fill="none" style={{ display: "block" }}>
+      <circle cx="12" cy="12.5" r="8.5" stroke={stroke} strokeWidth="1.4" opacity={dim ? 0.5 : 0.28} />
+      <path d="M12 4 A8.5 8.5 0 0 1 20.5 12.5" stroke="var(--accent)" strokeWidth="2" strokeLinecap="round" fill="none" />
+      <line x1="12" y1="2" x2="12" y2="5" stroke={stroke} strokeWidth="1.6" strokeLinecap="round" />
+      <circle cx="12" cy="12.5" r="1.7" fill="var(--accent)" />
+    </svg>
+  );
+};
+
+const SectionLabel = ({ children }: { children: React.ReactNode }) => (
+  <div
+    style={{
+      fontFamily: mono,
+      fontSize: 11,
+      letterSpacing: "0.2em",
+      textTransform: "uppercase",
+      color: "#7d7165",
+      marginBottom: 14,
+    }}
+  >
+    {children}
+  </div>
+);
+
+/* ───────────────────────── nav ───────────────────────── */
+function Nav() {
+  const link = { color: "#9c8f7f", textDecoration: "none" } as const;
+  return (
+    <header style={{ position: "relative", zIndex: 5, borderBottom: "1px solid rgba(255,255,255,0.06)" }}>
+      <div
+        style={{
+          maxWidth: 1180,
+          margin: "0 auto",
+          padding: "0 40px",
+          height: 62,
+          display: "flex",
+          alignItems: "center",
+          justifyContent: "space-between",
+          gap: 24,
+        }}
+      >
+        <a href="#top" style={{ display: "inline-flex", alignItems: "center", gap: 10, color: "#f2ece3", textDecoration: "none" }}>
+          <Mark />
+          <b style={{ fontFamily: mono, fontWeight: 600, fontSize: 14, letterSpacing: "0.16em" }}>POMO</b>
+        </a>
+        <nav style={{ display: "flex", gap: 26, fontFamily: mono, fontSize: 12, letterSpacing: "0.04em" }}>
+          <a href="#features" style={link}><span style={{ color: "#6b6055" }}>:</span>features</a>
+          <a href="#rhythm" style={link}><span style={{ color: "#6b6055" }}>:</span>rhythm</a>
+          <a href="#stats" style={link}><span style={{ color: "#6b6055" }}>:</span>stats</a>
+        </nav>
+        <div style={{ display: "flex", alignItems: "center", gap: 18 }}>
+          <span style={{ fontFamily: mono, fontSize: 11, color: "#6b6055", letterSpacing: "0.06em" }}>v0.2.1 · macOS</span>
+          <a
+            href={DOWNLOAD_URL}
+            style={{
+              display: "inline-flex",
+              alignItems: "center",
+              gap: 7,
+              padding: "8px 15px",
+              background: "var(--accent)",
+              color: "#1a0f0c",
+              fontFamily: mono,
+              fontSize: 11,
+              fontWeight: 600,
+              letterSpacing: "0.08em",
+              textTransform: "uppercase",
+              borderRadius: 6,
+              textDecoration: "none",
+            }}
+          >
+            Download
+          </a>
+        </div>
+      </div>
+    </header>
+  );
+}
+
+/* ───────────────────────── hero timer — the Pomo chronograph watchface ───────────────────────── */
+function TimerWindow() {
+  const cx = 120;
+  const cy = 120;
+  const ticks = Array.from({ length: 60 }, (_, i) => i);
+  const renderTick = (i: number) => {
+    const a = (i * 6 * Math.PI) / 180;
+    const major = i % 5 === 0;
+    const isTop = i === 0;
+    const rOut = 112;
+    const rIn = major ? 98 : 104;
+    const sin = Math.sin(a);
+    const cos = Math.cos(a);
+    return (
+      <line
+        key={i}
+        x1={(cx + rOut * sin).toFixed(2)}
+        y1={(cy - rOut * cos).toFixed(2)}
+        x2={(cx + rIn * sin).toFixed(2)}
+        y2={(cy - rIn * cos).toFixed(2)}
+        stroke={isTop ? "var(--accent)" : major ? "rgba(255,255,255,0.42)" : "rgba(255,255,255,0.15)"}
+        strokeWidth={isTop ? 2.6 : major ? 2 : 1}
+        strokeLinecap="round"
+      />
+    );
+  };
+  const ctrlBtn = (children: React.ReactNode, primary = false) => (
+    <button
+      style={{
+        width: 40,
+        height: 40,
+        borderRadius: "50%",
+        background: primary ? "var(--accent)" : "transparent",
+        border: primary ? "none" : "1px solid rgba(255,255,255,0.14)",
+        color: primary ? "#1a0f0c" : "#bcae9e",
+        display: "flex",
+        alignItems: "center",
+        justifyContent: "center",
+        cursor: "pointer",
+        flex: "none",
+        boxShadow: primary ? "0 8px 20px -10px var(--accent-glow)" : "none",
+      }}
+    >
+      {children}
+    </button>
+  );
 
   return (
-    <div className="min-h-screen bg-gray-50 text-gray-900">
-      {/* Navigation */}
-      <nav className="fixed top-0 w-full z-50 bg-white/80 backdrop-blur-xl border-b border-gray-200">
-        <div className="max-w-7xl mx-auto px-8">
-          <div className="flex justify-between items-center h-16">
-            <div className="flex items-center gap-2">
-              <div className="w-10 h-10 rounded-xl bg-gray-900 flex items-center justify-center">
-                <span className="text-xl font-bold text-white font-pixelify-sans">P</span>
-              </div>
-              <span className="text-xl font-bold text-red-500 font-pixelify-sans">Pomo</span>
-            </div>
-            <div className="flex items-center gap-12">
-              <div className="hidden md:flex items-center gap-12">
-                <a href="#features" className="text-gray-600 hover:text-gray-900 transition-colors font-inter text-sm font-medium">
-                  Features
-                </a>
-                <a href="#about" className="text-gray-600 hover:text-gray-900 transition-colors font-inter text-sm font-medium">
-                  About
-                </a>
-              </div>
-              <a
-                href="https://github.com/arach/pomo/releases/download/v0.2.1/Pomo-v0.2.1-macOS-arm64.dmg"
-                className="bg-gray-900 text-white hover:bg-gray-800 rounded-xl transition-all px-6 py-3 text-sm inline-flex items-center gap-2 font-inter font-semibold shadow-sm hover:shadow-md"
-              >
-                <Download className="w-4 h-4" />
-                <span className="hidden sm:inline">Download</span>
-              </a>
-            </div>
+    <div style={{ position: "relative", width: 360, maxWidth: "100%" }}>
+      <div
+        style={{
+          position: "absolute",
+          inset: "-50px -36px -30px",
+          background: "radial-gradient(58% 52% at 50% 42%, var(--accent-glow) 0%, transparent 70%)",
+          filter: "blur(18px)",
+          opacity: "var(--glow)" as unknown as number,
+          zIndex: 0,
+        }}
+      />
+      <div
+        style={{
+          position: "relative",
+          zIndex: 1,
+          borderRadius: 18,
+          background: "linear-gradient(180deg,#201913 0%, #14100c 100%)",
+          border: "1px solid rgba(255,255,255,0.1)",
+          boxShadow: "0 34px 64px -22px rgba(0,0,0,0.7), inset 0 1px 0 rgba(255,255,255,0.06)",
+          overflow: "hidden",
+          padding: "26px 26px 22px",
+          animation: "ringGlow 5s ease-in-out infinite",
+        }}
+      >
+        {/* watchface */}
+        <svg viewBox="0 0 240 240" style={{ width: "100%", height: "auto", display: "block" }}>
+          <circle cx={cx} cy={cy} r="116" fill="none" stroke="rgba(255,255,255,0.05)" strokeWidth="1" />
+          {ticks.map(renderTick)}
+          {/* progress hand (full at 25:00 → points to 12) */}
+          <line x1={cx} y1={cy} x2={cx} y2={cy - 84} stroke="var(--accent)" strokeWidth="2.6" strokeLinecap="round" />
+          <circle cx={cx} cy={cy - 84} r="3.4" fill="var(--accent)" />
+          <text x={cx} y="97" textAnchor="middle" fontFamily={mono} fontSize="11" letterSpacing="4" fill="#8a8076">FOCUS</text>
+          <circle cx={cx} cy={cy} r="5" fill="var(--accent)" />
+          <text x={cx} y="153" textAnchor="middle" fontFamily={mono} fontWeight="500" fontSize="30" fill="#f4eee6">25:00</text>
+        </svg>
+
+        {/* controls */}
+        <div style={{ display: "flex", alignItems: "center", justifyContent: "center", gap: 12, marginTop: 22 }}>
+          {ctrlBtn(
+            <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"><path d="M3 12a9 9 0 1 0 3-6.7" /><polyline points="3 3 3 6 6 6" /></svg>
+          )}
+          {ctrlBtn(
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor"><path d="M8 5v14l11-7z" /></svg>,
+            true
+          )}
+          {ctrlBtn(
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor"><path d="M5 5l9 7-9 7z" /><rect x="16" y="5" width="2.5" height="14" rx="0.6" /></svg>
+          )}
+          {ctrlBtn(
+            <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.6"><path d="M9 17V5l10-2v12" /><circle cx="6.5" cy="17.5" r="2.6" fill="currentColor" stroke="none" /><circle cx="16" cy="15.5" r="2.6" fill="currentColor" stroke="none" /></svg>
+          )}
+          {ctrlBtn(
+            <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5"><rect x="3" y="6" width="18" height="12" rx="2" /><path d="M11 10l4 2-4 2z" fill="currentColor" stroke="none" /></svg>
+          )}
+        </div>
+      </div>
+    </div>
+  );
+}
+
+/* ───────────────────────── hero ───────────────────────── */
+function Hero() {
+  const primaryBtn = {
+    display: "inline-flex",
+    alignItems: "center",
+    gap: 9,
+    padding: "13px 22px",
+    background: "var(--accent)",
+    color: "#1a0f0c",
+    fontFamily: sans,
+    fontSize: 15,
+    fontWeight: 500,
+    borderRadius: 9,
+    textDecoration: "none",
+    boxShadow: "0 8px 22px -8px var(--accent-glow)",
+  } as const;
+
+  return (
+    <section id="top" style={{ position: "relative", zIndex: 3 }}>
+      <div
+        style={{
+          maxWidth: 1180,
+          margin: "0 auto",
+          padding: "84px 40px 64px",
+          display: "grid",
+          gridTemplateColumns: "minmax(0,1fr) auto",
+          gap: 72,
+          alignItems: "center",
+        }}
+      >
+        {/* left */}
+        <div>
+          <div style={{ display: "inline-flex", alignItems: "center", gap: 11, fontFamily: mono, fontSize: 11, letterSpacing: "0.2em", textTransform: "uppercase", color: "#7d7165" }}>
+            <span style={{ width: 18, height: 1, background: "var(--accent)", display: "inline-block" }} />
+            Focus timer · macOS · menu bar
+          </div>
+          <h1 style={{ fontFamily: sans, fontWeight: 400, fontSize: 38, lineHeight: 1.0, letterSpacing: "-0.02em", margin: "22px 0 0", color: "#f4eee6", textWrap: "balance" } as React.CSSProperties}>
+            Twenty-five minutes,
+            <br />
+            <em style={{ fontStyle: "normal", color: "var(--accent)", fontWeight: 500 }}>focus mode</em>
+          </h1>
+          <p style={{ fontFamily: sans, fontWeight: 300, fontSize: 16.5, lineHeight: 1.65, color: "#bcae9e", maxWidth: "44ch", margin: "26px 0 0" }}>
+            Pomo is a Pomodoro timer that lives in your menu bar. Start a session, mute the noise, and let the clock keep score of your focus — one tomato at a time.
+          </p>
+          <div style={{ display: "flex", alignItems: "center", gap: 12, marginTop: 34, flexWrap: "wrap" }}>
+            <a href={DOWNLOAD_URL} style={primaryBtn}>
+              <AppleGlyph />
+              Download for Mac
+            </a>
+            <a
+              href="#features"
+              style={{
+                display: "inline-flex",
+                alignItems: "center",
+                gap: 8,
+                padding: "13px 20px",
+                background: "transparent",
+                color: "#e7dccb",
+                fontFamily: sans,
+                fontSize: 15,
+                fontWeight: 500,
+                border: "1px solid rgba(255,255,255,0.14)",
+                borderRadius: 9,
+                textDecoration: "none",
+              }}
+            >
+              See how it works
+            </a>
+          </div>
+          <div style={{ fontFamily: mono, fontSize: 11, letterSpacing: "0.05em", color: "#6b6055", marginTop: 20 }}>
+            Free · macOS 13+ · Apple silicon
           </div>
         </div>
-      </nav>
 
-      {/* Hero Section */}
-      <section className="relative pt-36 pb-24 overflow-hidden bg-white">
-        <div className="relative max-w-7xl mx-auto px-8">
-          <div className="text-center max-w-5xl mx-auto">
-            <h1 className="text-3xl sm:text-4xl md:text-5xl font-inter font-bold tracking-tight mb-4 leading-[1.1] animate-slide-up">
-              <span className="text-black">
-                <span className="font-light">the</span> <span className="font-black text-red-500">focus timer</span>
-                <span className="font-light"> for </span>
-                
-                {/* Original Style - Gray background tag */}
-                {professionStyle === 'original' && (
-                  <span className="relative inline-block bg-gray-100 px-4 py-1 rounded-lg border border-gray-200" style={{ minWidth: '200px', verticalAlign: 'baseline' }}>
-                    {professions.map((profession, index) => (
-                      <span
-                        key={profession}
-                        className={`absolute inset-0 flex items-center justify-center font-bold text-gray-700 transition-all duration-500 ${
-                          index === currentIndex 
-                            ? 'opacity-100' 
-                            : 'opacity-0'
-                        }`}
-                      >
-                        {profession}
-                      </span>
-                    ))}
-                    <span className="invisible font-bold">researchers</span>
-                  </span>
-                )}
-                
-                {/* Tag Style */}
-                {professionStyle === 'tag' && (
-                  <span className="relative inline-block bg-gray-100 px-4 py-1 rounded-lg border border-gray-200 transition-all duration-300" style={{ minWidth: '200px', verticalAlign: 'baseline' }}>
-                    {professions.map((profession, index) => (
-                      <span
-                        key={profession}
-                        className={`absolute inset-0 flex items-center justify-center font-bold text-gray-700 transition-all duration-500 ${
-                          index === currentIndex 
-                            ? 'opacity-100 translate-y-0' 
-                            : index === (currentIndex - 1 + professions.length) % professions.length
-                            ? 'opacity-0 -translate-y-2'
-                            : 'opacity-0 translate-y-2'
-                        }`}
-                      >
-                        {profession}
-                      </span>
-                    ))}
-                    <span className="invisible font-bold">researchers</span>
-                  </span>
-                )}
-                
-                {/* Underline Style */}
-                {professionStyle === 'underline' && (
-                  <span className="relative inline-block" style={{ minWidth: '200px', verticalAlign: 'baseline' }}>
-                    {professions.map((profession, index) => (
-                      <span
-                        key={profession}
-                        className={`absolute inset-0 flex items-center justify-center font-bold text-gray-700 transition-all duration-500 ${
-                          index === currentIndex 
-                            ? 'opacity-100 scale-100' 
-                            : 'opacity-0 scale-95'
-                        }`}
-                      >
-                        {profession}
-                      </span>
-                    ))}
-                    <span className="invisible font-bold">researchers</span>
-                    <svg 
-                      className="absolute -bottom-0.5 left-0 w-full h-3 overflow-visible"
-                      preserveAspectRatio="none"
-                      viewBox="0 0 200 10"
-                    >
-                      <path
-                        d={wavyPath}
-                        stroke="url(#wavy-gradient)"
-                        strokeWidth="1.5"
-                        fill="none"
-                        strokeLinecap="round"
-                        opacity="0.9"
-                      />
-                      <defs>
-                        <linearGradient id="wavy-gradient" x1="0%" y1="0%" x2="100%" y2="0%">
-                          <stop offset="0%" stopColor="transparent" />
-                          <stop offset="10%" stopColor="#ef4444" />
-                          <stop offset="90%" stopColor="#ef4444" />
-                          <stop offset="100%" stopColor="transparent" />
-                        </linearGradient>
-                      </defs>
-                    </svg>
-                  </span>
-                )}
-                
-                {/* Glossy Style */}
-                {professionStyle === 'glossy' && (
-                  <span className="relative inline-block bg-gradient-to-r from-gray-100 to-gray-200 px-4 py-1 rounded-lg overflow-hidden border border-gray-300" style={{ minWidth: '200px', verticalAlign: 'text-bottom' }}>
-                    <div className="absolute inset-0 bg-gradient-to-t from-transparent via-white/40 to-white/60"></div>
-                    {professions.map((profession, index) => (
-                      <span
-                        key={profession}
-                        className={`absolute inset-0 flex items-center justify-center font-bold text-gray-700 z-10 transition-all duration-500 ${
-                          index === currentIndex 
-                            ? 'opacity-100' 
-                            : 'opacity-0'
-                        }`}
-                      >
-                        {profession}
-                      </span>
-                    ))}
-                    <span className="invisible font-bold relative z-10">researchers</span>
-                  </span>
-                )}
-              </span>
-            </h1>
+        {/* right */}
+        <TimerWindow />
+      </div>
 
-            <p className="text-sm md:text-base text-gray-600 mb-10 leading-relaxed max-w-3xl mx-auto font-mono animate-slide-up" style={{ animationDelay: '0.2s' }}>
-              a beautifully minimal Pomodoro timer.
-              <span className="text-gray-900 font-medium"> No distractions, just focus.</span>
-            </p>
+      {/* meta strip */}
+      <MetaStrip />
+    </section>
+  );
+}
 
-            <div className="flex flex-col sm:flex-row gap-4 justify-center mb-16 animate-slide-up" style={{ animationDelay: '0.3s' }}>
-              <a
-                href="https://github.com/arach/pomo/releases/download/v0.2.1/Pomo-v0.2.1-macOS-arm64.dmg"
-                className="bg-black text-white hover:bg-gray-800 rounded-lg transition-all px-6 py-3 inline-flex items-center justify-center gap-2 font-inter font-medium text-sm"
-              >
-                <Download className="w-4 h-4" />
-                Download for macOS
-              </a>
-              <a
-                href="https://github.com/arach/pomo"
-                className="border border-gray-300 text-gray-600 hover:border-gray-400 hover:text-gray-900 rounded-lg transition-all px-6 py-3 inline-flex items-center justify-center gap-2 font-inter font-medium text-sm"
-              >
-                <Github className="w-4 h-4" />
-                View Source
-              </a>
-            </div>
-
-            {/* Screenshots Section */}
-            <div className="relative animate-fade-in mt-4" style={{ animationDelay: '0.5s' }}>
-              <FocusCardsDemo />
-            </div>
+function MetaStrip() {
+  const items: [string, string][] = [
+    ["Focus block", "25 min"],
+    ["Short break", "5 min"],
+    ["Global hotkey", "⌘⇧P"],
+    ["Lives in", "Menu bar"],
+  ];
+  return (
+    <div style={{ maxWidth: 1180, margin: "0 auto", padding: "0 40px" }}>
+      <dl
+        style={{
+          display: "grid",
+          gridTemplateColumns: "repeat(4,1fr)",
+          borderTop: "1px solid rgba(255,255,255,0.08)",
+          borderBottom: "1px solid rgba(255,255,255,0.08)",
+          margin: "8px 0 0",
+          fontFamily: mono,
+        }}
+      >
+        {items.map(([term, val], i) => (
+          <div
+            key={term}
+            style={{
+              padding: "18px 0 18px 20px",
+              borderRight: i < 3 ? "1px solid rgba(255,255,255,0.08)" : "none",
+            }}
+          >
+            <dt style={{ fontSize: 10, letterSpacing: "0.14em", textTransform: "uppercase", color: "#6b6055", marginBottom: 6 }}>{term}</dt>
+            <dd style={{ margin: 0, fontSize: 13, color: "#e7dccb", letterSpacing: "0.04em" }}>{val}</dd>
           </div>
-        </div>
-      </section>
+        ))}
+      </dl>
+    </div>
+  );
+}
 
+/* ───────────────────────── features ───────────────────────── */
+function Features() {
+  const card = {
+    background: "#211a15",
+    border: "1px solid rgba(255,255,255,0.07)",
+    borderRadius: 13,
+    padding: 24,
+    display: "flex",
+    flexDirection: "column",
+  } as React.CSSProperties;
+  const eyebrow = { fontFamily: mono, fontSize: 10, letterSpacing: "0.14em", textTransform: "uppercase", color: "var(--accent)", margin: "18px 0 9px" } as React.CSSProperties;
+  const title = { fontFamily: sans, fontSize: 18, fontWeight: 400, color: "#f2ece3", margin: "0 0 8px" } as React.CSSProperties;
+  const body = { fontFamily: sans, fontWeight: 300, fontSize: 14.5, lineHeight: 1.6, color: "#a89b8b", margin: 0 } as React.CSSProperties;
 
-      {/* Features Grid */}
-      <section id="features" className="py-20 relative overflow-hidden bg-white">
-        <div className="max-w-7xl mx-auto px-8 relative">
-          <div className="text-center mb-12">
-            <h2 className="text-3xl md:text-4xl font-inter font-bold mb-4 text-gray-900">
-              everything you need to <span className="text-red-500">focus</span>
-            </h2>
-            <p className="text-base text-gray-600 max-w-3xl mx-auto font-mono leading-relaxed">
-              thoughtfully designed features that help you work better, not harder.
-            </p>
-          </div>
-
-          <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-8">
-            {features.map((feature, index) => (
-              <div
-                key={index}
-                className="group text-center bg-gray-50 rounded-2xl p-8 border border-gray-200 hover:border-red-300 hover:bg-white transition-all hover:shadow-lg transform hover:-translate-y-1 duration-300"
-              >
-                <div className="w-14 h-14 rounded-2xl bg-red-50 flex items-center justify-center mb-6 mx-auto border border-red-200 group-hover:bg-red-100 group-hover:border-red-300 transition-all">
-                  <div className="text-red-500 group-hover:text-red-600 transition-colors">
-                    <feature.Icon className="w-6 h-6" />
-                  </div>
+  return (
+    <section id="features" style={{ position: "relative", zIndex: 3 }}>
+      <div style={{ maxWidth: 1180, margin: "0 auto", padding: "80px 40px 20px" }}>
+        <SectionLabel>§ What it does</SectionLabel>
+        <h2 style={{ fontFamily: sans, fontWeight: 300, fontSize: "clamp(34px,3.6vw,48px)", lineHeight: 1.05, letterSpacing: "-0.02em", color: "#f4eee6", margin: "0 0 44px" }}>
+          Small surface. The whole technique.
+        </h2>
+        <div style={{ display: "grid", gridTemplateColumns: "repeat(3,1fr)", gap: 18 }}>
+          {/* menu bar */}
+          <div style={card}>
+            <div style={{ height: 104, display: "flex", alignItems: "center", justifyContent: "center" }}>
+              <div style={{ width: "100%", background: "#0f0c0a", border: "1px solid rgba(255,255,255,0.08)", borderRadius: 8, height: 32, display: "flex", alignItems: "center", padding: "0 11px", gap: 13, fontFamily: mono, fontSize: 11, color: "#5e554b" }}>
+                <span>File</span><span>Edit</span><span>View</span>
+                <div style={{ marginLeft: "auto", display: "flex", alignItems: "center", gap: 13 }}>
+                  <span style={{ opacity: 0.7 }}>􀙇</span><span style={{ opacity: 0.7 }}>􀊫</span>
+                  <span style={{ display: "inline-flex", alignItems: "center", gap: 6, color: "#f2ece3" }}>
+                    <span style={{ width: 7, height: 7, borderRadius: "50%", background: "var(--accent)" }} />18:42
+                  </span>
                 </div>
-                <h3 className="text-sm font-mono font-normal uppercase tracking-wide mb-3 text-gray-900">{feature.title}</h3>
-                <p className="text-gray-600 leading-relaxed font-mono text-sm">{feature.description}</p>
+              </div>
+            </div>
+            <div style={eyebrow}>01 · Menu bar</div>
+            <h3 style={title}>Always one glance away</h3>
+            <p style={body}>The time remaining sits in your menu bar. Click to start, pause, or skip — never a window in the way.</p>
+          </div>
+
+          {/* cycles */}
+          <div style={card}>
+            <div style={{ height: 104, display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", gap: 14 }}>
+              <div style={{ display: "flex", gap: 13, alignItems: "center" }}>
+                <span style={{ width: 15, height: 15, borderRadius: "50%", background: "var(--accent)" }} />
+                <span style={{ width: 15, height: 15, borderRadius: "50%", background: "var(--accent)" }} />
+                <span style={{ width: 15, height: 15, borderRadius: "50%", background: "var(--accent)" }} />
+                <span style={{ width: 15, height: 15, borderRadius: "50%", border: "1.5px solid #6b6055" }} />
+                <span style={{ width: 5, height: 5, borderRadius: "50%", background: "#4a423a" }} />
+                <span style={{ width: 22, height: 15, borderRadius: 7, background: "var(--accent-soft)", border: "1px solid var(--accent)" }} />
+              </div>
+              <div style={{ fontFamily: mono, fontSize: 10.5, letterSpacing: "0.1em", color: "#7d7165" }}>25 · 5 · 25 · 5 · 25 · 5 · 25 · 15</div>
+            </div>
+            <div style={eyebrow}>02 · Cycles</div>
+            <h3 style={title}>Four sessions, then a real break</h3>
+            <p style={body}>Pomo runs the classic rhythm and counts the cycle — short breaks between, a long one to finish — so you don&apos;t have to.</p>
+          </div>
+
+          {/* task */}
+          <div style={card}>
+            <div style={{ height: 104, display: "flex", alignItems: "center", justifyContent: "center" }}>
+              <div style={{ width: "100%", background: "#17110d", border: "1px solid rgba(255,255,255,0.1)", borderRadius: 9, padding: "13px 14px", display: "flex", alignItems: "center", gap: 10 }}>
+                <span style={{ width: 7, height: 7, borderRadius: "50%", background: "var(--accent)", flex: "none" }} />
+                <span style={{ fontFamily: sans, fontSize: 18, color: "#e7dccb", flex: 1 }}>Writing the launch post</span>
+                <span style={{ width: 2, height: 20, background: "var(--accent)", animation: "pomoPulse 1.1s ease-in-out infinite", flex: "none" }} />
+              </div>
+            </div>
+            <div style={eyebrow}>03 · Intent</div>
+            <h3 style={title}>Name what you&apos;re doing</h3>
+            <p style={body}>Give each session a single task. Pomo keeps it front and centre, so the next 25 minutes have exactly one job.</p>
+          </div>
+        </div>
+      </div>
+    </section>
+  );
+}
+
+/* ───────────────────────── screenshots (brought from previous site) ───────────────────────── */
+function Screenshots() {
+  const shots: { src: string; title: string; caption: string }[] = [
+    { src: "/pomo-watchface.png", title: "Watchfaces", caption: "Minimal to Chronograph — pick your dial." },
+    { src: "/pomo-settings.png", title: "Settings", caption: "Tune durations, sounds, and themes." },
+    { src: "/pomo-keyboard.png", title: "Shortcuts", caption: "Full keyboard control for power users." },
+  ];
+  const highlights = [
+    "An intent field for the one thing you're focusing on",
+    "Focus · Break · Long session types",
+    "Seven watchfaces — Minimal to Chronograph",
+    "Ambient streaming audio + a slide-out HUD",
+  ];
+  const musicHighlights = [
+    "Any YouTube link — lofi streams, DJ sets, playlists",
+    "Plays in a slide-out drawer beside the timer",
+    "Pop it out to your browser anytime",
+  ];
+  const eyebrow = { fontFamily: mono, fontSize: 10, letterSpacing: "0.14em", textTransform: "uppercase", color: "var(--accent)", marginBottom: 12 } as React.CSSProperties;
+  const featTitle = { fontFamily: sans, fontWeight: 300, fontSize: "clamp(24px,2.4vw,32px)", lineHeight: 1.1, letterSpacing: "-0.01em", color: "#f4eee6", margin: "0 0 14px" } as React.CSSProperties;
+  const featBody = { fontFamily: sans, fontWeight: 300, fontSize: 15, lineHeight: 1.6, color: "#a89b8b", margin: "0 0 18px", maxWidth: "42ch" } as React.CSSProperties;
+  const featCard = { background: "#211a15", border: "1px solid rgba(255,255,255,0.07)", borderRadius: 16, padding: "30px 34px", marginBottom: 18 } as React.CSSProperties;
+  const bullets = (items: string[]) => (
+    <ul style={{ listStyle: "none", margin: 0, padding: 0, display: "flex", flexDirection: "column", gap: 10 }}>
+      {items.map((h, i) => (
+        <li key={i} style={{ display: "flex", gap: 10, alignItems: "flex-start" }}>
+          <span style={{ fontFamily: mono, color: "var(--accent)", fontSize: 13, lineHeight: 1.5 }}>→</span>
+          <span style={{ fontFamily: sans, fontWeight: 300, fontSize: 14, lineHeight: 1.5, color: "#bcae9e" }}>{h}</span>
+        </li>
+      ))}
+    </ul>
+  );
+
+  return (
+    <section id="inside" style={{ position: "relative", zIndex: 3 }}>
+      <div style={{ maxWidth: 1180, margin: "0 auto", padding: "60px 40px 20px" }}>
+        <SectionLabel>§ A look inside</SectionLabel>
+        <h2 style={{ fontFamily: sans, fontWeight: 300, fontSize: "clamp(30px,3.2vw,42px)", lineHeight: 1.05, letterSpacing: "-0.02em", color: "#f4eee6", margin: "0 0 36px" }}>
+          Built to stay out of the way.
+        </h2>
+
+        {/* featured: the whole app panel */}
+        <div style={{ ...featCard, display: "grid", gridTemplateColumns: "minmax(0,1fr) minmax(0,1fr)", gap: 36, alignItems: "center" }}>
+          <div style={{ display: "flex", justifyContent: "center" }}>
+            {/* eslint-disable-next-line @next/next/no-img-element */}
+            <img src="/pomo-app.png" alt="The Pomo app panel" style={{ maxWidth: "100%", maxHeight: 480, borderRadius: 14, border: "1px solid rgba(255,255,255,0.08)", boxShadow: "0 30px 60px -25px rgba(0,0,0,0.85)" }} />
+          </div>
+          <div>
+            <div style={eyebrow}>The whole app</div>
+            <h3 style={featTitle}>Everything on one surface.</h3>
+            <p style={featBody}>One small panel drops from the menu bar with everything a session needs — no windows, no tabs, no clutter.</p>
+            {bullets(highlights)}
+          </div>
+        </div>
+
+        {/* featured: music / the YouTube video drawer */}
+        <div style={{ ...featCard, display: "grid", gridTemplateColumns: "minmax(0,0.85fr) minmax(0,1.35fr)", gap: 36, alignItems: "center" }}>
+          <div>
+            <div style={eyebrow}>Sound · your way</div>
+            <h3 style={featTitle}>Your playlist, in the same window.</h3>
+            <p style={featBody}>
+              Pomo&apos;s audio is really a tiny browser. Paste a YouTube link — a lofi stream, a live set, a whole playlist — and it rides along in a slide-out drawer right next to the timer. Your pomodoros and your soundtrack, managed in the most flexible place there is: the web.
+            </p>
+            {bullets(musicHighlights)}
+          </div>
+          <div style={{ display: "flex", justifyContent: "center" }}>
+            {/* eslint-disable-next-line @next/next/no-img-element */}
+            <img src="/pomo-hud-video.png" alt="Pomo timer with the YouTube video drawer open" style={{ maxWidth: "100%", borderRadius: 14, border: "1px solid rgba(255,255,255,0.08)", boxShadow: "0 30px 60px -25px rgba(0,0,0,0.85)" }} />
+          </div>
+        </div>
+
+        {/* supporting shots */}
+        <div style={{ display: "grid", gridTemplateColumns: "repeat(3,1fr)", gap: 18 }}>
+          {shots.map((s) => (
+            <figure key={s.title} style={{ margin: 0, background: "#211a15", border: "1px solid rgba(255,255,255,0.07)", borderRadius: 13, overflow: "hidden", display: "flex", flexDirection: "column" }}>
+              <div style={{ background: "#17110d", borderBottom: "1px solid rgba(255,255,255,0.06)", padding: 18, display: "flex", alignItems: "center", justifyContent: "center", minHeight: 200 }}>
+                {/* eslint-disable-next-line @next/next/no-img-element */}
+                <img src={s.src} alt={s.title} style={{ maxWidth: "100%", maxHeight: 220, borderRadius: 8, boxShadow: "0 18px 40px -20px rgba(0,0,0,0.8)" }} />
+              </div>
+              <figcaption style={{ padding: "16px 18px" }}>
+                <div style={{ fontFamily: mono, fontSize: 10, letterSpacing: "0.14em", textTransform: "uppercase", color: "var(--accent)", marginBottom: 6 }}>{s.title}</div>
+                <div style={{ fontFamily: sans, fontWeight: 300, fontSize: 14, color: "#a89b8b" }}>{s.caption}</div>
+              </figcaption>
+            </figure>
+          ))}
+        </div>
+      </div>
+    </section>
+  );
+}
+
+/* ───────────────────────── rhythm + pro tips ───────────────────────── */
+function Rhythm() {
+  const tips = [
+    "During breaks, step away from the screen completely.",
+    "Use the long break for movement, water, or a snack.",
+    "Finish early? Review your work until the timer ends.",
+  ];
+  return (
+    <section id="rhythm" style={{ position: "relative", zIndex: 3 }}>
+      <div style={{ maxWidth: 1180, margin: "0 auto", padding: "60px 40px" }}>
+        <div style={{ border: "1px solid rgba(255,255,255,0.08)", borderRadius: 14, background: "#1d1611", padding: "30px 32px" }}>
+          <div style={{ fontFamily: mono, fontSize: 11, letterSpacing: "0.2em", textTransform: "uppercase", color: "#7d7165", marginBottom: 22 }}>
+            § The rhythm · one full cycle
+          </div>
+          <div style={{ display: "flex", alignItems: "stretch", gap: 10, flexWrap: "wrap" }}>
+            <div style={{ flex: 1, minWidth: 96, background: "var(--accent-soft)", border: "1px solid var(--accent)", borderRadius: 9, padding: "16px 14px" }}>
+              <div style={{ fontFamily: mono, fontSize: 22, color: "#f4eee6", letterSpacing: "0.01em" }}>25:00</div>
+              <div style={{ fontFamily: mono, fontSize: 10, letterSpacing: "0.16em", textTransform: "uppercase", color: "var(--accent)", marginTop: 6 }}>Focus</div>
+            </div>
+            <div style={{ display: "flex", alignItems: "center", color: "#5e554b", fontFamily: mono }}>→</div>
+            <div style={{ flex: 0.7, minWidth: 80, background: "#17110d", border: "1px solid rgba(255,255,255,0.1)", borderRadius: 9, padding: "16px 14px" }}>
+              <div style={{ fontFamily: mono, fontSize: 22, color: "#cabba8", letterSpacing: "0.01em" }}>05:00</div>
+              <div style={{ fontFamily: mono, fontSize: 10, letterSpacing: "0.16em", textTransform: "uppercase", color: "#7d7165", marginTop: 6 }}>Break</div>
+            </div>
+            <div style={{ display: "flex", alignItems: "center", color: "#5e554b", fontFamily: mono, fontSize: 11, letterSpacing: "0.1em" }}>×4 →</div>
+            <div style={{ flex: 1.1, minWidth: 110, background: "#17110d", border: "1px dashed var(--accent)", borderRadius: 9, padding: "16px 14px" }}>
+              <div style={{ fontFamily: mono, fontSize: 22, color: "#f4eee6", letterSpacing: "0.01em" }}>15:00</div>
+              <div style={{ fontFamily: mono, fontSize: 10, letterSpacing: "0.16em", textTransform: "uppercase", color: "var(--accent)", marginTop: 6 }}>Long break</div>
+            </div>
+          </div>
+
+          {/* pro tips — brought from the previous landing page */}
+          <div style={{ display: "grid", gridTemplateColumns: "repeat(3,1fr)", gap: 14, marginTop: 22, borderTop: "1px solid rgba(255,255,255,0.08)", paddingTop: 22 }}>
+            {tips.map((tip, i) => (
+              <div key={i} style={{ display: "flex", gap: 10, alignItems: "flex-start" }}>
+                <span style={{ fontFamily: mono, color: "var(--accent)", fontSize: 13, lineHeight: 1.5 }}>→</span>
+                <span style={{ fontFamily: sans, fontWeight: 300, fontSize: 13.5, lineHeight: 1.55, color: "#a89b8b" }}>{tip}</span>
               </div>
             ))}
           </div>
         </div>
-      </section>
+      </div>
+    </section>
+  );
+}
 
-      {/* How It Works Section */}
-      <section className="py-20 relative overflow-hidden bg-gray-50">
-        <div className="max-w-6xl mx-auto px-8 relative">
-          <h2 className="text-3xl font-inter font-bold mb-16 text-center text-gray-900">
-            How the <span className="text-red-500">Pomodoro</span> works
+/* ───────────────────────── origin / Francesco Cirillo (brought from previous site) ───────────────────────── */
+function Origin() {
+  return (
+    <section id="origin" style={{ position: "relative", zIndex: 3 }}>
+      <div
+        style={{
+          maxWidth: 1180,
+          margin: "0 auto",
+          padding: "40px 40px 60px",
+          display: "grid",
+          gridTemplateColumns: "minmax(0,1fr) minmax(0,1.1fr)",
+          gap: 48,
+          alignItems: "center",
+        }}
+      >
+        <div>
+          <SectionLabel>§ Where it comes from</SectionLabel>
+          <h2 style={{ fontFamily: sans, fontWeight: 300, fontSize: "clamp(30px,3.2vw,44px)", lineHeight: 1.05, letterSpacing: "-0.02em", color: "#f4eee6", margin: "0 0 18px" }}>
+            One technique,
+            <br />
+            <em style={{ fontStyle: "normal", fontWeight: 500, color: "var(--accent)" }}>since the &apos;80s.</em>
           </h2>
-          
-          {/* Single Pomodoro */}
-          <div className="mb-20">
-            <h3 className="text-xl text-gray-700 mb-8 text-center font-mono">
-              One pomodoro: 25 minutes + 5 minutes break
-            </h3>
-            <div className="flex items-center justify-center gap-4 mb-6">
-              <div className="flex items-center gap-2 flex-1 max-w-md">
-                <div className="group relative flex-1">
-                  <div className="h-3 bg-gray-800 rounded-full relative transition-all duration-300 hover:h-4 hover:shadow-lg cursor-pointer">
-                    <div className="absolute -right-1 top-1/2 -translate-y-1/2 w-5 h-5 bg-gray-800 rounded-full border-2 border-white shadow-sm transition-all duration-300 group-hover:scale-110"></div>
-                  </div>
-                  <div className="absolute -top-8 left-1/2 -translate-x-1/2 opacity-0 group-hover:opacity-100 transition-opacity duration-300 bg-gray-900 text-white px-2 py-1 rounded text-xs whitespace-nowrap font-mono">
-                    Deep focus time
-                  </div>
-                </div>
-                <div className="group relative w-20">
-                  <div className="h-3 bg-gray-400 rounded-full relative transition-all duration-300 hover:h-4 hover:shadow-lg cursor-pointer">
-                    <div className="absolute -right-1 top-1/2 -translate-y-1/2 w-5 h-5 bg-gray-400 rounded-full border-2 border-white shadow-sm transition-all duration-300 group-hover:scale-110"></div>
-                  </div>
-                  <div className="absolute -top-8 left-1/2 -translate-x-1/2 opacity-0 group-hover:opacity-100 transition-opacity duration-300 bg-gray-600 text-white px-2 py-1 rounded text-xs whitespace-nowrap font-mono">
-                    Quick stretch
-                  </div>
-                </div>
-              </div>
-            </div>
-            <div className="flex items-center justify-center gap-2">
-              <div className="flex items-center gap-2 flex-1 max-w-md">
-                <div className="flex-1 text-center">
-                  <div className="text-gray-900 font-bold text-base font-mono">25 min</div>
-                  <div className="text-xs text-gray-600 font-mono">Focused work</div>
-                </div>
-                <div className="w-20 text-center">
-                  <div className="text-gray-900 font-bold text-base font-mono">5 min</div>
-                  <div className="text-xs text-gray-600 font-mono">Break</div>
-                </div>
-              </div>
-            </div>
-          </div>
-
-          {/* Four Pomodoros Cycle */}
-          <div>
-            <h3 className="text-xl text-gray-700 mb-8 text-center font-mono">
-              Complete 4 Pomodoros then take a longer break
-            </h3>
-            <div className="flex items-center justify-center gap-2 mb-10">
-              <div className="flex items-center gap-2 flex-1 max-w-4xl">
-                {[1, 2, 3, 4].map((i) => (
-                  <React.Fragment key={i}>
-                    <div className="group relative flex-1">
-                      <div className="h-3 bg-gray-800 rounded-full relative transition-all duration-300 hover:h-4 hover:shadow-lg cursor-pointer">
-                        <div className="absolute -right-1 top-1/2 -translate-y-1/2 w-5 h-5 bg-gray-800 rounded-full border-2 border-white shadow-sm transition-all duration-300 group-hover:scale-110"></div>
-                      </div>
-                      <div className="absolute -top-8 left-1/2 -translate-x-1/2 opacity-0 group-hover:opacity-100 transition-opacity duration-300 bg-gray-900 text-white px-2 py-1 rounded text-xs whitespace-nowrap font-mono z-10">
-                        Pomodoro #{i}
-                      </div>
-                    </div>
-                    {i < 4 && (
-                      <div className="group relative w-12">
-                        <div className="h-3 bg-gray-400 rounded-full relative transition-all duration-300 hover:h-4 hover:shadow-lg cursor-pointer">
-                          <div className="absolute -right-1 top-1/2 -translate-y-1/2 w-5 h-5 bg-gray-400 rounded-full border-2 border-white shadow-sm transition-all duration-300 group-hover:scale-110"></div>
-                        </div>
-                        <div className="absolute -bottom-8 left-1/2 -translate-x-1/2 opacity-0 group-hover:opacity-100 transition-opacity duration-300 bg-gray-600 text-white px-2 py-1 rounded text-xs whitespace-nowrap font-mono z-10">
-                          5 min
-                        </div>
-                      </div>
-                    )}
-                  </React.Fragment>
-                ))}
-                {/* Long Break - Made more prominent */}
-                <div className="group relative w-40">
-                  <div className="h-5 bg-gradient-to-r from-green-500 to-green-600 rounded-full relative transition-all duration-300 hover:h-6 hover:shadow-xl cursor-pointer animate-pulse">
-                    <div className="absolute -right-1 top-1/2 -translate-y-1/2 w-7 h-7 bg-gradient-to-r from-green-500 to-green-600 rounded-full border-3 border-white shadow-lg transition-all duration-300 group-hover:scale-110"></div>
-                  </div>
-                  <div className="absolute -top-10 right-0 opacity-0 group-hover:opacity-100 transition-opacity duration-300 bg-green-600 text-white px-3 py-2 rounded text-xs whitespace-nowrap font-mono z-10">
-                    Recharge completely! ✨
-                  </div>
-                </div>
-              </div>
-            </div>
-            <div className="flex items-center justify-center gap-2">
-              <div className="flex items-center gap-2 flex-1 max-w-4xl">
-                <div className="flex-1 text-center">
-                  <div className="text-xs font-mono text-gray-600 mb-1">4 × 25 min</div>
-                  <div className="text-xs font-mono text-gray-500">Focus sessions</div>
-                </div>
-                <div className="w-12 text-center" style={{visibility: 'hidden'}}>
-                  <div className="text-xs font-mono text-gray-600">5m</div>
-                </div>
-                <div className="w-12 text-center" style={{visibility: 'hidden'}}>
-                  <div className="text-xs font-mono text-gray-600">5m</div>
-                </div>
-                <div className="w-12 text-center" style={{visibility: 'hidden'}}>
-                  <div className="text-xs font-mono text-gray-600">5m</div>
-                </div>
-                <div className="w-40 text-center">
-                  <div className="text-green-600 font-bold text-lg font-mono mb-1">15 - 30 min</div>
-                  <div className="text-xs font-mono text-gray-600">Long Break</div>
-                  <div className="text-xs font-mono text-gray-500 mt-1">Walk, snack, or rest</div>
-                </div>
-              </div>
-            </div>
-          </div>
-
-          {/* Additional Tips */}
-          <div className="mt-16 p-6 bg-white rounded-xl border border-gray-200">
-            <h4 className="text-sm font-mono font-bold uppercase text-gray-700 mb-3">Pro Tips</h4>
-            <ul className="space-y-2 text-xs font-mono text-gray-600">
-              <li className="flex items-start gap-2">
-                <span className="text-red-500">→</span>
-                <span>During breaks, step away from your screen completely</span>
-              </li>
-              <li className="flex items-start gap-2">
-                <span className="text-red-500">→</span>
-                <span>Use the long break for physical movement or a healthy snack</span>
-              </li>
-              <li className="flex items-start gap-2">
-                <span className="text-red-500">→</span>
-                <span>If you finish a task mid-pomodoro, review your work for the remaining time</span>
-              </li>
-            </ul>
-          </div>
-        </div>
-      </section>
-
-      {/* About Section */}
-      <section id="about" className="py-20 relative bg-white">
-        <div className="max-w-5xl mx-auto px-8">
-          <h2 className="text-2xl font-inter font-bold mb-8 text-center text-gray-900">
-            Words from the <span className="text-red-500">creator</span>
-          </h2>
-          <div className="bg-gray-50 rounded-3xl p-8 border border-gray-200">
-            {/* YouTube Video Embed */}
-            <div className="aspect-video mb-8 rounded-xl overflow-hidden">
-              <iframe
-                className="w-full h-full"
-                src="https://www.youtube.com/embed/dnt2lTdcn8g"
-                title="Francesco Cirillo - Introduction to the Pomodoro Technique"
-                frameBorder="0"
-                allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share"
-                allowFullScreen
-              />
-            </div>
-            
-            <blockquote className="text-base text-gray-700 mb-6 leading-relaxed font-mono italic text-center">
-              "The Pomodoro Technique is a time management method that can be used for any task. The aim is to use time
-              as a valuable ally to accomplish what we want to do the way we want to do it."
-            </blockquote>
-            <div className="flex items-center justify-center gap-4">
-              <div className="w-12 h-12 rounded-full bg-red-100 border border-red-200 flex items-center justify-center">
-                <span className="font-bold text-red-600 font-inter">FC</span>
-              </div>
-              <div className="text-left">
-                <div className="font-bold text-gray-900 text-sm font-inter">Francesco Cirillo</div>
-                <div className="text-gray-500 font-mono text-xs">Creator of the Pomodoro Technique</div>
-              </div>
+          <blockquote style={{ margin: "0 0 24px", fontFamily: sans, fontWeight: 300, fontStyle: "italic", fontSize: 16, lineHeight: 1.62, color: "#bcae9e", maxWidth: "42ch" }}>
+            “The Pomodoro Technique is a time management method that can be used for any task. The aim is to use time as a valuable ally to accomplish what we want to do the way we want to do it.”
+          </blockquote>
+          <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
+            <div style={{ width: 40, height: 40, borderRadius: "50%", background: "var(--accent-soft)", border: "1px solid var(--accent)", display: "flex", alignItems: "center", justifyContent: "center", fontFamily: mono, fontSize: 12, fontWeight: 600, color: "var(--accent)" }}>FC</div>
+            <div>
+              <div style={{ fontFamily: sans, fontSize: 14, color: "#f2ece3" }}>Francesco Cirillo</div>
+              <div style={{ fontFamily: mono, fontSize: 11, color: "#7d7165", letterSpacing: "0.04em" }}>Creator of the Pomodoro Technique</div>
             </div>
           </div>
         </div>
-      </section>
 
-      {/* CTA Section */}
-      <section className="py-20 relative overflow-hidden bg-black">
-        <div className="max-w-5xl mx-auto px-8 text-center relative">
-          <h2 className="text-3xl md:text-4xl font-inter font-bold mb-6 text-white">
-            Start focusing today
+        <div style={{ position: "relative", borderRadius: 14, overflow: "hidden", border: "1px solid rgba(255,255,255,0.08)", background: "#17110d", aspectRatio: "16 / 9" }}>
+          <iframe
+            style={{ position: "absolute", inset: 0, width: "100%", height: "100%", border: 0 }}
+            src="https://www.youtube.com/embed/dnt2lTdcn8g"
+            title="Francesco Cirillo — Introduction to the Pomodoro Technique"
+            allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share"
+            allowFullScreen
+          />
+        </div>
+      </div>
+    </section>
+  );
+}
+
+/* ───────────────────────── stats / heatmap ───────────────────────── */
+function Stats() {
+  const cells = buildHeatmap();
+  const legend = [0.14, 0.4, 0.7, 1];
+  const rows: [string, string, boolean][] = [
+    ["Sessions this week", "23", false],
+    ["Time focused", "9h 35m", false],
+    ["Current streak", "5 days", true],
+  ];
+  return (
+    <section
+      id="stats"
+      style={{
+        position: "relative",
+        zIndex: 3,
+        background: "#1c1510",
+        borderTop: "1px solid rgba(255,255,255,0.06)",
+        borderBottom: "1px solid rgba(255,255,255,0.06)",
+      }}
+    >
+      <div
+        style={{
+          maxWidth: 1180,
+          margin: "0 auto",
+          padding: "78px 40px",
+          display: "grid",
+          gridTemplateColumns: "minmax(0,0.85fr) minmax(0,1.15fr)",
+          gap: 64,
+          alignItems: "center",
+        }}
+      >
+        <div>
+          <SectionLabel>§ The tally</SectionLabel>
+          <h2 style={{ fontFamily: sans, fontWeight: 300, fontSize: "clamp(34px,3.6vw,50px)", lineHeight: 1.04, letterSpacing: "-0.02em", color: "#f4eee6", margin: "0 0 18px" }}>
+            It keeps score,
+            <br />
+            <em style={{ fontStyle: "normal", fontWeight: 500, color: "var(--accent)" }}>quietly.</em>
           </h2>
-          <p className="text-base text-gray-400 mb-10 max-w-2xl mx-auto font-mono leading-relaxed">
-            Simple focus timer. No tracking, no analytics, no pressure. Just you and your work.
+          <p style={{ fontFamily: sans, fontWeight: 300, fontSize: 15.5, lineHeight: 1.62, color: "#a89b8b", maxWidth: "38ch", margin: "0 0 30px" }}>
+            Every finished session is logged. No dashboards to check, no guilt — just a quiet record of the days you showed up.
           </p>
-          <div className="flex flex-col sm:flex-row gap-4 justify-center">
-            <a
-              href="https://github.com/arach/pomo/releases/download/v0.2.1/Pomo-v0.2.1-macOS-arm64.dmg"
-              className="bg-white text-black hover:bg-gray-100 rounded-lg transition-all px-6 py-3 inline-flex items-center justify-center gap-2 font-inter font-medium text-sm"
-            >
-              <Download className="w-4 h-4" />
-              Download for macOS
-            </a>
-            <a
-              href="https://github.com/arach/pomo"
-              className="border border-gray-600 text-gray-300 hover:border-gray-400 hover:text-white rounded-lg transition-all px-6 py-3 inline-flex items-center justify-center gap-2 font-inter font-medium text-sm"
-            >
-              <Github className="w-4 h-4" />
-              View Source
-            </a>
-          </div>
-        </div>
-      </section>
-
-      {/* Footer */}
-      <footer className="border-t border-gray-200 py-16 bg-white">
-        <div className="max-w-7xl mx-auto px-8">
-          <div className="flex flex-col md:flex-row justify-between items-center gap-6">
-            <div className="flex items-center gap-2">
-              <div className="w-10 h-10 rounded-xl bg-gray-900 flex items-center justify-center">
-                <span className="text-xl font-bold text-white font-pixelify-sans">P</span>
+          <div style={{ borderTop: "1px solid rgba(255,255,255,0.08)" }}>
+            {rows.map(([label, val, accent], i) => (
+              <div
+                key={label}
+                style={{
+                  display: "flex",
+                  alignItems: "baseline",
+                  justifyContent: "space-between",
+                  padding: "15px 0",
+                  borderBottom: i < rows.length - 1 ? "1px solid rgba(255,255,255,0.08)" : "none",
+                }}
+              >
+                <span style={{ fontFamily: mono, fontSize: 11, letterSpacing: "0.12em", textTransform: "uppercase", color: "#7d7165" }}>{label}</span>
+                <span style={{ fontFamily: sans, fontWeight: 300, fontSize: 38, lineHeight: 1, color: accent ? "var(--accent)" : "#f4eee6" }}>{val}</span>
               </div>
-              <span className="text-xl font-bold text-red-500 font-pixelify-sans">Pomo</span>
-            </div>
-            <div className="flex gap-6">
-              <a href="https://github.com/arach/pomo" className="text-gray-600 hover:text-gray-900 transition-colors">
-                <Github className="w-6 h-6" />
-              </a>
-            </div>
-          </div>
-          <div className="text-center mt-8 text-gray-500 font-mono text-xs">
-            © 2024 <span className="text-red-500 font-pixelify-sans">Pomo</span>. Open source under MIT License.
+            ))}
           </div>
         </div>
-      </footer>
+
+        {/* heatmap */}
+        <div style={{ background: "#17110d", border: "1px solid rgba(255,255,255,0.08)", borderRadius: 14, padding: "26px 28px" }}>
+          <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 16, fontFamily: mono, fontSize: 10.5, letterSpacing: "0.12em", textTransform: "uppercase", color: "#7d7165" }}>
+            <span>Last 17 weeks</span>
+            <span style={{ display: "inline-flex", alignItems: "center", gap: 7 }}>
+              less
+              {legend.map((op) => (
+                <span key={op} style={{ width: 10, height: 10, borderRadius: 2, background: "var(--accent)", opacity: op }} />
+              ))}
+              more
+            </span>
+          </div>
+          <div style={{ display: "grid", gridTemplateRows: "repeat(7,1fr)", gridAutoFlow: "column", gap: 4 }}>
+            {cells.map((op, i) => (
+              <div key={i} style={{ aspectRatio: "1", borderRadius: 2, background: "var(--accent)", opacity: op }} />
+            ))}
+          </div>
+          <div style={{ display: "flex", justifyContent: "space-between", marginTop: 12, fontFamily: mono, fontSize: 10, letterSpacing: "0.1em", textTransform: "uppercase", color: "#5e554b" }}>
+            <span>Feb</span><span>Mar</span><span>Apr</span><span>May</span>
+          </div>
+        </div>
+      </div>
+    </section>
+  );
+}
+
+/* ───────────────────────── download / cta ───────────────────────── */
+function DownloadCTA() {
+  return (
+    <section id="download" style={{ position: "relative", zIndex: 3 }}>
+      <div style={{ maxWidth: 1180, margin: "0 auto", padding: "96px 40px", textAlign: "center", position: "relative" }}>
+        <div
+          style={{
+            position: "absolute",
+            inset: 0,
+            background: "radial-gradient(46% 60% at 50% 38%, var(--accent-glow) 0%, transparent 70%)",
+            opacity: "calc(var(--glow) * 0.6)" as unknown as number,
+            filter: "blur(20px)",
+            pointerEvents: "none",
+          }}
+        />
+        <div style={{ position: "relative" }}>
+          <Mark size={44} />
+          <h2 style={{ fontFamily: sans, fontWeight: 300, fontSize: "clamp(40px,5vw,68px)", lineHeight: 1.02, letterSpacing: "-0.02em", color: "#f4eee6", margin: "8px 0 0" }}>
+            Start your first session.
+          </h2>
+          <p style={{ fontFamily: sans, fontWeight: 300, fontSize: 16, lineHeight: 1.6, color: "#bcae9e", maxWidth: "40ch", margin: "20px auto 0" }}>
+            Download Pomo, pick a task, and give the next twenty-five minutes somewhere to go.
+          </p>
+          <div style={{ display: "flex", alignItems: "center", justifyContent: "center", gap: 12, marginTop: 34, flexWrap: "wrap" }}>
+            <a
+              href={DOWNLOAD_URL}
+              style={{
+                display: "inline-flex",
+                alignItems: "center",
+                gap: 9,
+                padding: "14px 24px",
+                background: "var(--accent)",
+                color: "#1a0f0c",
+                fontFamily: sans,
+                fontSize: 15,
+                fontWeight: 500,
+                borderRadius: 10,
+                textDecoration: "none",
+                boxShadow: "0 10px 26px -10px var(--accent-glow)",
+              }}
+            >
+              <AppleGlyph />
+              Download for Mac
+            </a>
+            <a
+              href={GITHUB_URL}
+              style={{
+                display: "inline-flex",
+                alignItems: "center",
+                gap: 8,
+                padding: "14px 22px",
+                background: "transparent",
+                color: "#e7dccb",
+                fontFamily: sans,
+                fontSize: 15,
+                fontWeight: 500,
+                border: "1px solid rgba(255,255,255,0.14)",
+                borderRadius: 10,
+                textDecoration: "none",
+              }}
+            >
+              View source
+            </a>
+            <span style={{ fontFamily: mono, fontSize: 11, letterSpacing: "0.06em", color: "#6b6055" }}>v0.2.1 · 7.2 MB · macOS 13+</span>
+          </div>
+        </div>
+      </div>
+    </section>
+  );
+}
+
+/* ───────────────────────── footer ───────────────────────── */
+function Footer() {
+  const link = { color: "#9c8f7f", textDecoration: "none" } as const;
+  return (
+    <footer style={{ position: "relative", zIndex: 3, borderTop: "1px solid rgba(255,255,255,0.07)", background: "#120e0c" }}>
+      <div
+        style={{
+          maxWidth: 1180,
+          margin: "0 auto",
+          padding: "26px 40px",
+          display: "flex",
+          alignItems: "center",
+          justifyContent: "space-between",
+          gap: 24,
+          flexWrap: "wrap",
+          fontFamily: mono,
+          fontSize: 11,
+          letterSpacing: "0.05em",
+          color: "#6b6055",
+        }}
+      >
+        <div style={{ display: "inline-flex", alignItems: "center", gap: 9 }}>
+          <Mark size={16} dim />
+          pomo.arach.dev
+        </div>
+        <div style={{ display: "flex", gap: 22 }}>
+          <a href="#features" style={link}>features</a>
+          <a href="#rhythm" style={link}>rhythm</a>
+          <a href="#stats" style={link}>stats</a>
+          <a href={GITHUB_URL} style={link}>github</a>
+        </div>
+        <div>open source · MIT · part of the arach workshop</div>
+      </div>
+    </footer>
+  );
+}
+
+/* ───────────────────────── page ───────────────────────── */
+export default function HomeContent() {
+  const rootStyle = {
+    "--accent": "#eae434",
+    "--accent-deep": "rgb(164,160,36)",
+    "--accent-soft": "rgba(234,228,52,0.16)",
+    "--accent-glow": "rgba(234,228,52,0.42)",
+    "--grain": 1,
+    "--glow": 1,
+    position: "relative",
+    background: "#17120f",
+    color: "#f2ece3",
+    fontFamily: sans,
+    minHeight: "100vh",
+    WebkitFontSmoothing: "antialiased",
+    overflow: "hidden",
+  } as React.CSSProperties;
+
+  return (
+    <div style={rootStyle}>
+      {/* grain overlay */}
+      <div
+        style={{
+          position: "absolute",
+          inset: 0,
+          pointerEvents: "none",
+          zIndex: 2,
+          backgroundImage: "radial-gradient(rgba(255,255,255,0.05) 0.5px, transparent 0.6px)",
+          backgroundSize: "4px 4px",
+          opacity: "var(--grain)" as unknown as number,
+        }}
+      />
+      <Nav />
+      <Hero />
+      <Features />
+      <Screenshots />
+      <Rhythm />
+      <Origin />
+      <Stats />
+      <DownloadCTA />
+      <Footer />
     </div>
   );
 }

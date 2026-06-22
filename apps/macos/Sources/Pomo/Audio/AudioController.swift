@@ -46,6 +46,9 @@ final class AudioController {
     func importCookies(browser: String?, profile: String?) { web.importCookies(fromBrowser: browser, profile: profile) }
     func clearLogin() { web.clearLogin() }
     func setAccount(_ index: Int) { web.setAccount(index) }
+
+    /// Signed-in YouTube identity, observed by Settings + the drawer avatar.
+    var account: AccountStatus { web.account }
     func setVideoVisible(_ visible: Bool) { web.setWindowVisible(visible); syncVideo(); notify() }
     func toggleVideo() { web.toggleWindow(); syncVideo(); notify() }
 

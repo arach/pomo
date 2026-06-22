@@ -11,7 +11,7 @@ struct BlueprintFace: View {
 
     /// The drawing accent follows the session tint so the face still reads
     /// focus/break/long at a glance (focus green sits right by Hudson's emerald).
-    private var accent: Color { model.sessionType.tint.color }
+    private var accent: Color { model.sessionType.accentColor }
 
     // Slate engineering palette — cool blue-grey, distinct from the neutral HUD
     // chrome, matching the marketing site's `--paper`/`--ink`/`--line` tokens.

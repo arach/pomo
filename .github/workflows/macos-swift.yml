@@ -1,17 +1,16 @@
 name: macOS Swift
 
 on:
-  pull_request:
-    paths:
-      - "apps/macos/**"
-      - ".github/workflows/macos-swift.yml"
   push:
     branches:
-      - master
-      - native-swift-primary
+      - main
     paths:
       - "apps/macos/**"
       - ".github/workflows/macos-swift.yml"
+      - ".github/workflows/release-app-macos.yml"
+
+permissions:
+  contents: read
 
 concurrency:
   group: macos-swift-${{ github.ref }}

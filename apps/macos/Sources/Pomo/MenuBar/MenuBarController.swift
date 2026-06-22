@@ -14,6 +14,7 @@ final class MenuBarController: NSObject, NSPopoverDelegate {
     private let audio: AudioController
     private let favorites: FavoritesStore
     private var popover: NSPopover?
+    private var rightClickMonitor: Any?
 
     var onShowHUD: (() -> Void)?
     var onToggleHUD: (() -> Void)?
@@ -36,14 +37,72 @@ final class MenuBarController: NSObject, NSPopoverDelegate {
 
     private func configureButton() {
         guard let button = statusItem.button else { return }
-        let image = NSImage(systemSymbolName: "hourglass", accessibilityDescription: "Pomo")
-        image?.isTemplate = true
-        button.image = image
+        button.image = MenuBarController.ringMarkImage()
         button.imagePosition = .imageLeading
         button.font = NSFont.monospacedDigitSystemFont(ofSize: NSFont.systemFontSize - 1, weight: .medium)
         button.target = self
         button.action = #selector(handleClick)
-        button.sendAction(on: [.leftMouseUp, .rightMouseUp])
+        button.sendAction(on: [.leftMouseUp])     // left = popover; right handled below
+
+        // Status-item right-clicks aren't reliably delivered as the button's
+        // action, so catch the right mouse-down ourselves and show the menu.
+        rightClickMonitor = NSEvent.addLocalMonitorForEvents(matching: [.rightMouseDown]) { [weak self] event in
+            MainActor.assumeIsolated {
+                guard let self, let button = self.statusItem.button, event.window === button.window else { return event }
+                self.menuLog("right-mouse-down → showMenu")
+                self.showMenu()
+                return nil
+            }
+        }
+    }
+
+    private func menuLog(_ line: String) {
+        let entry = "[pomo-menu] \(line)\n"
+        let url = URL(fileURLWithPath: "/tmp/pomo-menu.log")
+        if let handle = try? FileHandle(forWritingTo: url) {
+            handle.seekToEndOfFile(); handle.write(entry.data(using: .utf8) ?? Data()); try? handle.close()
+        } else { try? entry.data(using: .utf8)?.write(to: url) }
+    }
+
+    /// The Pomo ring mark, drawn as a template image so the menu bar tints it
+    /// to match the system appearance. Mirrors the website / app logo: a faint
+    /// ring, a brighter top-right progress arc, a 12 o'clock tick, a centre dot.
+    private static func ringMarkImage() -> NSImage {
+        let image = NSImage(size: NSSize(width: 18, height: 18), flipped: false) { _ in
+            let center = NSPoint(x: 9, y: 9)
+            let radius: CGFloat = 6.0
+
+            let ring = NSBezierPath()
+            ring.appendArc(withCenter: center, radius: radius, startAngle: 0, endAngle: 360)
+            ring.lineWidth = 1.3
+            NSColor.black.withAlphaComponent(0.5).setStroke()
+            ring.stroke()
+
+            let arc = NSBezierPath()
+            arc.appendArc(withCenter: center, radius: radius, startAngle: 90, endAngle: 0, clockwise: true)
+            arc.lineWidth = 1.7
+            arc.lineCapStyle = .round
+            NSColor.black.setStroke()
+            arc.stroke()
+
+            let tick = NSBezierPath()
+            tick.move(to: NSPoint(x: center.x, y: center.y + radius + 1.8))
+            tick.line(to: NSPoint(x: center.x, y: center.y + radius - 0.4))
+            tick.lineWidth = 1.5
+            tick.lineCapStyle = .round
+            NSColor.black.setStroke()
+            tick.stroke()
+
+            let dotRadius: CGFloat = 1.4
+            let dotRect = NSRect(x: center.x - dotRadius, y: center.y - dotRadius,
+                                 width: dotRadius * 2, height: dotRadius * 2)
+            NSColor.black.setFill()
+            NSBezierPath(ovalIn: dotRect).fill()
+
+            return true
+        }
+        image.isTemplate = true
+        return image
     }
 
     /// Update the countdown title. Called from `TimerModel.onTick`.
@@ -58,11 +117,9 @@ final class MenuBarController: NSObject, NSPopoverDelegate {
     }
 
     @objc private func handleClick() {
-        let event = NSApp.currentEvent
-        let wantsMenu = event?.type == .rightMouseUp
-            || event?.modifierFlags.contains(.control) == true
-        if wantsMenu {
-            popUpMenu()
+        menuLog("left-click action; control=\(NSApp.currentEvent?.modifierFlags.contains(.control) == true)")
+        if NSApp.currentEvent?.modifierFlags.contains(.control) == true {
+            showMenu()             // control-click → menu, like a right-click
         } else {
             togglePopover()
         }
@@ -123,12 +180,14 @@ final class MenuBarController: NSObject, NSPopoverDelegate {
 
     // MARK: - Native menu (right-click) — a small utility surface
 
-    private func popUpMenu() {
+    /// Show the right-click utility menu, dropping it just below the status item
+    /// (the previous code anchored it *above* the bar, off-screen).
+    private func showMenu() {
         guard let button = statusItem.button else { return }
         popover?.performClose(nil)
         let menu = buildMenu()
-        let origin = NSPoint(x: 0, y: button.bounds.height + 4)
-        menu.popUp(positioning: nil, at: origin, in: button)
+        menuLog("popUp menu with \(menu.items.count) items")
+        menu.popUp(positioning: nil, at: NSPoint(x: button.bounds.minX, y: button.bounds.minY - 4), in: button)
     }
 
     /// The right-click menu is the "old-school list" way to change config —

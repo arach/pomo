@@ -63,7 +63,7 @@ struct NeonFace: View {
         .padding(HudSpacing.xxl)
         .overlay(alignment: .bottom) {
             FaceControls(model: model, tint: cyan)
-                .padding(.bottom, HudSpacing.xs)
+                .padding(.bottom, HudSpacing.lg)
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
         .background(Color(red: 0.04, green: 0.02, blue: 0.08).opacity(0.55))

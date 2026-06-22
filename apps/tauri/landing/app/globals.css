@@ -2,62 +2,76 @@
 @tailwind components;
 @tailwind utilities;
 
+:root {
+  --background: #17120f;
+  --foreground: #f2ece3;
+  --accent: #eae434;
+  --border: rgba(255, 255, 255, 0.08);
+  --font-sans: var(--font-space-grotesk);
+  --font-mono: var(--font-jetbrains-mono);
+}
+
 @layer base {
   * {
     @apply border-border;
   }
-  
+
   html {
     scroll-behavior: smooth;
   }
-  
+
   body {
+    margin: 0;
     @apply bg-background text-foreground antialiased;
+    font-family: var(--font-space-grotesk, ui-sans-serif), sans-serif;
     text-rendering: optimizeLegibility;
     -webkit-font-smoothing: antialiased;
     -moz-osx-font-smoothing: grayscale;
   }
-  
+
   ::selection {
-    background-color: rgba(239, 68, 68, 0.3);
-    color: white;
+    background-color: rgba(234, 228, 52, 0.32);
+    color: #1a0f0c;
   }
-  
+
   /* Custom scrollbar */
   ::-webkit-scrollbar {
     width: 10px;
     height: 10px;
   }
-  
+
   ::-webkit-scrollbar-track {
-    background: rgba(0, 0, 0, 0.1);
+    background: rgba(0, 0, 0, 0.25);
   }
-  
+
   ::-webkit-scrollbar-thumb {
-    background: rgba(239, 68, 68, 0.3);
+    background: rgba(234, 228, 52, 0.35);
     border-radius: 5px;
   }
-  
+
   ::-webkit-scrollbar-thumb:hover {
-    background: rgba(239, 68, 68, 0.5);
+    background: rgba(234, 228, 52, 0.55);
   }
 }
 
+/* ── Landing animations (from Pomo Landing design) ── */
+@keyframes pomoPulse {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.3; }
+}
+
+@keyframes ringGlow {
+  0%, 100% { filter: drop-shadow(0 0 5px var(--accent-glow, rgba(234, 228, 52, 0.42))); }
+  50% { filter: drop-shadow(0 0 13px var(--accent-glow, rgba(234, 228, 52, 0.42))); }
+}
+
 @layer utilities {
-  .font-pixelify-sans {
-    font-family: var(--font-pixelify-sans), monospace;
-  }
-  
   .font-mono {
-    font-family: var(--font-ibm-plex-mono), monospace;
+    font-family: var(--font-jetbrains-mono), monospace;
   }
-  
-  .font-quantico {
-    font-family: var(--font-quantico), sans-serif;
-  }
-  
-  .font-inter {
-    font-family: var(--font-inter), sans-serif;
+
+  .font-grotesk {
+    font-family: var(--font-space-grotesk), sans-serif;
   }
   
   @keyframes shimmer {

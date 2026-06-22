@@ -44,6 +44,13 @@ final class WebAudioPlayer: NSObject {
     /// Rounded container hosting the web view + the expand button overlay.
     private var drawerContainer: NSView?
     private var expandButton: NSButton?
+    private var loadingView: PomoLoadingView?
+    private var loadingHideWork: DispatchWorkItem?
+    private var avatarView: NSImageView?
+
+    /// Signed-in YouTube identity, surfaced in Settings + the drawer avatar.
+    let account = AccountStatus()
+
     private static let drawerRadius: CGFloat = 12
 
     /// Fired when playback state changes (from JS player events).
@@ -294,6 +301,7 @@ final class WebAudioPlayer: NSObject {
     /// Slide the drawer back behind the HUD and order it out (resetting to the
     /// collapsed screen so the next open is compact).
     private func closeDrawer() {
+        showLoading(false)
         guard let host = hostWindow, host.isVisible else {
             hostWindow?.orderOut(nil); return
         }
@@ -516,6 +524,13 @@ final class WebAudioPlayer: NSObject {
             wv.autoresizingMask = [.width, .height]
             container.addSubview(wv)
 
+            // Branded loading overlay — masks the cold YouTube player load.
+            let loading = PomoLoadingView(frame: container.bounds)
+            loading.autoresizingMask = [.width, .height]
+            loading.alphaValue = 0
+            container.addSubview(loading)
+            self.loadingView = loading
+
             // Corner overlay buttons, pinned top-right: open-in-browser, then expand.
             let bsize: CGFloat = 22, margin: CGFloat = 8, gap: CGFloat = 6
             let expand = Self.overlayButton(symbol: "arrow.up.left.and.arrow.down.right",
@@ -530,6 +545,23 @@ final class WebAudioPlayer: NSObject {
             browser.frame = NSRect(x: frame.width - bsize * 2 - margin - gap, y: frame.height - bsize - margin, width: bsize, height: bsize)
             browser.autoresizingMask = [.minXMargin, .minYMargin]
             container.addSubview(browser)
+
+            // Signed-in avatar, pinned top-left (the top-right corner is taken by the
+            // open-in-browser / expand controls). Hidden until we know the identity.
+            let avatarSize: CGFloat = 22
+            let avatar = NSImageView(frame: NSRect(x: margin, y: frame.height - avatarSize - margin, width: avatarSize, height: avatarSize))
+            avatar.wantsLayer = true
+            avatar.layer?.cornerRadius = avatarSize / 2
+            avatar.layer?.masksToBounds = true
+            avatar.layer?.borderWidth = 1
+            avatar.layer?.borderColor = NSColor.white.withAlphaComponent(0.5).cgColor
+            avatar.imageScaling = .scaleProportionallyUpOrDown
+            avatar.autoresizingMask = [.maxXMargin, .minYMargin]
+            avatar.isHidden = !(account.signedIn && account.avatar != nil)
+            avatar.image = account.avatar
+            avatar.toolTip = "Signed in to YouTube"
+            container.addSubview(avatar)
+            self.avatarView = avatar
 
             let window = NSWindow(contentRect: frame, styleMask: [.borderless], backing: .buffered, defer: false)
             window.isReleasedWhenClosed = false
@@ -587,15 +619,109 @@ final class WebAudioPlayer: NSObject {
         """
         eval(js)
         applyBare(!drawerExpanded)        // a fresh navigation re-asserts the bare default
+        eval(Self.accountJS)              // read the signed-in identity off the masthead
     }
+
+    /// Reads the signed-in avatar (and best-effort name) from the YouTube /
+    /// YT Music masthead, or detects the sign-in button. Retries since the
+    /// masthead hydrates asynchronously.
+    private static let accountJS = """
+    (function(){
+      function post(m){ try{ window.webkit.messageHandlers.pomo.postMessage(m); }catch(e){} }
+      function check(n){
+        var img = document.querySelector('#avatar-btn img, ytd-topbar-menu-button-renderer img, #masthead #avatar-btn img, ytmusic-settings-button img, ytmusic-nav-bar img#right-content-icon');
+        var signin = document.querySelector('a[href*="ServiceLogin"], a[href*="accounts.google.com"][aria-label], ytd-button-renderer#sign-in-button a, tp-yt-paper-button[aria-label="Sign in"], a.sign-in-link');
+        if (img && img.src && img.src.indexOf('http') === 0) {
+          post('account:1|' + (img.alt || '').replace(/[|]/g,' ') + '|' + img.src);
+        } else if (signin) {
+          post('account:0||');
+        } else if (n > 0) {
+          setTimeout(function(){ check(n - 1); }, 800);
+        }
+      }
+      check(8);
+    })();
+    """
 
     fileprivate func handlePlayerEvent(_ body: Any) {
         let message = "\(body)"
         log("event: \(message)")
-        if message.contains("state:1") || message == "playing" { isPlaying = true }
+        if message.hasPrefix("account:") {
+            handleAccount(String(message.dropFirst("account:".count)))
+            return
+        }
+        if message.contains("state:1") || message == "playing" {
+            isPlaying = true
+            showLoading(false)          // video is rendering — reveal it
+        }
         if message.contains("state:2") || message.contains("state:0")
-            || message.hasPrefix("playfail") || message == "no-video" { isPlaying = false }
+            || message.hasPrefix("playfail") || message == "no-video" {
+            isPlaying = false
+            if message.hasPrefix("playfail") || message == "no-video" { showLoading(false) }
+        }
         onStateChange?()
+    }
+
+    // MARK: - Loading overlay (branded shimmer over the cold YouTube load)
+
+    /// A fresh main-frame navigation started — if the drawer is on screen, cover
+    /// it with the branded shimmer until the player reports it's rendering.
+    fileprivate func navigationStarted() {
+        if drawerOpen { showLoading(true) }
+    }
+
+    private func showLoading(_ show: Bool) {
+        guard let loading = loadingView else { return }
+        loadingHideWork?.cancel()
+        loadingHideWork = nil
+        if show {
+            loading.start()
+            NSAnimationContext.runAnimationGroup { ctx in
+                ctx.duration = 0.12
+                loading.animator().alphaValue = 1
+            }
+            // Never let the shimmer outstay the load.
+            let work = DispatchWorkItem { [weak self] in self?.showLoading(false) }
+            loadingHideWork = work
+            DispatchQueue.main.asyncAfter(deadline: .now() + 9, execute: work)
+        } else {
+            NSAnimationContext.runAnimationGroup({ ctx in
+                ctx.duration = 0.3
+                loading.animator().alphaValue = 0
+            }, completionHandler: { [weak loading] in loading?.stop() })
+        }
+    }
+
+    // MARK: - Account identity
+
+    private func handleAccount(_ payload: String) {
+        let parts = payload.components(separatedBy: "|")
+        let signedIn = parts.first == "1"
+        let name = parts.count > 1 ? parts[1].trimmingCharacters(in: .whitespaces) : ""
+        let avatarURL = parts.count > 2 ? parts[2] : ""
+
+        account.signedIn = signedIn
+        account.name = name.isEmpty ? nil : name
+        if signedIn {
+            if !avatarURL.isEmpty { loadAvatar(avatarURL) }
+        } else {
+            account.avatar = nil
+            avatarView?.image = nil
+            avatarView?.isHidden = true
+        }
+    }
+
+    private func loadAvatar(_ urlString: String) {
+        guard let url = URL(string: urlString) else { return }
+        URLSession.shared.dataTask(with: url) { [weak self] data, _, _ in
+            guard let data, let image = NSImage(data: data) else { return }
+            Task { @MainActor in
+                guard let self else { return }
+                self.account.avatar = image
+                self.avatarView?.image = image
+                self.avatarView?.isHidden = !self.account.signedIn
+            }
+        }.resume()
     }
 
     private func log(_ line: String) {
@@ -678,6 +804,9 @@ private final class MessageProxy: NSObject, WKScriptMessageHandler {
 private final class NavProxy: NSObject, WKNavigationDelegate {
     weak var owner: WebAudioPlayer?
     init(_ owner: WebAudioPlayer) { self.owner = owner }
+    func webView(_ webView: WKWebView, didStartProvisionalNavigation navigation: WKNavigation!) {
+        Task { @MainActor in self.owner?.navigationStarted() }
+    }
     func webView(_ webView: WKWebView, didFinish navigation: WKNavigation!) {
         Task { @MainActor in self.owner?.didFinishNavigation() }
     }

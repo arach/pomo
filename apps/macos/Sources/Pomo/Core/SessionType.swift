@@ -37,11 +37,22 @@ enum SessionType: String, CaseIterable, Codable, Identifiable {
     }
 
     /// Chrome accent used by the Minimal face + menu, mapped onto Hudson tints.
+    /// (Breaks keep their Hudson tint; focus uses the Pomo brand yellow below.)
     var tint: HudTint {
         switch self {
         case .focus:      return .green
         case .shortBreak: return .cyan
         case .longBreak:  return .violet
+        }
+    }
+
+    /// Accent colour for the session. Focus uses the central `PomoBrand.accent`
+    /// so the standard focus template reads in Pomo's colour; breaks keep their
+    /// Hudson tint. Change the colour in one place: `PomoBrand.accent`.
+    var accentColor: Color {
+        switch self {
+        case .focus: return PomoBrand.accent
+        default:     return tint.color
         }
     }
 

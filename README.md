@@ -20,12 +20,17 @@ Menu-bar HUD timer: a hotkey-summoned frosted panel, swappable **watchfaces**
 background audio, and a `pomo://` URL scheme for agent control.
 
 ```sh
-cd apps/macos && scripts/run-app.sh        # build, bundle, launch
+cd apps/macos
+scripts/run-app.sh            # build dist/Pomo.app and launch
+scripts/run-app.sh --no-open  # build only
+scripts/run-app.sh --debug    # faster local build
+scripts/build-dmg.sh --local  # build a local smoke-test dist/Pomo.dmg
 ```
 
 No private checkout needed — HudsonKit is consumed as a public, prebuilt **binary**
 package ([`hudsonkit-xcframework`](https://github.com/arach/hudsonkit-xcframework)),
-fetched on first build.
+fetched on first build. More build, signing, and Gatekeeper dequarantine commands
+are in [`apps/macos/README.md`](apps/macos/README.md).
 
 ### iOS — [`apps/ios`](apps/ios)
 

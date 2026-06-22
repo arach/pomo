@@ -265,7 +265,17 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         )
         let window = NSWindow(contentViewController: NSHostingController(rootView: view))
         window.title = "Pomo Settings"
-        window.styleMask = [.titled, .closable]
+        // Resizable, with a transparent full-height titlebar so the sidebar runs
+        // to the top (System-Settings style). The view follows the system
+        // light/dark appearance via `AppPalette`, so we don't force one here.
+        window.styleMask = [.titled, .closable, .miniaturizable, .resizable, .fullSizeContentView]
+        window.titlebarAppearsTransparent = true
+        window.titleVisibility = .hidden
+        window.setContentSize(NSSize(width: 720, height: 560))
+        window.contentMinSize = NSSize(width: 640, height: 480)
+        // A settings window shouldn't persist/restore its transient UI state
+        // (e.g. the selected tab); always open fresh on General.
+        window.isRestorable = false
         window.isReleasedWhenClosed = false
         window.delegate = self
         window.center()

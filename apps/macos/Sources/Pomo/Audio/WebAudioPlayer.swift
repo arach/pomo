@@ -458,30 +458,35 @@ final class WebAudioPlayer: NSObject {
         let menu = NSMenu()
         menu.autoenablesItems = false
 
-        addItem(to: menu, isPlaying ? "Pause" : "Play", #selector(ctxTogglePlay))
-        addItem(to: menu, "Next", #selector(ctxNext))
-        addItem(to: menu, "Previous", #selector(ctxPrevious))
+        addItem(to: menu, isPlaying ? "Pause" : "Play", #selector(ctxTogglePlay),
+                icon: isPlaying ? "pause.fill" : "play.fill")
+        addItem(to: menu, "Next", #selector(ctxNext), icon: "forward.end.fill")
+        addItem(to: menu, "Previous", #selector(ctxPrevious), icon: "backward.end.fill")
         menu.addItem(.separator())
-        addItem(to: menu, "Open in Browser", #selector(ctxOpenInBrowser))
-        addItem(to: menu, "Hide Video", #selector(ctxHideVideo))
+        addItem(to: menu, "Open in Browser", #selector(ctxOpenInBrowser), icon: "safari")
+        addItem(to: menu, "Hide Video", #selector(ctxHideVideo), icon: "eye.slash")
         menu.addItem(.separator())
 
         if account.signedIn {
             let who = NSMenuItem(title: "Signed in\(account.name.map { " as \($0)" } ?? "")",
                                  action: nil, keyEquivalent: "")
             who.isEnabled = false
+            who.image = NSImage(systemSymbolName: "person.crop.circle.fill", accessibilityDescription: nil)
             menu.addItem(who)
-            addItem(to: menu, "Sign Out", #selector(ctxSignOut))
+            addItem(to: menu, "Sign Out", #selector(ctxSignOut), icon: "rectangle.portrait.and.arrow.right")
         } else {
-            addItem(to: menu, "Sign In to YouTube…", #selector(ctxSignIn))
+            addItem(to: menu, "Sign In to YouTube…", #selector(ctxSignIn), icon: "person.crop.circle.badge.plus")
         }
-        addItem(to: menu, "Import Login from Browser…", #selector(ctxImportLogin))
+        addItem(to: menu, "Import Login from Browser…", #selector(ctxImportLogin), icon: "key.horizontal")
         return menu
     }
 
-    private func addItem(to menu: NSMenu, _ title: String, _ action: Selector) {
+    private func addItem(to menu: NSMenu, _ title: String, _ action: Selector, icon: String? = nil) {
         let item = NSMenuItem(title: title, action: action, keyEquivalent: "")
         item.target = self
+        if let icon {
+            item.image = NSImage(systemSymbolName: icon, accessibilityDescription: nil)
+        }
         menu.addItem(item)
     }
 
@@ -518,6 +523,10 @@ final class WebAudioPlayer: NSObject {
         let window = NSWindow(contentViewController: NSHostingController(rootView: view))
         window.title = "Import YouTube Login"
         window.styleMask = [.titled, .closable]
+        // The panel draws its own titled header, so hide the window title (and
+        // blend the titlebar into the content) to avoid showing it twice.
+        window.titleVisibility = .hidden
+        window.titlebarAppearsTransparent = true
         window.isReleasedWhenClosed = false
         window.delegate = self
         window.center()

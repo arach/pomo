@@ -7,6 +7,7 @@ import HudsonUI
 /// then confirm the identity off the reloaded page.
 ///
 /// Three states: choose a browser → working → result (signed-in / nothing found).
+/// Follows the system light/dark appearance via `AppPalette`, like Settings.
 struct CookieImportPanel: View {
     var account: AccountStatus
     /// Imports auth cookies from the given browser id; returns how many it found.
@@ -33,6 +34,10 @@ struct CookieImportPanel: View {
     @State private var pickedName = ""
     @State private var importedCount = 0
     @State private var confirmed = false
+    @State private var hovered: String?
+
+    @Environment(\.colorScheme) private var scheme
+    private var pal: AppPalette { .resolve(scheme) }
 
     var body: some View {
         VStack(alignment: .leading, spacing: HudSpacing.xl) {
@@ -44,18 +49,23 @@ struct CookieImportPanel: View {
             }
         }
         .padding(HudSpacing.huge)
-        .frame(width: 340)
-        .background(HudPalette.bg)
-        .environment(\.hudTheme, .default)
+        .frame(width: 360)
+        .background(pal.bg)
     }
 
     private var header: some View {
         HStack(spacing: HudSpacing.md) {
             Image(systemName: "key.horizontal.fill")
-                .foregroundStyle(PomoBrand.accent)
-            Text("Import YouTube Login")
-                .font(HudFont.mono(HudTextSize.lg, weight: .semibold))
-                .foregroundStyle(HudPalette.ink)
+                .font(.system(size: 14, weight: .semibold))
+                .foregroundStyle(pal.accent)
+            VStack(alignment: .leading, spacing: 1) {
+                Text("Import YouTube Login")
+                    .font(HudFont.mono(HudTextSize.md, weight: .semibold))
+                    .foregroundStyle(pal.ink)
+                Text("Go ad-free with a session you already have")
+                    .font(HudFont.ui(HudTextSize.xs))
+                    .foregroundStyle(pal.dim)
+            }
         }
     }
 
@@ -64,8 +74,8 @@ struct CookieImportPanel: View {
     private var chooseStep: some View {
         VStack(alignment: .leading, spacing: HudSpacing.lg) {
             Text("Borrow the login from a browser you're already signed into — the player goes ad-free with Premium.")
-                .font(HudFont.mono(HudTextSize.xs))
-                .foregroundStyle(HudPalette.dim)
+                .font(HudFont.ui(HudTextSize.xs))
+                .foregroundStyle(pal.muted)
                 .fixedSize(horizontal: false, vertical: true)
 
             VStack(spacing: HudSpacing.sm) {
@@ -76,43 +86,45 @@ struct CookieImportPanel: View {
 
             HStack {
                 Spacer()
-                HudButton("Cancel", style: .secondary, action: onClose)
+                button("Cancel", action: onClose)
             }
         }
     }
 
     private func browserRow(_ browser: Browser) -> some View {
-        Button { start(browser) } label: {
+        let isHovered = hovered == browser.id
+        return Button { start(browser) } label: {
             HStack(spacing: HudSpacing.md) {
                 Image(systemName: "globe")
                     .font(HudFont.ui(HudTextSize.sm))
-                    .foregroundStyle(HudPalette.muted)
+                    .foregroundStyle(isHovered ? pal.action : pal.muted)
                     .frame(width: 18)
                 Text(browser.name)
-                    .font(HudFont.mono(HudTextSize.sm, weight: .medium))
-                    .foregroundStyle(HudPalette.ink)
+                    .font(HudFont.ui(HudTextSize.sm, weight: .medium))
+                    .foregroundStyle(pal.ink)
                 Spacer()
                 if let note = browser.note {
                     Text(note)
                         .font(HudFont.mono(HudTextSize.micro))
-                        .foregroundStyle(HudPalette.dim)
+                        .foregroundStyle(pal.dim)
                 }
                 Image(systemName: "chevron.right")
                     .font(HudFont.ui(HudTextSize.micro, weight: .semibold))
-                    .foregroundStyle(HudPalette.dim)
+                    .foregroundStyle(pal.dim)
             }
             .padding(.horizontal, HudSpacing.lg)
-            .frame(height: 38)
+            .frame(height: 40)
             .background(
                 RoundedRectangle(cornerRadius: HudRadius.standard)
-                    .fill(HudSurface.inset)
+                    .fill(isHovered ? pal.surfaceHover : pal.inset)
                     .overlay(
                         RoundedRectangle(cornerRadius: HudRadius.standard)
-                            .stroke(HudPalette.border, lineWidth: 1)
+                            .stroke(isHovered ? pal.action.opacity(0.5) : pal.border, lineWidth: 1)
                     )
             )
         }
         .buttonStyle(.plain)
+        .onHover { hovered = $0 ? browser.id : (hovered == browser.id ? nil : hovered) }
     }
 
     // MARK: - Step 2 · working
@@ -121,13 +133,13 @@ struct CookieImportPanel: View {
         VStack(spacing: HudSpacing.lg) {
             ProgressView()
                 .controlSize(.large)
-                .tint(PomoBrand.accent)
+                .tint(pal.action)
             Text("Reading your login from \(pickedName)…")
-                .font(HudFont.mono(HudTextSize.sm))
-                .foregroundStyle(HudPalette.muted)
+                .font(HudFont.ui(HudTextSize.sm))
+                .foregroundStyle(pal.muted)
             Text("Chrome-based browsers may ask for Keychain access.")
-                .font(HudFont.mono(HudTextSize.micro))
-                .foregroundStyle(HudPalette.dim)
+                .font(HudFont.ui(HudTextSize.xs))
+                .foregroundStyle(pal.dim)
         }
         .frame(maxWidth: .infinity)
         .padding(.vertical, HudSpacing.xxl)
@@ -140,12 +152,12 @@ struct CookieImportPanel: View {
             VStack(spacing: HudSpacing.lg) {
                 avatar
                 Text("Signed in as \(account.name ?? "your account")")
-                    .font(HudFont.mono(HudTextSize.sm, weight: .semibold))
-                    .foregroundStyle(HudPalette.ink)
+                    .font(HudFont.ui(HudTextSize.sm, weight: .semibold))
+                    .foregroundStyle(pal.ink)
                 Label("Ad-free with Premium", systemImage: "checkmark.seal.fill")
-                    .font(HudFont.mono(HudTextSize.xs))
-                    .foregroundStyle(PomoBrand.accent)
-                HudButton("Done", style: .primary(.green), action: onClose)
+                    .font(HudFont.ui(HudTextSize.xs, weight: .medium))
+                    .foregroundStyle(pal.action)
+                button("Done", kind: .primary, action: onClose)
             }
             .frame(maxWidth: .infinity)
             .padding(.vertical, HudSpacing.lg)
@@ -157,21 +169,21 @@ struct CookieImportPanel: View {
                         : "No YouTube login found in \(pickedName).",
                     systemImage: importedCount > 0 ? "exclamationmark.triangle.fill" : "xmark.circle.fill"
                 )
-                .font(HudFont.mono(HudTextSize.xs))
-                .foregroundStyle(HudPalette.muted)
+                .font(HudFont.ui(HudTextSize.sm))
+                .foregroundStyle(pal.muted)
                 .fixedSize(horizontal: false, vertical: true)
 
                 Text(importedCount > 0
                     ? "Try playing a video — the page may still be signing in."
                     : "Make sure you're logged into YouTube in that browser, or pick another.")
-                    .font(HudFont.mono(HudTextSize.micro))
-                    .foregroundStyle(HudPalette.dim)
+                    .font(HudFont.ui(HudTextSize.xs))
+                    .foregroundStyle(pal.dim)
                     .fixedSize(horizontal: false, vertical: true)
 
                 HStack {
-                    HudButton("Try another", style: .secondary) { phase = .choose }
+                    button("Try another") { phase = .choose }
                     Spacer()
-                    HudButton("Close", style: .secondary, action: onClose)
+                    button("Close", action: onClose)
                 }
             }
         }
@@ -184,12 +196,35 @@ struct CookieImportPanel: View {
             } else {
                 Image(systemName: "person.crop.circle.fill")
                     .resizable().aspectRatio(contentMode: .fit)
-                    .foregroundStyle(PomoBrand.accent)
+                    .foregroundStyle(pal.action)
             }
         }
         .frame(width: 48, height: 48)
         .clipShape(Circle())
-        .overlay(Circle().stroke(HudPalette.border, lineWidth: 1))
+        .overlay(Circle().stroke(pal.border, lineWidth: 1))
+    }
+
+    // MARK: - Button
+
+    private enum ButtonKind { case primary, secondary }
+
+    private func button(_ title: String, kind: ButtonKind = .secondary, action: @escaping () -> Void) -> some View {
+        Button(action: action) {
+            Text(title)
+                .font(HudFont.mono(HudTextSize.xs, weight: .semibold))
+                .foregroundStyle(kind == .primary ? Color.black.opacity(0.82) : pal.ink)
+                .padding(.horizontal, HudSpacing.lg)
+                .padding(.vertical, HudSpacing.sm)
+                .background(
+                    RoundedRectangle(cornerRadius: HudRadius.standard)
+                        .fill(kind == .primary ? pal.action : pal.inset)
+                        .overlay(
+                            RoundedRectangle(cornerRadius: HudRadius.standard)
+                                .stroke(kind == .primary ? Color.clear : pal.border, lineWidth: 1)
+                        )
+                )
+        }
+        .buttonStyle(.plain)
     }
 
     // MARK: - Flow

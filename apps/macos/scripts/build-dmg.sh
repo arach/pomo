@@ -128,7 +128,11 @@ if [[ "$build_app" == true ]]; then
     run_args+=(--sign "$sign_identity")
   fi
 
-  POMO_APP_PATH="$app_path" POMO_VERSION="$version" "$repo_root/scripts/run-app.sh" "${run_args[@]}"
+  # DMG/release builds carry the canonical bundle id + name (not the dev `.dev`
+  # default) so signing, notarization, and installs match the shipped app.
+  POMO_APP_PATH="$app_path" POMO_VERSION="$version" \
+    POMO_BUNDLE_ID="${POMO_BUNDLE_ID:-dev.pomo.hud}" POMO_DISPLAY_NAME="${POMO_DISPLAY_NAME:-Pomo}" \
+    "$repo_root/scripts/run-app.sh" "${run_args[@]}"
 elif [[ "$skip_sign" != "1" ]]; then
   echo "Signing $app_path"
   codesign --force --deep --options runtime --timestamp --sign "$sign_identity" "$app_path"

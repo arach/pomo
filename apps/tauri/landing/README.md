@@ -7,17 +7,13 @@ This is the landing page for Pomo, a minimalist Pomodoro timer for macOS.
 First, install dependencies:
 
 ```bash
-pnpm install
-# or
-npm install
+bun install
 ```
 
 Then, run the development server:
 
 ```bash
-pnpm dev
-# or
-npm run dev
+bun run dev
 ```
 
 Open [http://localhost:4321](http://localhost:4321) to see the landing page.
@@ -29,9 +25,7 @@ Open [http://localhost:4321](http://localhost:4321) to see the landing page.
 To create a production build:
 
 ```bash
-pnpm build
-# or
-npm run build
+bun run build
 ```
 
 The static output will be in the `out` directory, ready to be deployed to any static hosting service.

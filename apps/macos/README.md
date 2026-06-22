@@ -124,19 +124,27 @@ gh release upload "$(gh release view --json tagName -q .tagName)" dist/Pomo.dmg 
 
 The **Release App macOS** workflow builds, signs, notarizes, staples, verifies,
 and uploads the public DMG. It publishes to GitHub Releases only when run from
-an `app-macos-v<version>` tag or when manually run with `publish=true`.
+a `v<version>` tag, an older `app-macos-v<version>` compatibility tag, or when
+manually run with `publish=true`.
 
 Release from a tag:
 
 ```sh
-git tag -a app-macos-v0.2.2 -m "Pomo macOS 0.2.2"
-git push origin app-macos-v0.2.2
+scripts/release.sh 0.2.5
+```
+
+That checks you are on up-to-date `main`, verifies the landing page already
+mentions the release version, then pushes the canonical release tag:
+
+```sh
+git tag -a v0.2.5 -m "Pomo 0.2.5"
+git push origin v0.2.5
 ```
 
 Or run it manually:
 
 ```sh
-gh workflow run release-app-macos.yml --ref master -f version=0.2.2 -f publish=true
+gh workflow run release-app-macos.yml --ref main -f version=0.2.5 -f publish=true
 ```
 
 The workflow creates or updates release `v<version>` with:

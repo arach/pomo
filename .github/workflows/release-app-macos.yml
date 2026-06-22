@@ -3,6 +3,7 @@ name: Release App macOS
 on:
   push:
     tags:
+      - "v*"
       - "app-macos-v*"
   workflow_dispatch:
     inputs:

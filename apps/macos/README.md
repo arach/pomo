@@ -174,6 +174,19 @@ Create `DEVELOPER_ID_APPLICATION_CERT_BASE64` from the exported certificate:
 base64 < DeveloperIDApplication.p12 | tr -d '\n' | pbcopy
 ```
 
+One-time GitHub setup:
+
+```sh
+gh secret set DEVELOPER_ID_APPLICATION_CERT_BASE64 --repo arach/pomo --env release
+gh secret set DEVELOPER_ID_APPLICATION_CERT_PASSWORD --repo arach/pomo --env release
+gh secret set KEYCHAIN_PASSWORD --repo arach/pomo --env release
+gh secret set APP_STORE_CONNECT_API_KEY_P8 --repo arach/pomo --env release < AuthKey_KEYID.p8
+
+gh variable set APP_STORE_CONNECT_KEY_ID --repo arach/pomo --env release --body KEYID
+# Optional for individual API keys:
+gh variable set APP_STORE_CONNECT_ISSUER_ID --repo arach/pomo --env release --body ISSUER_UUID
+```
+
 For a smoke test, run **Release App macOS** manually with `publish=false`. That
 builds an unsigned workflow artifact and intentionally skips the GitHub release.
 

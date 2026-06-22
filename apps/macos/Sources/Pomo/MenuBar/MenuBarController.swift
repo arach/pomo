@@ -14,6 +14,7 @@ final class MenuBarController: NSObject, NSPopoverDelegate {
     private let audio: AudioController
     private let favorites: FavoritesStore
     private var popover: NSPopover?
+    private var rightClickMonitor: Any?
 
     var onShowHUD: (() -> Void)?
     var onToggleHUD: (() -> Void)?
@@ -41,7 +42,26 @@ final class MenuBarController: NSObject, NSPopoverDelegate {
         button.font = NSFont.monospacedDigitSystemFont(ofSize: NSFont.systemFontSize - 1, weight: .medium)
         button.target = self
         button.action = #selector(handleClick)
-        button.sendAction(on: [.leftMouseUp, .rightMouseUp])
+        button.sendAction(on: [.leftMouseUp])     // left = popover; right handled below
+
+        // Status-item right-clicks aren't reliably delivered as the button's
+        // action, so catch the right mouse-down ourselves and show the menu.
+        rightClickMonitor = NSEvent.addLocalMonitorForEvents(matching: [.rightMouseDown]) { [weak self] event in
+            MainActor.assumeIsolated {
+                guard let self, let button = self.statusItem.button, event.window === button.window else { return event }
+                self.menuLog("right-mouse-down → showMenu")
+                self.showMenu()
+                return nil
+            }
+        }
+    }
+
+    private func menuLog(_ line: String) {
+        let entry = "[pomo-menu] \(line)\n"
+        let url = URL(fileURLWithPath: "/tmp/pomo-menu.log")
+        if let handle = try? FileHandle(forWritingTo: url) {
+            handle.seekToEndOfFile(); handle.write(entry.data(using: .utf8) ?? Data()); try? handle.close()
+        } else { try? entry.data(using: .utf8)?.write(to: url) }
     }
 
     /// The Pomo ring mark, drawn as a template image so the menu bar tints it
@@ -97,11 +117,9 @@ final class MenuBarController: NSObject, NSPopoverDelegate {
     }
 
     @objc private func handleClick() {
-        let event = NSApp.currentEvent
-        let wantsMenu = event?.type == .rightMouseUp
-            || event?.modifierFlags.contains(.control) == true
-        if wantsMenu {
-            popUpMenu()
+        menuLog("left-click action; control=\(NSApp.currentEvent?.modifierFlags.contains(.control) == true)")
+        if NSApp.currentEvent?.modifierFlags.contains(.control) == true {
+            showMenu()             // control-click → menu, like a right-click
         } else {
             togglePopover()
         }
@@ -162,12 +180,14 @@ final class MenuBarController: NSObject, NSPopoverDelegate {
 
     // MARK: - Native menu (right-click) — a small utility surface
 
-    private func popUpMenu() {
+    /// Show the right-click utility menu, dropping it just below the status item
+    /// (the previous code anchored it *above* the bar, off-screen).
+    private func showMenu() {
         guard let button = statusItem.button else { return }
         popover?.performClose(nil)
         let menu = buildMenu()
-        let origin = NSPoint(x: 0, y: button.bounds.height + 4)
-        menu.popUp(positioning: nil, at: origin, in: button)
+        menuLog("popUp menu with \(menu.items.count) items")
+        menu.popUp(positioning: nil, at: NSPoint(x: button.bounds.minX, y: button.bounds.minY - 4), in: button)
     }
 
     /// The right-click menu is the "old-school list" way to change config —

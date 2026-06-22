@@ -61,6 +61,61 @@ const SectionLabel = ({ children }: { children: React.ReactNode }) => (
   </div>
 );
 
+const cliCommandGroups: {
+  title: string;
+  commands: { command: string; description?: string }[];
+}[] = [
+  {
+    title: "Timer",
+    commands: [
+      { command: "status [--json]", description: "show the live state (default when run with no command)" },
+      { command: "start | pause | toggle | reset | skip" },
+      { command: "session <focus|short|long>" },
+      { command: "duration <minutes>" },
+    ],
+  },
+  {
+    title: "Intent",
+    commands: [
+      { command: "intent <text…>", description: "set what you're working on" },
+      { command: "intent clear", description: "clear it" },
+    ],
+  },
+  {
+    title: "Audio / video",
+    commands: [
+      { command: "audio <url>", description: "play a YouTube/stream link" },
+      { command: "audio <play|pause|stop|next|prev>" },
+      { command: "volume <0-100>" },
+      { command: "video <show|hide|toggle|browser>" },
+    ],
+  },
+  {
+    title: "Favorites",
+    commands: [
+      { command: "fav", description: "list saved stations" },
+      { command: "fav add <url> [title…]" },
+      { command: "fav play <n>" },
+      { command: "fav remove <n>" },
+    ],
+  },
+  {
+    title: "Window & app",
+    commands: [
+      { command: "show | hide | hud", description: "summon / dismiss / toggle the HUD" },
+      { command: "menu", description: "open the menu-bar popover" },
+      { command: "face <name>", description: "switch watchface" },
+      { command: "settings | stats", description: "open the Settings / Stats window" },
+      { command: "login", description: "audio sign-in (YouTube)" },
+      { command: "login import [--browser b] [--profile p]", description: "import browser cookies (ad-free)" },
+      { command: "login profiles", description: "list detected browser profiles" },
+      { command: "login account <n> | logout" },
+      { command: "install [--dry-run] [--open]", description: "download & install the latest .dmg" },
+      { command: "quit" },
+    ],
+  },
+];
+
 /* ───────────────────────── nav ───────────────────────── */
 function Nav() {
   const link = { color: "#9c8f7f", textDecoration: "none" } as const;
@@ -84,6 +139,7 @@ function Nav() {
         </a>
         <nav style={{ display: "flex", gap: 26, fontFamily: mono, fontSize: 12, letterSpacing: "0.04em" }}>
           <a href="#features" style={link}><span style={{ color: "#6b6055" }}>:</span>features</a>
+          <a href="#cli" style={link}><span style={{ color: "#6b6055" }}>:</span>cli</a>
           <a href="#rhythm" style={link}><span style={{ color: "#6b6055" }}>:</span>rhythm</a>
           <a href="#stats" style={link}><span style={{ color: "#6b6055" }}>:</span>stats</a>
         </nav>
@@ -511,6 +567,99 @@ function Screenshots() {
   );
 }
 
+/* ───────────────────────── shell CLI ───────────────────────── */
+function CLIShowcase() {
+  const surface = {
+    background: "#211a15",
+    border: "1px solid rgba(255,255,255,0.07)",
+    borderRadius: 16,
+    boxShadow: "0 30px 60px -28px rgba(0,0,0,0.85), inset 0 1px 0 rgba(255,255,255,0.05)",
+    overflow: "hidden",
+  } as React.CSSProperties;
+  const commandRow = {
+    display: "grid",
+    gridTemplateColumns: "minmax(180px,0.9fr) minmax(0,1fr)",
+    columnGap: 22,
+    rowGap: 4,
+  } as React.CSSProperties;
+
+  return (
+    <section id="cli" style={{ position: "relative", zIndex: 3 }}>
+      <div
+        style={{
+          maxWidth: 1180,
+          margin: "0 auto",
+          padding: "62px 40px 34px",
+          display: "grid",
+          gridTemplateColumns: "minmax(0,0.75fr) minmax(0,1.25fr)",
+          gap: 42,
+          alignItems: "start",
+        }}
+      >
+        <div>
+          <SectionLabel>§ CLI</SectionLabel>
+          <h2 style={{ fontFamily: sans, fontWeight: 300, fontSize: "clamp(32px,3.4vw,46px)", lineHeight: 1.05, letterSpacing: "-0.02em", color: "#f4eee6", margin: "0 0 18px" }}>
+            Drive it from the shell
+          </h2>
+          <p style={{ fontFamily: sans, fontWeight: 300, fontSize: 15.5, lineHeight: 1.65, color: "#a89b8b", maxWidth: "38ch", margin: 0 }}>
+            Every control is scriptable — run Pomo from your terminal or an agent.
+          </p>
+        </div>
+
+        <div style={surface}>
+          <div
+            style={{
+              height: 42,
+              display: "flex",
+              alignItems: "center",
+              gap: 9,
+              padding: "0 18px",
+              background: "#17110d",
+              borderBottom: "1px solid rgba(255,255,255,0.07)",
+            }}
+          >
+            {["#5c544a", "#7d7165", "var(--accent)"].map((color, i) => (
+              <span key={i} style={{ width: 9, height: 9, borderRadius: "50%", background: color, display: "inline-block" }} />
+            ))}
+            <span style={{ marginLeft: 10, fontFamily: mono, fontSize: 12, color: "var(--accent)", letterSpacing: "0.02em" }}>
+              &gt; pomo -h
+            </span>
+          </div>
+
+          <div
+            style={{
+              padding: "22px 24px 24px",
+              fontFamily: mono,
+              fontSize: 12.5,
+              lineHeight: 1.7,
+              background: "linear-gradient(180deg,#211a15 0%,#17110d 100%)",
+            }}
+          >
+            <div style={{ color: "#f2ece3" }}>pomo — control &amp; install the Pomo macOS HUD timer</div>
+            <div style={{ color: "#7d7165", marginTop: 2 }}>Usage: pomo &lt;command&gt; [args]</div>
+
+            <div style={{ display: "flex", flexDirection: "column", gap: 16, marginTop: 20 }}>
+              {cliCommandGroups.map((group) => (
+                <div key={group.title}>
+                  <div style={{ color: "#7d7165", marginBottom: 5 }}>{group.title}</div>
+                  <div style={{ display: "flex", flexDirection: "column", gap: 2 }}>
+                    {group.commands.map(({ command, description }) => (
+                      <div key={command} style={commandRow}>
+                        <span style={{ color: "#f2ece3", whiteSpace: "pre-wrap" }}>{command}</span>
+                        {description ? <span style={{ color: "#7d7165" }}>{description}</span> : <span />}
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              ))}
+            </div>
+          </div>
+        </div>
+      </div>
+    </section>
+  );
+}
+
 /* ───────────────────────── rhythm + pro tips ───────────────────────── */
 function Rhythm() {
   const tips = [
@@ -789,6 +938,7 @@ function Footer() {
         </div>
         <div style={{ display: "flex", gap: 22 }}>
           <a href="#features" style={link}>features</a>
+          <a href="#cli" style={link}>cli</a>
           <a href="#rhythm" style={link}>rhythm</a>
           <a href="#stats" style={link}>stats</a>
           <a href={GITHUB_URL} style={link}>github</a>
@@ -835,6 +985,7 @@ export default function HomeContent() {
       <Hero />
       <Features />
       <Screenshots />
+      <CLIShowcase />
       <Rhythm />
       <Origin />
       <Stats />

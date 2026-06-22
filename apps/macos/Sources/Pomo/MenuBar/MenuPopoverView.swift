@@ -6,6 +6,12 @@ import HudsonShell
 /// A compact, HUD-flavoured panel: live countdown + progress, transport
 /// controls, session and watchface pickers, and a "Show HUD" affordance.
 ///
+/// Unlike the HUD (which is always a dark frosted panel), the menu-bar popover
+/// **follows the system appearance** — it sits against the user's desktop, so a
+/// forced-dark panel reads as out of place on a light Mac. We drive Hudson's
+/// theme + a scheme-aware palette off `colorScheme` so the popover is a clean
+/// light panel in light mode and the familiar dark HUD surface in dark mode.
+///
 /// Right-clicking the menu-bar item opens a small native menu instead
 /// (Settings / Quit) — see `MenuBarController`. The HUD itself stays
 /// hotkey-driven.
@@ -21,8 +27,25 @@ struct MenuPopoverView: View {
     var onStopAudio: () -> Void
     var onPlayFavorite: (Favorite) -> Void
 
+    @Environment(\.colorScheme) private var scheme
+
     private var session: SessionType { model.sessionType }
     private var tint: HudTint { session.tint }
+
+    // MARK: - Adaptive theme
+
+    /// Hudson's static `HudPalette` / `HudSurface` colours are fixed-dark and do
+    /// not follow `\.hudTheme`, so we read the theme palette directly and pick
+    /// light vs dark off the system appearance. (`lightDraft` is Hudson's light
+    /// palette; `default` is the dark HUD palette.)
+    private var theme: HudTheme { scheme == .light ? .lightDraft : .default }
+    private var pal: HudThemePalette { scheme == .light ? .lightDraft : .default }
+
+    /// Scheme-aware inset / tinted surfaces for the chips + icon buttons, since
+    /// `HudSurface` is dark-only. In light mode we derive subtle on-light fills.
+    private var insetFill: Color { scheme == .light ? Color.black.opacity(0.05) : HudSurface.inset }
+    private func tintFill(_ c: Color) -> Color { scheme == .light ? c.opacity(0.16) : HudSurface.tintFill(c) }
+    private func tintBorder(_ c: Color) -> Color { scheme == .light ? c.opacity(0.55) : HudSurface.tintBorder(c) }
 
     var body: some View {
         VStack(alignment: .leading, spacing: HudSpacing.xl) {
@@ -38,16 +61,22 @@ struct MenuPopoverView: View {
         .padding(HudSpacing.xxl)
         .frame(width: 288)
         .background(frostedBackground)
-        .environment(\.hudTheme, .default)
+        .environment(\.hudTheme, theme)
     }
 
-    // MARK: - Background (mirrors the HUD's frosted card)
+    // MARK: - Background (frosted card that follows the system appearance)
 
     private var frostedBackground: some View {
         ZStack {
-            HudVisualEffectView(material: .hudWindow, blendingMode: .behindWindow, state: .active)
+            HudVisualEffectView(
+                material: scheme == .light ? .popover : .hudWindow,
+                blendingMode: .behindWindow,
+                state: .active
+            )
             LinearGradient(
-                colors: [Color.black.opacity(0.46), Color.black.opacity(0.34)],
+                colors: scheme == .light
+                    ? [Color.white.opacity(0.45), Color.white.opacity(0.24)]
+                    : [Color.black.opacity(0.46), Color.black.opacity(0.34)],
                 startPoint: .top,
                 endPoint: .bottom
             )
@@ -62,7 +91,7 @@ struct MenuPopoverView: View {
             Text("POMO")
                 .font(HudFont.mono(HudTextSize.xxs, weight: .bold))
                 .tracking(2)
-                .foregroundStyle(HudPalette.dim)
+                .foregroundStyle(pal.dim)
             Spacer()
             HudBadge(session.label, tint: tint.color, dot: true)
         }
@@ -75,10 +104,10 @@ struct MenuPopoverView: View {
             Text(model.clock)
                 .font(HudFont.mono(HudTextSize.hero, weight: .medium))
                 .monospacedDigit()
-                .foregroundStyle(HudPalette.ink)
+                .foregroundStyle(pal.ink)
             GeometryReader { geo in
                 ZStack(alignment: .leading) {
-                    Capsule().fill(HudPalette.ink.opacity(0.10))
+                    Capsule().fill(pal.ink.opacity(0.10))
                     Capsule()
                         .fill(tint.color)
                         .frame(width: max(0, geo.size.width * model.progress))
@@ -99,15 +128,15 @@ struct MenuPopoverView: View {
         )
         .textFieldStyle(.plain)
         .font(HudFont.mono(HudTextSize.sm))
-        .foregroundStyle(HudPalette.ink)
+        .foregroundStyle(pal.ink)
         .padding(.horizontal, HudSpacing.lg)
         .frame(height: 30)
         .background(
             RoundedRectangle(cornerRadius: HudRadius.standard)
-                .fill(HudPalette.bg)
+                .fill(pal.bg)
                 .overlay(
                     RoundedRectangle(cornerRadius: HudRadius.standard)
-                        .stroke(HudPalette.border, lineWidth: 1)
+                        .stroke(pal.border, lineWidth: 1)
                 )
         )
     }
@@ -168,7 +197,7 @@ struct MenuPopoverView: View {
                 chip(
                     label: face.displayName,
                     selected: face == settings.watchface,
-                    tint: HudPalette.accent,
+                    tint: pal.accent,
                     enabled: true
                 ) {
                     settings.watchface = face
@@ -195,10 +224,10 @@ struct MenuPopoverView: View {
                         .font(HudFont.mono(HudTextSize.xs, weight: .medium))
                         .lineLimit(1)
                         .truncationMode(.tail)
-                        .foregroundStyle(audio.currentURL.isEmpty ? HudPalette.dim : HudPalette.ink)
+                        .foregroundStyle(audio.currentURL.isEmpty ? pal.dim : pal.ink)
                     Text(nowPlayingSubtitle)
                         .font(HudFont.mono(HudTextSize.micro))
-                        .foregroundStyle(audio.isPlaying ? tint.color : HudPalette.dim)
+                        .foregroundStyle(audio.isPlaying ? tint.color : pal.dim)
                 }
                 Spacer(minLength: 0)
             }
@@ -210,7 +239,7 @@ struct MenuPopoverView: View {
                         chip(
                             label: favorite.title,
                             selected: favorite.url == audio.currentURL,
-                            tint: HudPalette.accent,
+                            tint: pal.accent,
                             enabled: true
                         ) { onPlayFavorite(favorite) }
                     }
@@ -220,13 +249,13 @@ struct MenuPopoverView: View {
             HStack(spacing: HudSpacing.sm) {
                 Image(systemName: "speaker.fill")
                     .font(HudFont.ui(HudTextSize.micro))
-                    .foregroundStyle(HudPalette.dim)
+                    .foregroundStyle(pal.dim)
                 Slider(value: settings.binding(\.audioVolume), in: 0...1)
                     .controlSize(.mini)
                     .tint(tint.color)
                 Image(systemName: "speaker.wave.3.fill")
                     .font(HudFont.ui(HudTextSize.micro))
-                    .foregroundStyle(HudPalette.dim)
+                    .foregroundStyle(pal.dim)
             }
         }
     }
@@ -254,12 +283,12 @@ struct MenuPopoverView: View {
 
     private var footer: some View {
         VStack(spacing: HudSpacing.lg) {
-            Divider().overlay(HudPalette.border)
+            Divider().overlay(pal.border)
             HStack(spacing: HudSpacing.md) {
                 HudButton("Show HUD", icon: "macwindow", style: .secondary, action: onShowHUD)
                 Text(settings.hotkeyDisplay)
                     .font(HudFont.mono(HudTextSize.xs))
-                    .foregroundStyle(HudPalette.dim)
+                    .foregroundStyle(pal.dim)
                 Spacer()
                 iconButton(
                     settings.soundEnabled ? "speaker.wave.2.fill" : "speaker.slash.fill",
@@ -283,7 +312,7 @@ struct MenuPopoverView: View {
             Text(title)
                 .font(HudFont.mono(HudTextSize.micro, weight: .bold))
                 .tracking(1.5)
-                .foregroundStyle(HudPalette.dim)
+                .foregroundStyle(pal.dim)
             content()
         }
     }
@@ -303,14 +332,14 @@ struct MenuPopoverView: View {
                 .minimumScaleFactor(0.75)
                 .frame(maxWidth: .infinity)
                 .padding(.vertical, HudSpacing.sm)
-                .foregroundStyle(selected ? tint : HudPalette.muted)
+                .foregroundStyle(selected ? tint : pal.muted)
                 .background(
                     RoundedRectangle(cornerRadius: HudRadius.standard)
-                        .fill(selected ? HudSurface.tintFill(tint) : HudSurface.inset)
+                        .fill(selected ? tintFill(tint) : insetFill)
                 )
                 .overlay(
                     RoundedRectangle(cornerRadius: HudRadius.standard)
-                        .stroke(selected ? HudSurface.tintBorder(tint) : HudPalette.border, lineWidth: 1)
+                        .stroke(selected ? tintBorder(tint) : pal.border, lineWidth: 1)
                 )
         }
         .buttonStyle(.plain)
@@ -328,13 +357,13 @@ struct MenuPopoverView: View {
         Button(action: action) {
             Image(systemName: symbol)
                 .font(HudFont.ui(HudTextSize.sm, weight: .semibold))
-                .foregroundStyle(active ? HudPalette.muted : HudPalette.dim)
+                .foregroundStyle(active ? pal.muted : pal.dim)
                 .frame(width: 28, height: 28)
                 .background(
-                    RoundedRectangle(cornerRadius: HudRadius.standard).fill(HudSurface.inset)
+                    RoundedRectangle(cornerRadius: HudRadius.standard).fill(insetFill)
                 )
                 .overlay(
-                    RoundedRectangle(cornerRadius: HudRadius.standard).stroke(HudPalette.border, lineWidth: 1)
+                    RoundedRectangle(cornerRadius: HudRadius.standard).stroke(pal.border, lineWidth: 1)
                 )
         }
         .buttonStyle(.plain)

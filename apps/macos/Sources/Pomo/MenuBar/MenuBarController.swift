@@ -178,7 +178,9 @@ final class MenuBarController: NSObject, NSPopoverDelegate {
         let popover = NSPopover()
         popover.contentViewController = host
         popover.behavior = .transient
-        popover.appearance = NSAppearance(named: .darkAqua)
+        // No forced appearance — the popover sits against the user's desktop, so
+        // it follows the system light/dark setting (MenuPopoverView themes itself
+        // off `colorScheme`). The HUD stays dark; the menu popover adapts.
         popover.delegate = self
         self.popover = popover
         return popover

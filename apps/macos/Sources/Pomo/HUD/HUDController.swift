@@ -36,7 +36,8 @@ final class HUDController {
             rootView: HUDRootView(
                 model: model, settings: settings, audio: audio, favorites: favorites,
                 size: contentSize,
-                onHide: { [weak self] in self?.hide() }
+                onHide: { [weak self] in self?.hide() },
+                onEditingChange: { [weak self] editing in self?.setEditingFocus(editing) }
             )
         )
         hosting.frame = NSRect(origin: .zero, size: contentSize)
@@ -93,6 +94,17 @@ final class HUDController {
     func applyOpacity() {
         guard isShown, let panel else { return }
         panel.alphaValue = CGFloat(settings.panelOpacity)
+    }
+
+    /// While a quick field is open, ramp the panel to full opacity so the editor
+    /// card is crisp; restore the user's opacity when it closes.
+    private func setEditingFocus(_ editing: Bool) {
+        guard isShown, let panel else { return }
+        NSAnimationContext.runAnimationGroup { ctx in
+            ctx.duration = 0.15
+            ctx.timingFunction = CAMediaTimingFunction(name: .easeOut)
+            panel.animator().alphaValue = editing ? 1.0 : CGFloat(settings.panelOpacity)
+        }
     }
 
     private func positionOnActiveScreen(_ panel: NSPanel) {

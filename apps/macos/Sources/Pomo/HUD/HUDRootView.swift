@@ -14,6 +14,9 @@ struct HUDRootView: View {
     let size: CGSize
     /// Dismiss the HUD (right-click → Hide). Wired by HUDController.
     var onHide: (() -> Void)? = nil
+    /// Editing a quick field → make the panel fully opaque so the card is crisp
+    /// rather than bleeding the face + desktop through the panel's translucency.
+    var onEditingChange: ((Bool) -> Void)? = nil
 
     /// The two on-face audio buttons show once a station is configured or
     /// something is playing. Reading `audio`/`settings` here keeps them live.
@@ -85,7 +88,7 @@ struct HUDRootView: View {
             // Quick-entry fields (press `i` for intent, `v` to paste a link).
             // Dims the watchface behind a single focused input; shared across
             // every face so it's one implementation and looks identical.
-            QuickEntryOverlay(model: model, settings: settings, audio: audio, favorites: favorites)
+            QuickEntryOverlay(model: model, settings: settings, audio: audio, favorites: favorites, onEditingChange: onEditingChange)
 
             // Music + video drawer buttons, parked in the bottom-right corner so
             // they're out of the way of the centered transport. Only while a
@@ -197,6 +200,7 @@ private struct QuickEntryOverlay: View {
     let settings: PomoSettings
     let audio: AudioController
     let favorites: FavoritesStore
+    var onEditingChange: ((Bool) -> Void)? = nil
 
     @State private var draft: String = ""
     @FocusState private var fieldFocused: Bool
@@ -207,9 +211,10 @@ private struct QuickEntryOverlay: View {
     var body: some View {
         ZStack {
             if field != .none {
-                // Scrim — tap anywhere outside the card to cancel.
+                // Scrim — tap anywhere outside the card to cancel. Near-opaque so
+                // the face (and desktop) don't read through behind the editor.
                 Rectangle()
-                    .fill(Color.black.opacity(0.5))
+                    .fill(Color.black.opacity(0.82))
                     .contentShape(Rectangle())
                     .onTapGesture { model.cancelEditing() }
 
@@ -218,6 +223,8 @@ private struct QuickEntryOverlay: View {
         }
         .animation(.easeOut(duration: 0.15), value: field)
         .onChange(of: field) { _, newField in
+            // Drive the panel opaque while editing so the card is crisp.
+            onEditingChange?(newField != .none)
             switch newField {
             case .none:
                 fieldFocused = false
@@ -267,7 +274,7 @@ private struct QuickEntryOverlay: View {
         .padding(HudSpacing.xl)
         .background(
             RoundedRectangle(cornerRadius: HudRadius.standard, style: .continuous)
-                .fill(HudSurface.inset)
+                .fill(Color(white: 0.13))   // solid, not the frosted inset
         )
         .overlay(
             RoundedRectangle(cornerRadius: HudRadius.standard, style: .continuous)

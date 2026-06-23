@@ -43,6 +43,7 @@ final class AudioController {
     func next() { web.next() }
     func previous() { web.previous() }
     func signIn() { web.signIn() }
+    func showImportLogin() { web.showImportLogin() }
     func importCookies(browser: String?, profile: String?) { web.importCookies(fromBrowser: browser, profile: profile) }
     func clearLogin() { web.clearLogin() }
     func setAccount(_ index: Int) { web.setAccount(index) }

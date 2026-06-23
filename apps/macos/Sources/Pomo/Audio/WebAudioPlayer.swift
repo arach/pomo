@@ -436,6 +436,16 @@ final class WebAudioPlayer: NSObject {
         }
     }
 
+    /// Reload the player's current page so a freshly-acquired login is detected.
+    /// The signed-in identity is read off the *player's* masthead, not the
+    /// sign-in window, so without this a web sign-in never registers. No-op when
+    /// nothing is loaded (there's no page to read the account from yet).
+    private func reloadForLogin() {
+        guard let webView, !currentURL.isEmpty, let base = Self.watchURL(from: currentURL) else { return }
+        authUser = 0
+        webView.load(URLRequest(url: Self.withAuthUser(base, 0)))
+    }
+
     @discardableResult
     private static func clearAuthCookies(_ store: WKHTTPCookieStore) async -> Int {
         let existing = await store.allCookies()
@@ -886,6 +896,10 @@ extension WebAudioPlayer: NSWindowDelegate {
         if window === signInWindow {
             signInWindow = nil
             NSApp.setActivationPolicy(.accessory)
+            // The account is read off the *player's* page, not the sign-in
+            // window, so reload the player to pick up the freshly-signed-in
+            // session (otherwise a web sign-in never registers in the app).
+            reloadForLogin()
         } else if window === importLoginWindow {
             importLoginWindow = nil
             NSApp.setActivationPolicy(.accessory)

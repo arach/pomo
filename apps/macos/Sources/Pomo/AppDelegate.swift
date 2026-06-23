@@ -261,7 +261,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             onAudioStop: { [weak self] in self?.audio.stop() },
             onSignIn: { [weak self] in self?.audio.signIn() },
             onSignOut: { [weak self] in self?.audio.clearLogin() },
-            onImportLogin: { [weak self] in self?.audio.importCookies(browser: nil, profile: nil) }
+            onImportLogin: { [weak self] in self?.audio.showImportLogin() }
         )
         let window = NSWindow(contentViewController: NSHostingController(rootView: view))
         window.title = "Pomo Settings"

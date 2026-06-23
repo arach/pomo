@@ -85,10 +85,11 @@ struct HUDRootView: View {
             // every face so it's one implementation and looks identical.
             QuickEntryOverlay(model: model, settings: settings, audio: audio, favorites: favorites)
 
-            // Glanceable intent — what you're focusing on — pinned at the
-            // bottom of the panel while not editing.
-            if !model.intent.isEmpty, model.quickField == .none {
-                intentBanner
+            // Music + video drawer buttons, parked in the bottom-right corner so
+            // they're out of the way of the centered transport. Only while a
+            // station is configured/playing and not mid-edit.
+            if audioFaceControls.enabled, model.quickField == .none {
+                audioCornerControls
             }
         }
         .frame(width: size.width, height: size.height)
@@ -111,28 +112,43 @@ struct HUDRootView: View {
         .contextMenu { hudContextMenu }
     }
 
-    /// A subtle pill showing the current intent, pinned to the bottom of the
-    /// panel so you can see what you're focusing on at a glance.
-    private var intentBanner: some View {
-        VStack {
+    /// Music + video buttons docked to the panel's bottom-right corner, neutral
+    /// (face-agnostic) so they read the same on every watchface.
+    private var audioCornerControls: some View {
+        let a = audioFaceControls
+        return VStack {
             Spacer()
-            HStack(spacing: HudSpacing.xs) {
-                Circle()
-                    .fill(model.sessionType.tint.color)
-                    .frame(width: 5, height: 5)
-                Text(model.intent)
-                    .font(HudFont.mono(HudTextSize.micro, weight: .medium))
-                    .foregroundStyle(Color.white.opacity(0.85))
-                    .lineLimit(1)
-                    .truncationMode(.tail)
+            HStack {
+                Spacer()
+                HStack(spacing: HudSpacing.sm) {
+                    cornerButton(
+                        systemName: a.isPlaying ? "pause.fill" : "music.note",
+                        help: a.isPlaying ? "Pause music" : "Play music",
+                        action: a.togglePlay
+                    )
+                    cornerButton(
+                        systemName: a.drawerOpen ? "rectangle.fill" : "play.rectangle",
+                        help: a.drawerOpen ? "Hide video" : "Show video",
+                        action: a.toggleDrawer
+                    )
+                }
             }
-            .padding(.horizontal, HudSpacing.sm)
-            .padding(.vertical, 4)
-            .background(Capsule().fill(Color.black.opacity(0.4)))
-            .overlay(Capsule().stroke(Color.white.opacity(0.08), lineWidth: 1))
-            .padding(.bottom, HudSpacing.sm)
         }
-        .allowsHitTesting(false)
+        .padding(HudSpacing.sm)
+    }
+
+    private func cornerButton(systemName: String, help: String, action: @escaping () -> Void) -> some View {
+        Button(action: action) {
+            Image(systemName: systemName)
+                .font(.system(size: 11, weight: .semibold))
+                .foregroundStyle(Color.white.opacity(0.82))
+                .frame(width: 26, height: 26)
+                .background(Circle().fill(Color.white.opacity(0.06)))
+                .overlay(Circle().stroke(Color.white.opacity(0.16), lineWidth: 1))
+                .contentShape(Circle())
+        }
+        .buttonStyle(.plain)
+        .help(help)
     }
 
     /// Context menu shown on a right-click / control-click of the HUD. Mirrors

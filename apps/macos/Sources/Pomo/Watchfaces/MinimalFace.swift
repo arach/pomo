@@ -10,16 +10,16 @@ struct MinimalFace: View {
 
     var body: some View {
         VStack(spacing: HudSpacing.lg) {
-            // Session label
+            // Session label — your intent once it's named, otherwise the session
+            // type ("FOCUS"). The intent takes the label's place rather than
+            // crowding in alongside it.
             HStack(spacing: HudSpacing.sm) {
-                Circle()
-                    .fill(accent)
-                    .frame(width: 6, height: 6)
-                    .opacity(model.isRunning ? 1 : 0.4)
-                Text(model.sessionType.label)
+                Text(model.intent.isEmpty ? model.sessionType.label : model.intent)
                     .font(HudFont.mono(HudTextSize.xs, weight: .semibold))
-                    .tracking(2)
+                    .tracking(model.intent.isEmpty ? 2 : 0.5)
                     .foregroundStyle(HudPalette.muted)
+                    .lineLimit(1)
+                    .truncationMode(.tail)
                 if model.isPaused {
                     Text("· PAUSED")
                         .font(HudFont.mono(HudTextSize.xs, weight: .semibold))
@@ -35,17 +35,6 @@ struct MinimalFace: View {
                 .monospacedDigit()
                 .contentTransition(.numericText())
                 .animation(.snappy(duration: 0.2), value: model.remainingSeconds)
-
-            // Intent — what this session is for, when named.
-            if !model.intent.isEmpty {
-                Text(model.intent)
-                    .font(HudFont.ui(HudTextSize.sm))
-                    .foregroundStyle(HudPalette.muted)
-                    .lineLimit(1)
-                    .truncationMode(.tail)
-                    .frame(maxWidth: .infinity)
-                    .transition(.opacity)
-            }
 
             // Progress rule
             GeometryReader { geo in

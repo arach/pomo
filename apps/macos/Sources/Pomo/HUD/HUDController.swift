@@ -33,7 +33,11 @@ final class HUDController {
         if let panel { return panel }
         let panel = HUDPanel(contentSize: contentSize)
         let hosting = NSHostingView(
-            rootView: HUDRootView(model: model, settings: settings, audio: audio, favorites: favorites, size: contentSize)
+            rootView: HUDRootView(
+                model: model, settings: settings, audio: audio, favorites: favorites,
+                size: contentSize,
+                onHide: { [weak self] in self?.hide() }
+            )
         )
         hosting.frame = NSRect(origin: .zero, size: contentSize)
         hosting.autoresizingMask = [.width, .height]

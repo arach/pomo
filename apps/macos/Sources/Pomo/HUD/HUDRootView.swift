@@ -12,6 +12,8 @@ struct HUDRootView: View {
     let audio: AudioController
     let favorites: FavoritesStore
     let size: CGSize
+    /// Dismiss the HUD (right-click → Hide). Wired by HUDController.
+    var onHide: (() -> Void)? = nil
 
     /// The two on-face audio buttons show once a station is configured or
     /// something is playing. Reading `audio`/`settings` here keeps them live.
@@ -176,6 +178,13 @@ struct HUDRootView: View {
         Divider()
 
         Button("Paste Audio / Video Link…") { model.beginEditing(.video) }
+
+        Divider()
+
+        Button("Hide HUD") { onHide?() }
+        // You can't right-click a hidden HUD, so remind them how to bring it back.
+        Button("Reopen with \(settings.hotkeyDisplay)") {}
+            .disabled(true)
     }
 }
 

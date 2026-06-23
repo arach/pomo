@@ -4,9 +4,9 @@ import HudsonUI
 /// A tiny, guided panel for borrowing a YouTube login from a browser the user is
 /// already signed into — so the web player goes ad-free (Premium) without a fresh
 /// sign-in. Pick a browser, we read its cookies via the `pomo-cookies` helper,
-/// then confirm the identity off the reloaded page.
+/// then the player uses that session when it loads YouTube.
 ///
-/// Three states: choose a browser → working → result (signed-in / nothing found).
+/// Three states: choose a browser → working → result (imported / nothing found).
 /// Follows the system light/dark appearance via `AppPalette`, like Settings.
 struct CookieImportPanel: View {
     var account: AccountStatus
@@ -166,25 +166,27 @@ struct CookieImportPanel: View {
             VStack(alignment: .leading, spacing: HudSpacing.lg) {
                 Label(
                     importedCount > 0
-                        ? "Imported \(importedCount) cookies from \(pickedName), but couldn't confirm the sign-in."
+                        ? "Imported \(importedCount) cookies from \(pickedName)."
                         : "No YouTube login found in \(pickedName).",
-                    systemImage: importedCount > 0 ? "exclamationmark.triangle.fill" : "xmark.circle.fill"
+                    systemImage: importedCount > 0 ? "checkmark.circle.fill" : "xmark.circle.fill"
                 )
                 .font(HudFont.ui(HudTextSize.sm))
-                .foregroundStyle(pal.muted)
+                .foregroundStyle(importedCount > 0 ? pal.action : pal.muted)
                 .fixedSize(horizontal: false, vertical: true)
 
-                Text(importedCount > 0
-                    ? "Try playing a video — the page may still be signing in."
-                    : "Make sure you're logged into YouTube in that browser, or pick another.")
-                    .font(HudFont.ui(HudTextSize.xs))
-                    .foregroundStyle(pal.dim)
-                    .fixedSize(horizontal: false, vertical: true)
+                if importedCount == 0 {
+                    Text("Make sure you're logged into YouTube in that browser, or pick another.")
+                        .font(HudFont.ui(HudTextSize.xs))
+                        .foregroundStyle(pal.dim)
+                        .fixedSize(horizontal: false, vertical: true)
+                }
 
                 HStack {
-                    button("Try another") { phase = .choose }
+                    if importedCount == 0 {
+                        button("Try another") { phase = .choose }
+                    }
                     Spacer()
-                    button("Close", action: onClose)
+                    button(importedCount > 0 ? "Done" : "Close", action: onClose)
                 }
             }
         }

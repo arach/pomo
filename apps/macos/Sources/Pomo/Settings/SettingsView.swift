@@ -7,6 +7,7 @@ import HudsonUI
 /// menu bar or ⌘, in the HUD.
 struct SettingsView: View {
     @Bindable var settings: PomoSettings
+    @Bindable var favorites: FavoritesStore
     var account: AccountStatus
     var onClose: () -> Void
     var onAudioPlay: (String) -> Void = { _ in }
@@ -18,6 +19,8 @@ struct SettingsView: View {
 
     @Environment(\.colorScheme) private var scheme
     @State private var tab: SettingsTab = .general
+    @State private var newFavoriteURL = ""
+    @State private var newFavoriteTitle = ""
 
     private var pal: AppPalette { .resolve(scheme) }
 
@@ -232,6 +235,79 @@ struct SettingsView: View {
                 .padding(HudSpacing.lg)
             }
 
+            group("PLAYLIST") {
+                VStack(alignment: .leading, spacing: 0) {
+                    if favorites.items.isEmpty {
+                        HStack(spacing: HudSpacing.md) {
+                            Image(systemName: "music.note.list")
+                                .font(.system(size: 16, weight: .semibold))
+                                .foregroundStyle(pal.dim)
+                                .frame(width: 28)
+                            VStack(alignment: .leading, spacing: 2) {
+                                Text("No saved videos")
+                                    .font(HudFont.ui(HudTextSize.sm, weight: .medium))
+                                    .foregroundStyle(pal.ink)
+                                Text("Add YouTube links here to populate the menu player.")
+                                    .font(HudFont.ui(HudTextSize.xs))
+                                    .foregroundStyle(pal.dim)
+                            }
+                            Spacer()
+                        }
+                        .padding(HudSpacing.lg)
+                    } else {
+                        ForEach(Array(favorites.items.enumerated()), id: \.element.id) { index, favorite in
+                            playlistRow(favorite, index: index)
+                            if index < favorites.items.count - 1 { rowDivider }
+                        }
+                    }
+
+                    rowDivider
+
+                    VStack(alignment: .leading, spacing: HudSpacing.md) {
+                        BrandTextField(
+                            text: $newFavoriteURL,
+                            placeholder: "YouTube URL…",
+                            textColor: pal.ink,
+                            selectionColor: pal.action
+                        )
+                        .padding(.horizontal, HudSpacing.md)
+                        .frame(height: 30)
+                        .background(
+                            RoundedRectangle(cornerRadius: HudRadius.standard)
+                                .fill(pal.inset)
+                                .overlay(
+                                    RoundedRectangle(cornerRadius: HudRadius.standard)
+                                        .stroke(pal.border, lineWidth: 1)
+                                )
+                        )
+
+                        HStack(spacing: HudSpacing.sm) {
+                            BrandTextField(
+                                text: $newFavoriteTitle,
+                                placeholder: "Optional title…",
+                                textColor: pal.ink,
+                                selectionColor: pal.action
+                            )
+                            .padding(.horizontal, HudSpacing.md)
+                            .frame(height: 30)
+                            .background(
+                                RoundedRectangle(cornerRadius: HudRadius.standard)
+                                    .fill(pal.inset)
+                                    .overlay(
+                                        RoundedRectangle(cornerRadius: HudRadius.standard)
+                                            .stroke(pal.border, lineWidth: 1)
+                                    )
+                            )
+
+                            button("Add", icon: "plus", kind: .primary) { addFavoriteFromFields() }
+                                .disabled(newFavoriteURL.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
+                                .opacity(newFavoriteURL.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty ? 0.45 : 1)
+                        }
+                    }
+                    .padding(HudSpacing.lg)
+                }
+            }
+
             group("YOUTUBE ACCOUNT") {
                 HStack(spacing: HudSpacing.md) {
                     accountAvatar
@@ -289,6 +365,54 @@ struct SettingsView: View {
                 .foregroundStyle(pal.dim)
                 .padding(.horizontal, HudSpacing.xs)
         }
+    }
+
+    // MARK: - Playlist
+
+    private func playlistRow(_ favorite: Favorite, index: Int) -> some View {
+        HStack(spacing: HudSpacing.md) {
+            VStack(alignment: .leading, spacing: 2) {
+                Text(favorite.title)
+                    .font(HudFont.ui(HudTextSize.sm, weight: .medium))
+                    .foregroundStyle(pal.ink)
+                    .lineLimit(1)
+                    .truncationMode(.tail)
+                Text(favorite.url)
+                    .font(HudFont.ui(HudTextSize.xs))
+                    .foregroundStyle(pal.dim)
+                    .lineLimit(1)
+                    .truncationMode(.middle)
+            }
+            Spacer(minLength: HudSpacing.md)
+            settingsIconButton("play.fill", help: "Play") {
+                settings.audioURL = favorite.url
+                settings.saveNow()
+                onAudioPlay(favorite.url)
+            }
+            settingsIconButton("chevron.up", help: "Move up", enabled: index > 0) {
+                favorites.move(from: index + 1, to: index)
+            }
+            settingsIconButton("chevron.down", help: "Move down", enabled: index < favorites.items.count - 1) {
+                favorites.move(from: index + 1, to: index + 2)
+            }
+            settingsIconButton("trash", help: "Remove") {
+                favorites.remove(at: index + 1)
+            }
+        }
+        .padding(.horizontal, HudSpacing.lg)
+        .padding(.vertical, HudSpacing.md)
+    }
+
+    private func addFavoriteFromFields() {
+        let url = newFavoriteURL.trimmingCharacters(in: .whitespacesAndNewlines)
+        let title = newFavoriteTitle.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard favorites.add(url: url, title: title.isEmpty ? nil : title) else { return }
+        if settings.audioURL.isEmpty {
+            settings.audioURL = url
+            settings.saveNow()
+        }
+        newFavoriteURL = ""
+        newFavoriteTitle = ""
     }
 
     // MARK: - Account avatar
@@ -408,6 +532,32 @@ struct SettingsView: View {
             )
         }
         .buttonStyle(.plain)
+    }
+
+    private func settingsIconButton(
+        _ symbol: String,
+        help: String,
+        enabled: Bool = true,
+        action: @escaping () -> Void
+    ) -> some View {
+        Button(action: action) {
+            Image(systemName: symbol)
+                .font(.system(size: 11, weight: .semibold))
+                .foregroundStyle(enabled ? pal.muted : pal.dim)
+                .frame(width: 26, height: 26)
+                .background(
+                    RoundedRectangle(cornerRadius: HudRadius.standard)
+                        .fill(pal.inset)
+                        .overlay(
+                            RoundedRectangle(cornerRadius: HudRadius.standard)
+                                .stroke(pal.border, lineWidth: 1)
+                        )
+                )
+        }
+        .buttonStyle(.plain)
+        .disabled(!enabled)
+        .opacity(enabled ? 1 : 0.45)
+        .help(help)
     }
 
     private static let appVersion: String? =

@@ -11,6 +11,7 @@ import Observation
 @Observable
 final class FavoritesStore {
     private(set) var items: [Favorite] = []
+    @ObservationIgnored var onChange: (() -> Void)?
 
     init() { load() }
 
@@ -22,7 +23,7 @@ final class FavoritesStore {
         let title = (rawTitle?.trimmingCharacters(in: .whitespacesAndNewlines)).flatMap { $0.isEmpty ? nil : $0 }
             ?? Self.defaultTitle(for: url)
         items.append(Favorite(title: title, url: url))
-        save()
+        saveAndNotify()
         return true
     }
 
@@ -31,7 +32,75 @@ final class FavoritesStore {
         let i = index - 1
         guard items.indices.contains(i) else { return }
         items.remove(at: i)
-        save()
+        saveAndNotify()
+    }
+
+    @discardableResult
+    func update(at index: Int, title rawTitle: String?, url rawURL: String?) -> Bool {
+        let i = index - 1
+        guard items.indices.contains(i) else { return false }
+
+        var item = items[i]
+        if let rawTitle {
+            let title = rawTitle.trimmingCharacters(in: .whitespacesAndNewlines)
+            item.title = title.isEmpty ? Self.defaultTitle(for: item.url) : title
+        }
+        if let rawURL {
+            let url = rawURL.trimmingCharacters(in: .whitespacesAndNewlines)
+            guard !url.isEmpty else { return false }
+            guard !items.enumerated().contains(where: { $0.offset != i && $0.element.url == url }) else { return false }
+            item.url = url
+            if rawTitle == nil {
+                item.title = Self.defaultTitle(for: url)
+            }
+        }
+
+        items[i] = item
+        saveAndNotify()
+        return true
+    }
+
+    @discardableResult
+    func move(from sourceIndex: Int, to destinationIndex: Int) -> Bool {
+        let source = sourceIndex - 1
+        guard items.indices.contains(source) else { return false }
+        let destination = max(0, min(destinationIndex - 1, items.count - 1))
+        guard source != destination else { return true }
+
+        let item = items.remove(at: source)
+        items.insert(item, at: min(destination, items.count))
+        saveAndNotify()
+        return true
+    }
+
+    func move(fromOffsets source: IndexSet, toOffset destination: Int) {
+        let indexes = source.filter { items.indices.contains($0) }.sorted()
+        guard !indexes.isEmpty else { return }
+        let moving = indexes.map { items[$0] }
+        for index in indexes.reversed() {
+            items.remove(at: index)
+        }
+        let removedBeforeDestination = indexes.filter { $0 < destination }.count
+        let adjustedDestination = max(0, min(destination - removedBeforeDestination, items.count))
+        items.insert(contentsOf: moving, at: adjustedDestination)
+        saveAndNotify()
+    }
+
+    func replace(with newItems: [Favorite]) {
+        var seen = Set<String>()
+        items = newItems.compactMap { item in
+            let url = item.url.trimmingCharacters(in: .whitespacesAndNewlines)
+            guard !url.isEmpty, seen.insert(url).inserted else { return nil }
+            let title = item.title.trimmingCharacters(in: .whitespacesAndNewlines)
+            return Favorite(title: title.isEmpty ? Self.defaultTitle(for: url) : title, url: url)
+        }
+        saveAndNotify()
+    }
+
+    func clear() {
+        guard !items.isEmpty else { return }
+        items.removeAll()
+        saveAndNotify()
     }
 
     /// 1-based lookup.
@@ -58,11 +127,12 @@ final class FavoritesStore {
         items = decoded
     }
 
-    private func save() {
+    private func saveAndNotify() {
         let encoder = JSONEncoder()
         encoder.outputFormatting = [.prettyPrinted]
         guard let data = try? encoder.encode(items) else { return }
         try? data.write(to: Self.fileURL, options: .atomic)
+        onChange?()
     }
 
     /// A readable fallback title from the URL (YouTube id, or host).

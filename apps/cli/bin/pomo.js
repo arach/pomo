@@ -320,6 +320,51 @@ function favorites(args) {
       const title = args.slice(2).join(' ') || undefined;
       return send(`favorite/add${query({ url, title })}`);
     }
+    case 'rename': {
+      const n = parseInt(args[1], 10);
+      const title = args.slice(2).join(' ');
+      if (!Number.isInteger(n) || !title) die('usage: pomo fav rename <n> <title…>');
+      return send(`favorite/update/${n}${query({ title })}`);
+    }
+    case 'url': {
+      const n = parseInt(args[1], 10);
+      const url = args[2];
+      if (!Number.isInteger(n) || !url) die('usage: pomo fav url <n> <url>');
+      return send(`favorite/update/${n}${query({ url })}`);
+    }
+    case 'move': {
+      const from = parseInt(args[1], 10);
+      const to = parseInt(args[2], 10);
+      if (!Number.isInteger(from) || !Number.isInteger(to)) die('usage: pomo fav move <from> <to>');
+      return send(`favorite/move/${from}/${to}`);
+    }
+    case 'set':
+    case 'replace': {
+      const source = args[1];
+      if (!source) die('usage: pomo fav set <json-file|json|->');
+      const raw = source === '-'
+        ? readFileSync(0, 'utf8')
+        : existsSync(source)
+          ? readFileSync(source, 'utf8')
+          : args.slice(1).join(' ');
+      let items;
+      try {
+        items = JSON.parse(raw);
+      } catch (error) {
+        die(`invalid favorites JSON: ${error.message}`);
+      }
+      if (!Array.isArray(items)) die('favorites JSON must be an array of { "title": "...", "url": "..." } objects');
+      const normalized = items.map((item, index) => {
+        if (!item || typeof item !== 'object') die(`favorite ${index + 1} must be an object`);
+        const url = String(item.url || '').trim();
+        if (!url) die(`favorite ${index + 1} is missing url`);
+        const title = String(item.title || '').trim();
+        return { title: title || url, url };
+      });
+      return send(`favorite/set${query({ items: JSON.stringify(normalized) })}`);
+    }
+    case 'clear':
+      return send('favorite/clear');
     case 'play': {
       const n = parseInt(args[1], 10);
       if (!Number.isInteger(n)) die('usage: pomo fav play <n>');
@@ -361,8 +406,13 @@ Audio / video
 Favorites
   fav                    list saved stations
   fav add <url> [title…]
+  fav rename <n> <title…>
+  fav url <n> <url>
+  fav move <from> <to>
+  fav set <json-file|json|->
   fav play <n>
   fav remove <n>
+  fav clear
 
 Window & app
   show | hide | hud      summon / dismiss / toggle the HUD

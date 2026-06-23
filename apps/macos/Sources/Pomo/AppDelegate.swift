@@ -99,6 +99,11 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
 
         // Let the video menu's "Change Track" submenu list favorites.
         audio.bindFavorites(favorites)
+        favorites.onChange = { [weak self] in
+            guard let self else { return }
+            self.menuBar.refresh()
+            self.writeState()
+        }
 
         // System-wide summon hotkey (default Hyper+P), configurable in Settings.
         registerSummonHotkey()
@@ -199,6 +204,14 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         case .videoBrowser: audio.openInBrowser()
         case .favoriteAdd(let url, let title):
             favorites.add(url: url, title: title)
+        case .favoriteUpdate(let index, let title, let url):
+            favorites.update(at: index, title: title, url: url)
+        case .favoriteMove(let from, let to):
+            favorites.move(from: from, to: to)
+        case .favoriteSet(let items):
+            favorites.replace(with: items)
+        case .favoriteClear:
+            favorites.clear()
         case .favoritePlay(let index):
             if let favorite = favorites.item(at: index) { playFavorite(favorite) }
         case .favoriteRemove(let index):
@@ -257,6 +270,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         }
         let view = SettingsView(
             settings: settings,
+            favorites: favorites,
             account: audio.account,
             onClose: { [weak self] in self?.settingsWindow?.close() },
             onAudioPlay: { [weak self] url in self?.audio.play(urlString: url) },

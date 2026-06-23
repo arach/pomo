@@ -24,6 +24,10 @@ enum PomoCommand {
     case videoToggle
     case videoBrowser           // open the current video in the default browser
     case favoriteAdd(url: String, title: String?)
+    case favoriteUpdate(index: Int, title: String?, url: String?)
+    case favoriteMove(from: Int, to: Int)
+    case favoriteSet([Favorite])
+    case favoriteClear
     case favoritePlay(Int)      // 1-based
     case favoriteRemove(Int)    // 1-based
     case favoritesList
@@ -131,6 +135,23 @@ enum PomoCommand {
                 guard let value = query?.first(where: { $0.name == "url" })?.value, !value.isEmpty else { return nil }
                 let title = query?.first(where: { $0.name == "title" })?.value
                 self = .favoriteAdd(url: value, title: title)
+            case "update", "edit", "rename":
+                guard path.count > 1, let index = Int(path[1]) else { return nil }
+                let title = query?.first(where: { $0.name == "title" })?.value
+                let url = query?.first(where: { $0.name == "url" })?.value
+                guard title != nil || url != nil else { return nil }
+                self = .favoriteUpdate(index: index, title: title, url: url)
+            case "move":
+                guard path.count > 2, let from = Int(path[1]), let to = Int(path[2]) else { return nil }
+                self = .favoriteMove(from: from, to: to)
+            case "set", "replace":
+                guard let value = query?.first(where: { $0.name == "items" })?.value,
+                      let data = value.data(using: .utf8),
+                      let items = try? JSONDecoder().decode([Favorite].self, from: data)
+                else { return nil }
+                self = .favoriteSet(items)
+            case "clear":
+                self = .favoriteClear
             case "play":
                 guard path.count > 1, let index = Int(path[1]) else { return nil }
                 self = .favoritePlay(index)

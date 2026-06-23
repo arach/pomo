@@ -54,5 +54,15 @@ struct MinimalFace: View {
         }
         .padding(.horizontal, HudSpacing.huge)
         .frame(maxWidth: .infinity, maxHeight: .infinity)
+        // Clean dark backing so the face stays legible over a busy desktop —
+        // every other watchface carries its own; minimal was the bare exception
+        // and read as washed-out/see-through. The panel's blur + opacity still
+        // soften it, keeping the frosted depth.
+        .background(
+            LinearGradient(
+                colors: [Color(white: 0.12), Color(white: 0.05)],
+                startPoint: .top, endPoint: .bottom
+            )
+        )
     }
 }

@@ -84,6 +84,12 @@ struct HUDRootView: View {
             // Dims the watchface behind a single focused input; shared across
             // every face so it's one implementation and looks identical.
             QuickEntryOverlay(model: model, settings: settings, audio: audio, favorites: favorites)
+
+            // Glanceable intent — what you're focusing on — pinned at the
+            // bottom of the panel while not editing.
+            if !model.intent.isEmpty, model.quickField == .none {
+                intentBanner
+            }
         }
         .frame(width: size.width, height: size.height)
         .clipShape(panelShape)
@@ -103,6 +109,30 @@ struct HUDRootView: View {
         .environment(\.audioControls, audioFaceControls)
         // Right-click anywhere on the HUD for the quick-entry actions.
         .contextMenu { hudContextMenu }
+    }
+
+    /// A subtle pill showing the current intent, pinned to the bottom of the
+    /// panel so you can see what you're focusing on at a glance.
+    private var intentBanner: some View {
+        VStack {
+            Spacer()
+            HStack(spacing: HudSpacing.xs) {
+                Circle()
+                    .fill(model.sessionType.tint.color)
+                    .frame(width: 5, height: 5)
+                Text(model.intent)
+                    .font(HudFont.mono(HudTextSize.micro, weight: .medium))
+                    .foregroundStyle(Color.white.opacity(0.85))
+                    .lineLimit(1)
+                    .truncationMode(.tail)
+            }
+            .padding(.horizontal, HudSpacing.sm)
+            .padding(.vertical, 4)
+            .background(Capsule().fill(Color.black.opacity(0.4)))
+            .overlay(Capsule().stroke(Color.white.opacity(0.08), lineWidth: 1))
+            .padding(.bottom, HudSpacing.sm)
+        }
+        .allowsHitTesting(false)
     }
 
     /// Context menu shown on a right-click / control-click of the HUD. Mirrors
@@ -167,7 +197,9 @@ private struct QuickEntryOverlay: View {
             case .none:
                 fieldFocused = false
             case .intent:
-                draft = model.intent
+                // Start empty (the current intent is shown on the HUD) so the
+                // pre-filled text isn't select-all'd into a harsh highlight.
+                draft = ""
                 fieldFocused = true
             case .video:
                 // Pre-fill from the clipboard when it holds a link, so a copied
@@ -197,20 +229,15 @@ private struct QuickEntryOverlay: View {
 
             Rectangle().fill(HudPalette.border).frame(height: 1)
 
+            // Cancel on the left, the commit action on the right. Return also
+            // commits (the field is focused) and Escape cancels.
             HStack(spacing: HudSpacing.sm) {
-                keyHint("return", "set")
-                Text("·").foregroundStyle(HudPalette.border)
-                keyHint("escape", "cancel")
-                Spacer(minLength: 0)
-                if showsClear {
-                    Button("Clear", action: clear)
-                        .buttonStyle(.plain)
-                        .font(HudFont.mono(HudTextSize.micro, weight: .semibold))
-                        .foregroundStyle(HudPalette.muted)
+                pillButton("Cancel", fill: HudSurface.inset, stroke: HudPalette.border, text: HudPalette.muted) {
+                    model.cancelEditing()
                 }
+                Spacer(minLength: 0)
+                pillButton(primaryLabel, fill: accent, stroke: .clear, text: .black.opacity(0.85), action: commit)
             }
-            .font(HudFont.mono(HudTextSize.micro))
-            .foregroundStyle(HudPalette.dim)
         }
         .padding(HudSpacing.xl)
         .background(
@@ -239,11 +266,10 @@ private struct QuickEntryOverlay: View {
         }
     }
 
-    private var showsClear: Bool {
+    private var primaryLabel: String {
         switch field {
-        case .intent: return !model.intent.isEmpty
-        case .video:  return !settings.audioURL.isEmpty || audio.isPlaying
-        case .none:   return false
+        case .video:         return "Play"
+        case .intent, .none: return "Set"
         }
     }
 
@@ -251,7 +277,8 @@ private struct QuickEntryOverlay: View {
         let text = draft.trimmingCharacters(in: .whitespacesAndNewlines)
         switch field {
         case .intent:
-            model.setIntent(text)
+            // Empty submit keeps the current intent (clear it from the menu).
+            if !text.isEmpty { model.setIntent(text) }
         case .video:
             if text.isEmpty { break }
             settings.audioURL = text
@@ -265,20 +292,17 @@ private struct QuickEntryOverlay: View {
         model.cancelEditing()
     }
 
-    private func clear() {
-        switch field {
-        case .intent: model.setIntent("")
-        case .video:  audio.stop()
-        case .none:   break
+    private func pillButton(_ title: String, fill: Color, stroke: Color, text: Color, action: @escaping () -> Void) -> some View {
+        Button(action: action) {
+            Text(title)
+                .font(HudFont.mono(HudTextSize.xs, weight: .semibold))
+                .foregroundStyle(text)
+                .padding(.horizontal, HudSpacing.md)
+                .padding(.vertical, HudSpacing.xs)
+                .background(RoundedRectangle(cornerRadius: HudRadius.tight, style: .continuous).fill(fill))
+                .overlay(RoundedRectangle(cornerRadius: HudRadius.tight, style: .continuous).stroke(stroke, lineWidth: 1))
         }
-        model.cancelEditing()
-    }
-
-    private func keyHint(_ symbol: String, _ label: String) -> some View {
-        HStack(spacing: 3) {
-            Image(systemName: symbol)
-            Text(label)
-        }
+        .buttonStyle(.plain)
     }
 
     private func clipboardURL() -> String? {

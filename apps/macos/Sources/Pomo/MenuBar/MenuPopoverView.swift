@@ -54,7 +54,7 @@ struct MenuPopoverView: View {
             section("INTENT") { intentField }
             transport
             section("SESSION") { sessionPills }
-            section("WATCHFACE") { watchfaceChips }
+            section("WATCHFACE") { watchfacePicker }
             section("AUDIO") { audioControls }
             footer
         }
@@ -185,79 +185,121 @@ struct MenuPopoverView: View {
         }
     }
 
-    // MARK: - Watchface chips
+    // MARK: - Watchface
 
-    private var watchfaceChips: some View {
-        let columns = Array(
-            repeating: GridItem(.flexible(), spacing: HudSpacing.sm),
-            count: 3
-        )
-        return LazyVGrid(columns: columns, spacing: HudSpacing.sm) {
-            ForEach(Watchface.allCases) { face in
-                chip(
-                    label: face.displayName,
-                    selected: face == settings.watchface,
-                    tint: pal.accent,
-                    enabled: true
-                ) {
-                    settings.watchface = face
-                    settings.saveNow()
+    /// Compact ‹ current › stepper plus a `…` menu for the full list, instead of
+    /// a chip grid of every face.
+    private var watchfacePicker: some View {
+        HStack(spacing: HudSpacing.sm) {
+            iconButton("chevron.left", help: "Previous watchface") { cycleWatchface(-1) }
+            Text(settings.watchface.displayName)
+                .font(HudFont.mono(HudTextSize.sm, weight: .medium))
+                .foregroundStyle(pal.ink)
+                .lineLimit(1)
+                .minimumScaleFactor(0.8)
+                .frame(maxWidth: .infinity)
+            iconButton("chevron.right", help: "Next watchface") { cycleWatchface(1) }
+            Menu {
+                ForEach(Watchface.allCases) { face in
+                    Button(face.displayName) { setWatchface(face) }
                 }
+            } label: {
+                Image(systemName: "ellipsis")
+                    .font(HudFont.ui(HudTextSize.sm, weight: .semibold))
+                    .foregroundStyle(pal.muted)
+                    .frame(width: 28, height: 28)
+                    .background(RoundedRectangle(cornerRadius: HudRadius.standard).fill(insetFill))
+                    .overlay(RoundedRectangle(cornerRadius: HudRadius.standard).stroke(pal.border, lineWidth: 1))
+                    .contentShape(Rectangle())
             }
+            .menuStyle(.borderlessButton)
+            .menuIndicator(.hidden)
+            .fixedSize()
+            .help("All watchfaces")
         }
+    }
+
+    private func cycleWatchface(_ delta: Int) {
+        let all = Watchface.allCases
+        guard let i = all.firstIndex(of: settings.watchface) else { return }
+        setWatchface(all[(i + delta + all.count) % all.count])
+    }
+
+    private func setWatchface(_ face: Watchface) {
+        settings.watchface = face
+        settings.saveNow()
     }
 
     // MARK: - Audio
 
+    /// Pared down: a thumbnail of what's playing, the title, a play/pause toggle,
+    /// and a single "Change" menu — no cramped favorites grid or volume slider
+    /// (volume lives in Settings + on the HUD).
     private var audioControls: some View {
-        VStack(alignment: .leading, spacing: HudSpacing.md) {
-            HStack(spacing: HudSpacing.md) {
-                iconButton(
-                    audio.isPlaying ? "pause.fill" : "play.fill",
-                    help: audio.isPlaying ? "Pause" : "Play",
-                    active: audio.isPlaying || !audio.currentURL.isEmpty
-                ) { onToggleAudio() }
-                iconButton("stop.fill", help: "Stop") { onStopAudio() }
-
-                VStack(alignment: .leading, spacing: 1) {
-                    Text(nowPlayingTitle)
-                        .font(HudFont.mono(HudTextSize.xs, weight: .medium))
-                        .lineLimit(1)
-                        .truncationMode(.tail)
-                        .foregroundStyle(audio.currentURL.isEmpty ? pal.dim : pal.ink)
-                    Text(nowPlayingSubtitle)
-                        .font(HudFont.mono(HudTextSize.micro))
-                        .foregroundStyle(audio.isPlaying ? tint.color : pal.dim)
-                }
-                Spacer(minLength: 0)
+        HStack(spacing: HudSpacing.md) {
+            audioThumbnail
+            VStack(alignment: .leading, spacing: 1) {
+                Text(nowPlayingTitle)
+                    .font(HudFont.mono(HudTextSize.xs, weight: .medium))
+                    .lineLimit(1)
+                    .truncationMode(.tail)
+                    .foregroundStyle(audio.currentURL.isEmpty ? pal.dim : pal.ink)
+                Text(nowPlayingSubtitle)
+                    .font(HudFont.mono(HudTextSize.micro))
+                    .foregroundStyle(audio.isPlaying ? tint.color : pal.dim)
             }
-
+            Spacer(minLength: 0)
+            iconButton(
+                audio.isPlaying ? "pause.fill" : "play.fill",
+                help: audio.isPlaying ? "Pause" : "Play",
+                active: audio.isPlaying || !audio.currentURL.isEmpty
+            ) { onToggleAudio() }
             if !favorites.items.isEmpty {
-                let columns = Array(repeating: GridItem(.flexible(), spacing: HudSpacing.sm), count: 2)
-                LazyVGrid(columns: columns, spacing: HudSpacing.sm) {
+                Menu {
                     ForEach(favorites.items) { favorite in
-                        chip(
-                            label: favorite.title,
-                            selected: favorite.url == audio.currentURL,
-                            tint: pal.accent,
-                            enabled: true
-                        ) { onPlayFavorite(favorite) }
+                        Button(favorite.title) { onPlayFavorite(favorite) }
                     }
+                } label: {
+                    HStack(spacing: 3) {
+                        Text("Change")
+                        Image(systemName: "chevron.down").font(HudFont.ui(HudTextSize.micro))
+                    }
+                    .font(HudFont.mono(HudTextSize.xs, weight: .semibold))
+                    .foregroundStyle(pal.muted)
+                    .padding(.horizontal, HudSpacing.sm)
+                    .frame(height: 28)
+                    .background(RoundedRectangle(cornerRadius: HudRadius.standard).fill(insetFill))
+                    .overlay(RoundedRectangle(cornerRadius: HudRadius.standard).stroke(pal.border, lineWidth: 1))
+                    .contentShape(Rectangle())
                 }
-            }
-
-            HStack(spacing: HudSpacing.sm) {
-                Image(systemName: "speaker.fill")
-                    .font(HudFont.ui(HudTextSize.micro))
-                    .foregroundStyle(pal.dim)
-                Slider(value: settings.binding(\.audioVolume), in: 0...1)
-                    .controlSize(.mini)
-                    .tint(tint.color)
-                Image(systemName: "speaker.wave.3.fill")
-                    .font(HudFont.ui(HudTextSize.micro))
-                    .foregroundStyle(pal.dim)
+                .menuStyle(.borderlessButton)
+                .menuIndicator(.hidden)
+                .fixedSize()
             }
         }
+    }
+
+    /// Thumbnail of the playing video (YouTube poster), or a placeholder.
+    @ViewBuilder private var audioThumbnail: some View {
+        let id = WebAudioPlayer.youTubeID(from: audio.currentURL)
+        RoundedRectangle(cornerRadius: HudRadius.standard, style: .continuous)
+            .fill(insetFill)
+            .frame(width: 44, height: 44)
+            .overlay {
+                if let id, let url = URL(string: "https://img.youtube.com/vi/\(id)/mqdefault.jpg") {
+                    AsyncImage(url: url) { phase in
+                        if let image = phase.image {
+                            image.resizable().aspectRatio(contentMode: .fill)
+                        } else {
+                            Image(systemName: "music.note").font(.system(size: 15)).foregroundStyle(pal.dim)
+                        }
+                    }
+                } else {
+                    Image(systemName: "music.note").font(.system(size: 15)).foregroundStyle(pal.dim)
+                }
+            }
+            .clipShape(RoundedRectangle(cornerRadius: HudRadius.standard, style: .continuous))
+            .overlay(RoundedRectangle(cornerRadius: HudRadius.standard, style: .continuous).stroke(pal.border, lineWidth: 1))
     }
 
     private var nowPlayingTitle: String {

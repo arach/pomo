@@ -58,6 +58,20 @@ final class WebAudioPlayer: NSObject {
     /// Fired when playback state changes (from JS player events).
     var onStateChange: (() -> Void)?
 
+    /// Keeps the on-disk cookie backup in sync, and coalesces the writes so a
+    /// burst of cookie changes during a page load only persists once.
+    private var cookieObserver: CookieStoreObserver?
+    private var cookieSaveWork: DispatchWorkItem?
+
+    override init() {
+        super.init()
+        // Re-seed any login saved on disk into the shared store, then keep that
+        // backup current as cookies change — so login survives relaunches and
+        // even a switch between the dev build and the installed release.
+        restoreSavedLogin()
+        startCookiePersistence()
+    }
+
     // MARK: - Playback
 
     /// Google multi-login account index (0 = default). Persisted so the chosen
@@ -429,6 +443,7 @@ final class WebAudioPlayer: NSObject {
         Task { @MainActor in
             let cleared = await Self.clearAuthCookies(webView.configuration.websiteDataStore.httpCookieStore)
             self.authUser = 0
+            CookieJar.save([])   // write-through so logout survives an immediate quit
             self.log("logout — cleared \(cleared) cookies")
             if !self.currentURL.isEmpty, let url = Self.watchURL(from: self.currentURL) {
                 webView.load(URLRequest(url: url))
@@ -457,6 +472,49 @@ final class WebAudioPlayer: NSObject {
     private static func isAuthDomain(_ domain: String) -> Bool {
         let d = domain.lowercased()
         return d.contains("youtube.com") || d.contains("google.com") || d.contains("google.")
+    }
+
+    // MARK: - Login persistence (cookies on disk)
+
+    /// Re-inject any login saved on a prior run into the shared default store, so
+    /// a one-time sign-in is reloaded on every launch (and across builds).
+    private func restoreSavedLogin() {
+        let saved = CookieJar.load()
+        guard !saved.isEmpty else { return }
+        let store = WKWebsiteDataStore.default().httpCookieStore
+        Task { @MainActor in
+            for cookie in saved { await store.setCookie(cookie) }
+            self.log("restored \(saved.count) login cookies from disk")
+        }
+    }
+
+    /// Watch the shared cookie store and mirror the auth cookies to disk whenever
+    /// they change — so logging in (or out) is written through automatically.
+    private func startCookiePersistence() {
+        let store = WKWebsiteDataStore.default().httpCookieStore
+        let observer = CookieStoreObserver { [weak self] in
+            // Delivered on the main thread; coalesce the burst during a page load.
+            MainActor.assumeIsolated { self?.scheduleCookieSave() }
+        }
+        store.add(observer)
+        cookieObserver = observer
+    }
+
+    private func scheduleCookieSave() {
+        cookieSaveWork?.cancel()
+        let work = DispatchWorkItem { [weak self] in
+            MainActor.assumeIsolated { self?.persistAuthCookies() }
+        }
+        cookieSaveWork = work
+        DispatchQueue.main.asyncAfter(deadline: .now() + 1.5, execute: work)
+    }
+
+    private func persistAuthCookies() {
+        let store = WKWebsiteDataStore.default().httpCookieStore
+        Task { @MainActor in
+            let all = await store.allCookies()
+            CookieJar.save(all.filter { Self.isAuthDomain($0.domain) })
+        }
     }
 
     // MARK: - Video-pane context menu + import panel

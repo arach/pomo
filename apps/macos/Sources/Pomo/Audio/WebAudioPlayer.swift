@@ -53,6 +53,10 @@ final class WebAudioPlayer: NSObject {
     /// Signed-in YouTube identity, surfaced in Settings + the drawer avatar.
     let account = AccountStatus()
 
+    /// Favorites, for the video menu's "Change Track" submenu. Weak — owned by
+    /// AppDelegate; wired via `AudioController.bindFavorites`.
+    weak var favorites: FavoritesStore?
+
     private static let drawerRadius: CGFloat = 12
 
     /// Fired when playback state changes (from JS player events).
@@ -535,9 +539,12 @@ final class WebAudioPlayer: NSObject {
 
         menu.addItem(.separator())
         addItem(to: menu, "Open in Browser", #selector(ctxOpenInBrowser), icon: "safari")
+        menu.addItem(changeTrackItem())
         addItem(to: menu, "Hide Video", #selector(ctxHideVideo), icon: "eye.slash")
         menu.addItem(.separator())
 
+        // Account: once you're signed in, Sign In / Import are irrelevant — show
+        // who you are and a way out. Import is only an alternative sign-in path.
         if account.signedIn {
             let who = NSMenuItem(title: "Signed in\(account.name.map { " as \($0)" } ?? "")",
                                  action: nil, keyEquivalent: "")
@@ -547,8 +554,33 @@ final class WebAudioPlayer: NSObject {
             addItem(to: menu, "Sign Out", #selector(ctxSignOut), icon: "rectangle.portrait.and.arrow.right")
         } else {
             addItem(to: menu, "Sign In to YouTube…", #selector(ctxSignIn), icon: "person.crop.circle.badge.plus")
+            addItem(to: menu, "Import Login from Browser…", #selector(ctxImportLogin), icon: "key.horizontal")
         }
-        addItem(to: menu, "Import Login from Browser…", #selector(ctxImportLogin), icon: "key.horizontal")
+    }
+
+    /// "Change Track ▸" — switch the player to one of your favorites without
+    /// leaving the video. The current track is checked.
+    private func changeTrackItem() -> NSMenuItem {
+        let item = NSMenuItem(title: "Change Track", action: nil, keyEquivalent: "")
+        item.image = NSImage(systemSymbolName: "music.note.list", accessibilityDescription: nil)
+        let sub = NSMenu()
+        sub.autoenablesItems = false
+        let favs = favorites?.items ?? []
+        if favs.isEmpty {
+            let none = NSMenuItem(title: "No favorites yet", action: nil, keyEquivalent: "")
+            none.isEnabled = false
+            sub.addItem(none)
+        } else {
+            for fav in favs {
+                let row = NSMenuItem(title: fav.title, action: #selector(ctxPlayFavorite(_:)), keyEquivalent: "")
+                row.target = self
+                row.representedObject = fav.url
+                row.state = (fav.url == currentURL) ? .on : .off
+                sub.addItem(row)
+            }
+        }
+        item.submenu = sub
+        return item
     }
 
     private func addItem(to menu: NSMenu, _ title: String, _ action: Selector, icon: String? = nil) {
@@ -562,6 +594,10 @@ final class WebAudioPlayer: NSObject {
 
     @objc private func ctxOpenInBrowser() { openInBrowser() }
     @objc private func ctxHideVideo() { setWindowVisible(false) }
+    @objc private func ctxPlayFavorite(_ sender: NSMenuItem) {
+        guard let url = sender.representedObject as? String else { return }
+        play(urlString: url)
+    }
     @objc private func ctxSignIn() { signIn() }
     @objc private func ctxSignOut() { clearLogin() }
     @objc private func ctxImportLogin() { showImportLogin() }

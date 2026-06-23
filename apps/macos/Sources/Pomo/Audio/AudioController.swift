@@ -33,6 +33,10 @@ final class AudioController {
         web.onStateChange = { [weak self] in self?.notify() }
     }
 
+    /// Hand the player the favorites store so the video menu's "Change Track"
+    /// submenu can list them.
+    func bindFavorites(_ store: FavoritesStore) { web.favorites = store }
+
     func setVolume(_ value: Double) { web.setVolume(value) }
 
     func play(urlString raw: String) { web.play(urlString: raw); notify() }

@@ -97,6 +97,9 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         // so refresh the state file whenever it does.
         audio.onStateChange = { [weak self] in self?.writeState() }
 
+        // Let the video menu's "Change Track" submenu list favorites.
+        audio.bindFavorites(favorites)
+
         // System-wide summon hotkey (default Hyper+P), configurable in Settings.
         registerSummonHotkey()
 

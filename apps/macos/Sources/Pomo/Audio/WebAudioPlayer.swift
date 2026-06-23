@@ -53,10 +53,28 @@ final class WebAudioPlayer: NSObject {
     /// Signed-in YouTube identity, surfaced in Settings + the drawer avatar.
     let account = AccountStatus()
 
+    /// Favorites, for the video menu's "Change Track" submenu. Weak — owned by
+    /// AppDelegate; wired via `AudioController.bindFavorites`.
+    weak var favorites: FavoritesStore?
+
     private static let drawerRadius: CGFloat = 12
 
     /// Fired when playback state changes (from JS player events).
     var onStateChange: (() -> Void)?
+
+    /// Keeps the on-disk cookie backup in sync, and coalesces the writes so a
+    /// burst of cookie changes during a page load only persists once.
+    private var cookieObserver: CookieStoreObserver?
+    private var cookieSaveWork: DispatchWorkItem?
+
+    override init() {
+        super.init()
+        // Re-seed any login saved on disk into the shared store, then keep that
+        // backup current as cookies change — so login survives relaunches and
+        // even a switch between the dev build and the installed release.
+        restoreSavedLogin()
+        startCookiePersistence()
+    }
 
     // MARK: - Playback
 
@@ -429,6 +447,7 @@ final class WebAudioPlayer: NSObject {
         Task { @MainActor in
             let cleared = await Self.clearAuthCookies(webView.configuration.websiteDataStore.httpCookieStore)
             self.authUser = 0
+            CookieJar.save([])   // write-through so logout survives an immediate quit
             self.log("logout — cleared \(cleared) cookies")
             if !self.currentURL.isEmpty, let url = Self.watchURL(from: self.currentURL) {
                 webView.load(URLRequest(url: url))
@@ -459,24 +478,73 @@ final class WebAudioPlayer: NSObject {
         return d.contains("youtube.com") || d.contains("google.com") || d.contains("google.")
     }
 
+    // MARK: - Login persistence (cookies on disk)
+
+    /// Re-inject any login saved on a prior run into the shared default store, so
+    /// a one-time sign-in is reloaded on every launch (and across builds).
+    private func restoreSavedLogin() {
+        let saved = CookieJar.load()
+        guard !saved.isEmpty else { return }
+        let store = WKWebsiteDataStore.default().httpCookieStore
+        Task { @MainActor in
+            for cookie in saved { await store.setCookie(cookie) }
+            self.log("restored \(saved.count) login cookies from disk")
+        }
+    }
+
+    /// Watch the shared cookie store and mirror the auth cookies to disk whenever
+    /// they change — so logging in (or out) is written through automatically.
+    private func startCookiePersistence() {
+        let store = WKWebsiteDataStore.default().httpCookieStore
+        let observer = CookieStoreObserver { [weak self] in
+            // Delivered on the main thread; coalesce the burst during a page load.
+            MainActor.assumeIsolated { self?.scheduleCookieSave() }
+        }
+        store.add(observer)
+        cookieObserver = observer
+    }
+
+    private func scheduleCookieSave() {
+        cookieSaveWork?.cancel()
+        let work = DispatchWorkItem { [weak self] in
+            MainActor.assumeIsolated { self?.persistAuthCookies() }
+        }
+        cookieSaveWork = work
+        DispatchQueue.main.asyncAfter(deadline: .now() + 1.5, execute: work)
+    }
+
+    private func persistAuthCookies() {
+        let store = WKWebsiteDataStore.default().httpCookieStore
+        Task { @MainActor in
+            let all = await store.allCookies()
+            CookieJar.save(all.filter { Self.isAuthDomain($0.domain) })
+        }
+    }
+
     // MARK: - Video-pane context menu + import panel
 
-    /// Right-click menu shown over the drawer's video pane (see `DrawerWebView`).
-    /// A compact Pomo surface — transport, open-in-browser, and account actions —
-    /// in place of WebKit's default web context menu.
-    func makeContextMenu() -> NSMenu {
-        let menu = NSMenu()
-        menu.autoenablesItems = false
+    /// Augment WebKit's default video context menu rather than replace it: keep
+    /// the useful native items (Mute, Loop, Full Screen, PiP, …), drop the
+    /// redundant "Show Controls" (YouTube has its own controls), and append
+    /// Pomo's open-in-browser, hide, and account actions. Called from
+    /// `DrawerWebView.willOpenMenu`, which is the path WebKit actually uses (an
+    /// `NSView.rightMouseDown` override doesn't intercept web-content menus).
+    func augmentVideoMenu(_ menu: NSMenu) {
+        menu.items
+            .filter {
+                $0.identifier?.rawValue == "WKMenuItemIdentifierToggleVideoControls"
+                    || $0.title.range(of: "controls", options: .caseInsensitive) != nil
+            }
+            .forEach { menu.removeItem($0) }
 
-        addItem(to: menu, isPlaying ? "Pause" : "Play", #selector(ctxTogglePlay),
-                icon: isPlaying ? "pause.fill" : "play.fill")
-        addItem(to: menu, "Next", #selector(ctxNext), icon: "forward.end.fill")
-        addItem(to: menu, "Previous", #selector(ctxPrevious), icon: "backward.end.fill")
         menu.addItem(.separator())
         addItem(to: menu, "Open in Browser", #selector(ctxOpenInBrowser), icon: "safari")
+        menu.addItem(changeTrackItem())
         addItem(to: menu, "Hide Video", #selector(ctxHideVideo), icon: "eye.slash")
         menu.addItem(.separator())
 
+        // Account: once you're signed in, Sign In / Import are irrelevant — show
+        // who you are and a way out. Import is only an alternative sign-in path.
         if account.signedIn {
             let who = NSMenuItem(title: "Signed in\(account.name.map { " as \($0)" } ?? "")",
                                  action: nil, keyEquivalent: "")
@@ -486,9 +554,33 @@ final class WebAudioPlayer: NSObject {
             addItem(to: menu, "Sign Out", #selector(ctxSignOut), icon: "rectangle.portrait.and.arrow.right")
         } else {
             addItem(to: menu, "Sign In to YouTube…", #selector(ctxSignIn), icon: "person.crop.circle.badge.plus")
+            addItem(to: menu, "Import Login from Browser…", #selector(ctxImportLogin), icon: "key.horizontal")
         }
-        addItem(to: menu, "Import Login from Browser…", #selector(ctxImportLogin), icon: "key.horizontal")
-        return menu
+    }
+
+    /// "Change Track ▸" — switch the player to one of your favorites without
+    /// leaving the video. The current track is checked.
+    private func changeTrackItem() -> NSMenuItem {
+        let item = NSMenuItem(title: "Change Track", action: nil, keyEquivalent: "")
+        item.image = NSImage(systemSymbolName: "music.note.list", accessibilityDescription: nil)
+        let sub = NSMenu()
+        sub.autoenablesItems = false
+        let favs = favorites?.items ?? []
+        if favs.isEmpty {
+            let none = NSMenuItem(title: "No favorites yet", action: nil, keyEquivalent: "")
+            none.isEnabled = false
+            sub.addItem(none)
+        } else {
+            for fav in favs {
+                let row = NSMenuItem(title: fav.title, action: #selector(ctxPlayFavorite(_:)), keyEquivalent: "")
+                row.target = self
+                row.representedObject = fav.url
+                row.state = (fav.url == currentURL) ? .on : .off
+                sub.addItem(row)
+            }
+        }
+        item.submenu = sub
+        return item
     }
 
     private func addItem(to menu: NSMenu, _ title: String, _ action: Selector, icon: String? = nil) {
@@ -500,19 +592,12 @@ final class WebAudioPlayer: NSObject {
         menu.addItem(item)
     }
 
-    @objc private func ctxTogglePlay() {
-        if isPlaying {
-            pause()
-        } else {
-            eval("(function(){var v=document.querySelector('video,audio'); if(v){v.play();}})();")
-            isPlaying = true
-        }
-        onStateChange?()
-    }
-    @objc private func ctxNext() { next() }
-    @objc private func ctxPrevious() { previous() }
     @objc private func ctxOpenInBrowser() { openInBrowser() }
     @objc private func ctxHideVideo() { setWindowVisible(false) }
+    @objc private func ctxPlayFavorite(_ sender: NSMenuItem) {
+        guard let url = sender.representedObject as? String else { return }
+        play(urlString: url)
+    }
     @objc private func ctxSignIn() { signIn() }
     @objc private func ctxSignOut() { clearLogin() }
     @objc private func ctxImportLogin() { showImportLogin() }
@@ -927,15 +1012,16 @@ private final class NavProxy: NSObject, WKNavigationDelegate {
     }
 }
 
-/// The drawer's video pane. Right-click shows a compact Pomo menu (transport +
-/// account actions) rather than WebKit's default web context menu.
+/// The drawer's video pane. Right-clicking augments WebKit's native video menu
+/// with Pomo's account + open/hide actions (see `augmentVideoMenu`). We hook
+/// `willOpenMenu` rather than `rightMouseDown` because WebKit builds the
+/// web-content menu through the former; a `rightMouseDown` override is bypassed.
 final class DrawerWebView: WKWebView {
     weak var owner: WebAudioPlayer?
 
-    override func rightMouseDown(with event: NSEvent) {
+    override func willOpenMenu(_ menu: NSMenu, with event: NSEvent) {
         MainActor.assumeIsolated {
-            guard let menu = owner?.makeContextMenu() else { return }
-            menu.popUp(positioning: nil, at: convert(event.locationInWindow, from: nil), in: self)
+            owner?.augmentVideoMenu(menu)
         }
     }
 }

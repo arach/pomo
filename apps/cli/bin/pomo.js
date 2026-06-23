@@ -13,6 +13,7 @@ import { existsSync, mkdtempSync, readdirSync, readFileSync, rmSync, writeFileSy
 import { homedir, tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { createInterface } from 'node:readline';
+import { fileURLToPath } from 'node:url';
 
 const REPO = 'arach/pomo';
 const STATE_FILE = join(homedir(), 'Library', 'Application Support', 'Pomo', 'state.json');
@@ -31,11 +32,29 @@ function requireMac() {
   if (process.platform !== 'darwin') die('this CLI only works on macOS.');
 }
 
+/**
+ * Which Pomo.app should handle a `pomo://` command. With many stale bundles
+ * registered (old worktrees, mounted DMGs, cached builds), bare `open pomo://`
+ * routes unpredictably to "some older version". So:
+ *   1. honour an explicit POMO_APP env override, else
+ *   2. when this CLI lives inside the repo, prefer its sibling dev build, so
+ *      `pomo` drives the copy you're hacking on — not whatever LaunchServices
+ *      happens to pick.
+ * Returns null for a plain npm install (no sibling app) → default routing.
+ */
+function targetApp() {
+  if (process.env.POMO_APP) return process.env.POMO_APP;
+  const devApp = join(fileURLToPath(import.meta.url), '../../../macos/dist/Pomo.app');
+  return existsSync(devApp) ? devApp : null;
+}
+
 /** Fire a pomo:// command at the app via `open`. */
 function send(path) {
   requireMac();
+  const url = `pomo://${path}`;
+  const app = targetApp();
   try {
-    execFileSync('open', [`pomo://${path}`], { stdio: 'ignore' });
+    execFileSync('open', app ? ['-a', app, url] : [url], { stdio: 'ignore' });
   } catch {
     die(`couldn't reach Pomo. Is it installed? Try: pomo install`);
   }

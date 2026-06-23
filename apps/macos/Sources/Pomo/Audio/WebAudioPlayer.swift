@@ -461,17 +461,20 @@ final class WebAudioPlayer: NSObject {
 
     // MARK: - Video-pane context menu + import panel
 
-    /// Right-click menu shown over the drawer's video pane (see `DrawerWebView`).
-    /// A compact Pomo surface — transport, open-in-browser, and account actions —
-    /// in place of WebKit's default web context menu.
-    func makeContextMenu() -> NSMenu {
-        let menu = NSMenu()
-        menu.autoenablesItems = false
+    /// Augment WebKit's default video context menu rather than replace it: keep
+    /// the useful native items (Mute, Loop, Full Screen, PiP, …), drop the
+    /// redundant "Show Controls" (YouTube has its own controls), and append
+    /// Pomo's open-in-browser, hide, and account actions. Called from
+    /// `DrawerWebView.willOpenMenu`, which is the path WebKit actually uses (an
+    /// `NSView.rightMouseDown` override doesn't intercept web-content menus).
+    func augmentVideoMenu(_ menu: NSMenu) {
+        menu.items
+            .filter {
+                $0.identifier?.rawValue == "WKMenuItemIdentifierToggleVideoControls"
+                    || $0.title.range(of: "controls", options: .caseInsensitive) != nil
+            }
+            .forEach { menu.removeItem($0) }
 
-        addItem(to: menu, isPlaying ? "Pause" : "Play", #selector(ctxTogglePlay),
-                icon: isPlaying ? "pause.fill" : "play.fill")
-        addItem(to: menu, "Next", #selector(ctxNext), icon: "forward.end.fill")
-        addItem(to: menu, "Previous", #selector(ctxPrevious), icon: "backward.end.fill")
         menu.addItem(.separator())
         addItem(to: menu, "Open in Browser", #selector(ctxOpenInBrowser), icon: "safari")
         addItem(to: menu, "Hide Video", #selector(ctxHideVideo), icon: "eye.slash")
@@ -488,7 +491,6 @@ final class WebAudioPlayer: NSObject {
             addItem(to: menu, "Sign In to YouTube…", #selector(ctxSignIn), icon: "person.crop.circle.badge.plus")
         }
         addItem(to: menu, "Import Login from Browser…", #selector(ctxImportLogin), icon: "key.horizontal")
-        return menu
     }
 
     private func addItem(to menu: NSMenu, _ title: String, _ action: Selector, icon: String? = nil) {
@@ -500,17 +502,6 @@ final class WebAudioPlayer: NSObject {
         menu.addItem(item)
     }
 
-    @objc private func ctxTogglePlay() {
-        if isPlaying {
-            pause()
-        } else {
-            eval("(function(){var v=document.querySelector('video,audio'); if(v){v.play();}})();")
-            isPlaying = true
-        }
-        onStateChange?()
-    }
-    @objc private func ctxNext() { next() }
-    @objc private func ctxPrevious() { previous() }
     @objc private func ctxOpenInBrowser() { openInBrowser() }
     @objc private func ctxHideVideo() { setWindowVisible(false) }
     @objc private func ctxSignIn() { signIn() }
@@ -927,15 +918,16 @@ private final class NavProxy: NSObject, WKNavigationDelegate {
     }
 }
 
-/// The drawer's video pane. Right-click shows a compact Pomo menu (transport +
-/// account actions) rather than WebKit's default web context menu.
+/// The drawer's video pane. Right-clicking augments WebKit's native video menu
+/// with Pomo's account + open/hide actions (see `augmentVideoMenu`). We hook
+/// `willOpenMenu` rather than `rightMouseDown` because WebKit builds the
+/// web-content menu through the former; a `rightMouseDown` override is bypassed.
 final class DrawerWebView: WKWebView {
     weak var owner: WebAudioPlayer?
 
-    override func rightMouseDown(with event: NSEvent) {
+    override func willOpenMenu(_ menu: NSMenu, with event: NSEvent) {
         MainActor.assumeIsolated {
-            guard let menu = owner?.makeContextMenu() else { return }
-            menu.popUp(positioning: nil, at: convert(event.locationInWindow, from: nil), in: self)
+            owner?.augmentVideoMenu(menu)
         }
     }
 }

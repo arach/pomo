@@ -17,13 +17,14 @@ struct RolodexFace: View {
 
     var body: some View {
         VStack(spacing: HudSpacing.lg) {
+            // Your intent once named, otherwise the session type — no status dot.
             HStack(spacing: HudSpacing.sm) {
-                Circle().fill(accent).frame(width: 6, height: 6)
-                    .opacity(model.isRunning ? 1 : 0.4)
-                Text(model.sessionType.label)
+                Text(model.intent.isEmpty ? model.sessionType.label : model.intent)
                     .font(HudFont.mono(HudTextSize.xs, weight: .semibold))
-                    .tracking(2)
+                    .tracking(model.intent.isEmpty ? 2 : 0.5)
                     .foregroundStyle(HudPalette.muted)
+                    .lineLimit(1)
+                    .truncationMode(.tail)
                 if model.isPaused {
                     Text("· PAUSED")
                         .font(HudFont.mono(HudTextSize.xs, weight: .semibold))
@@ -87,7 +88,9 @@ private struct FlipDigit: View {
                 .stroke(Color.white.opacity(0.08), lineWidth: 1)
         )
         .shadow(color: .black.opacity(0.4), radius: 3, y: 2)
-        .animation(.spring(response: 0.35, dampingFraction: 0.72), value: value)
+        // The digit holds steady, then flips in one quick, settled snap (no
+        // bounce) — calmer than a continuous spring that's always in motion.
+        .animation(.snappy(duration: 0.16, extraBounce: 0.0), value: value)
     }
 }
 

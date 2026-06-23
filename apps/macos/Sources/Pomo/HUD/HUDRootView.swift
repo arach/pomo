@@ -142,7 +142,7 @@ struct HUDRootView: View {
             Image(systemName: systemName)
                 .font(.system(size: 11, weight: .semibold))
                 .foregroundStyle(Color.white.opacity(0.82))
-                .frame(width: 26, height: 26)
+                .frame(width: 28, height: 28)   // matches the transport's secondary buttons
                 .background(Circle().fill(Color.white.opacity(0.06)))
                 .overlay(Circle().stroke(Color.white.opacity(0.16), lineWidth: 1))
                 .contentShape(Circle())

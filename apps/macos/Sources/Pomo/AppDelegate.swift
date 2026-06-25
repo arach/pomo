@@ -92,6 +92,13 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         menuBar.onPlayFavorite = { [weak self] favorite in self?.playFavorite(favorite) }
 
         hud.onOpenSettings = { [weak self] in self?.showSettings() }
+        // While the HUD is on screen, run as a regular Dock app so it shows an
+        // icon and is reachable via ⌘-Tab; drop back to a menu-bar accessory
+        // when it's hidden. Also keeps state.json's hudVisible fresh.
+        hud.onVisibilityChange = { [weak self] _ in
+            self?.updateActivationPolicy()
+            self?.writeState()
+        }
 
         // Audio playback state can change asynchronously (web player events),
         // so refresh the state file whenever it does.
@@ -124,6 +131,28 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         HotkeyManager.shared.register(id: 1, keyCode: keyCode, modifiers: modifiers) { [weak self] in
             self?.hud.toggle()
         }
+    }
+
+    // MARK: - Dock presence
+
+    /// Match the app's activation policy to what's on screen: a regular Dock app
+    /// (so the HUD has an icon and is ⌘-Tab-able) whenever the HUD or an
+    /// auxiliary window is visible, dropping back to a menu-bar accessory when
+    /// nothing is shown. `excluding` skips a window that's mid-close (its
+    /// `isVisible` is still true inside `windowWillClose`).
+    private func updateActivationPolicy(excluding closing: NSWindow? = nil) {
+        func visible(_ window: NSWindow?) -> Bool {
+            guard let window, window !== closing else { return false }
+            return window.isVisible
+        }
+        let wantsDock = hud.isShown || visible(settingsWindow) || visible(statsWindow)
+        NSApp.setActivationPolicy(wantsDock ? .regular : .accessory)
+    }
+
+    /// Clicking the Dock icon (present only while the HUD is up) re-summons the HUD.
+    func applicationShouldHandleReopen(_ sender: NSApplication, hasVisibleWindows flag: Bool) -> Bool {
+        hud.show()
+        return true
     }
 
     // MARK: - Audio helpers
@@ -206,6 +235,9 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         case .favoritesList:
             break // state (with favorites) is written below
         case .setIntent(let text): model.setIntent(text)
+        case .shortcuts(let visible):
+            hud.show()
+            hud.chrome.showShortcuts = visible ?? !hud.chrome.showShortcuts
         case .openStats:   showStats()
         case .openMenu:    menuBar.toggleMenu()
         case .openSettings: showSettings()
@@ -340,13 +372,8 @@ extension AppDelegate: NSWindowDelegate {
     func windowWillClose(_ notification: Notification) {
         guard let closing = notification.object as? NSWindow,
               closing === settingsWindow || closing === statsWindow else { return }
-        // Back to a menu-bar-only app once our last auxiliary window closes —
-        // but stay regular while the other one is still on screen.
-        let stillOpen = [settingsWindow, statsWindow]
-            .compactMap { $0 }
-            .contains { $0 !== closing && $0.isVisible }
-        if !stillOpen {
-            NSApp.setActivationPolicy(.accessory)
-        }
+        // Re-evaluate Dock presence as this window closes: stay regular while the
+        // HUD or the other auxiliary window is still on screen, else go accessory.
+        updateActivationPolicy(excluding: closing)
     }
 }

@@ -21,6 +21,9 @@ final class PomoSettings {
 
     // Presentation
     var watchface: Watchface = .minimal
+    // Light/dark override for adaptive app windows (Settings). `.system` follows
+    // the macOS appearance; `.light`/`.dark` pin it regardless of the OS setting.
+    var appearanceMode: AppearanceMode = .system
     var panelOpacity: Double = 1.0
     // Strength of the behind-window frost (0 = clear glass, 1 = full blur).
     // Independent of `panelOpacity` so a see-through panel can still read as
@@ -34,6 +37,9 @@ final class PomoSettings {
     // Background audio (YouTube / web link)
     var audioURL: String = ""
     var audioVolume: Double = 0.6
+    var focusAudioURL: String = ""
+    var shortBreakAudioURL: String = ""
+    var longBreakAudioURL: String = ""
 
     // The current session intent, persisted so it survives a relaunch.
     var intent: String = ""
@@ -105,6 +111,41 @@ final class PomoSettings {
         max(60, minutes(for: type) * 60)
     }
 
+    /// Optional queued background audio for each session type. Kept out of the
+    /// main UI chrome; agents/settings can use it to make Focus/Break/Long feel
+    /// different without adding more foreground controls.
+    func audioURL(for type: SessionType) -> String? {
+        let value: String
+        switch type {
+        case .focus:      value = focusAudioURL
+        case .shortBreak: value = shortBreakAudioURL
+        case .longBreak:  value = longBreakAudioURL
+        }
+        let trimmed = value.trimmingCharacters(in: .whitespacesAndNewlines)
+        return trimmed.isEmpty ? nil : trimmed
+    }
+
+    var sessionAudioURLs: [String: String] {
+        var result: [String: String] = [:]
+        for type in SessionType.allCases {
+            if let url = audioURL(for: type) {
+                result[type.rawValue] = url
+            }
+        }
+        return result
+    }
+
+    func setAudioURL(_ rawURL: String?, for type: SessionType) {
+        let value = (rawURL ?? "").trimmingCharacters(in: .whitespacesAndNewlines)
+        switch type {
+        case .focus:      focusAudioURL = value
+        case .shortBreak: shortBreakAudioURL = value
+        case .longBreak:  longBreakAudioURL = value
+        }
+        saveNow()
+        onChange?()
+    }
+
     /// Set the persisted duration (minutes) for a session type, then persist and
     /// notify — `onChange` re-syncs an idle timer to the new length. Used by the
     /// menu-bar Duration list.
@@ -157,11 +198,15 @@ final class PomoSettings {
         var soundEnabled: Bool
         var volume: Double
         // Optional so settings files written before these fields still decode.
+        var appearanceMode: AppearanceMode?
         var hotkeyKeyCode: Int?
         var hotkeyModifiers: Int?
         var hotkeyDisplay: String?
         var audioURL: String?
         var audioVolume: Double?
+        var focusAudioURL: String?
+        var shortBreakAudioURL: String?
+        var longBreakAudioURL: String?
         var intent: String?
         var recentIntents: [String]?
     }
@@ -178,11 +223,15 @@ final class PomoSettings {
             backgroundBlur: backgroundBlur,
             soundEnabled: soundEnabled,
             volume: volume,
+            appearanceMode: appearanceMode,
             hotkeyKeyCode: hotkeyKeyCode,
             hotkeyModifiers: hotkeyModifiers,
             hotkeyDisplay: hotkeyDisplay,
             audioURL: audioURL,
             audioVolume: audioVolume,
+            focusAudioURL: focusAudioURL,
+            shortBreakAudioURL: shortBreakAudioURL,
+            longBreakAudioURL: longBreakAudioURL,
             intent: intent,
             recentIntents: recentIntents
         )
@@ -195,6 +244,7 @@ final class PomoSettings {
         longBreakInterval = max(1, dto.longBreakInterval)
         autoStartNext = dto.autoStartNext
         watchface = dto.watchface
+        if let mode = dto.appearanceMode { appearanceMode = mode }
         panelOpacity = min(1.0, max(0.3, dto.panelOpacity))
         if let blur = dto.backgroundBlur { backgroundBlur = min(1.0, max(0.0, blur)) }
         soundEnabled = dto.soundEnabled
@@ -204,6 +254,9 @@ final class PomoSettings {
         if let display = dto.hotkeyDisplay, !display.isEmpty { hotkeyDisplay = display }
         if let url = dto.audioURL { audioURL = url }
         if let vol = dto.audioVolume { audioVolume = min(1.0, max(0.0, vol)) }
+        if let url = dto.focusAudioURL { focusAudioURL = url }
+        if let url = dto.shortBreakAudioURL { shortBreakAudioURL = url }
+        if let url = dto.longBreakAudioURL { longBreakAudioURL = url }
         if let intent = dto.intent { self.intent = intent }
         if let intents = dto.recentIntents {
             recentIntents = Array(intents.prefix(Self.maxRecentIntents))
@@ -229,5 +282,39 @@ final class PomoSettings {
         let dto = snapshot()
         guard let data = try? JSONEncoder().encode(dto) else { return }
         try? data.write(to: Self.fileURL, options: .atomic)
+    }
+}
+
+/// How the adaptive app windows (Settings) choose their light/dark palette.
+/// The HUD, menu popover, and Stats are deliberately fixed-dark glass, so this
+/// only affects the windows that sit against the desktop via `AppPalette`.
+enum AppearanceMode: String, Codable, CaseIterable, Identifiable {
+    case system, light, dark
+
+    var id: String { rawValue }
+
+    var displayName: String {
+        switch self {
+        case .system: return "Auto"
+        case .light:  return "Light"
+        case .dark:   return "Dark"
+        }
+    }
+
+    var symbol: String {
+        switch self {
+        case .system: return "circle.lefthalf.filled"
+        case .light:  return "sun.max"
+        case .dark:   return "moon"
+        }
+    }
+
+    /// The override to feed `.preferredColorScheme`. `nil` follows the system.
+    var colorScheme: ColorScheme? {
+        switch self {
+        case .system: return nil
+        case .light:  return .light
+        case .dark:   return .dark
+        }
     }
 }

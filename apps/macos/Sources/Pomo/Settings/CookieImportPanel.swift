@@ -2,16 +2,14 @@ import SwiftUI
 import HudsonUI
 
 /// A tiny, guided panel for borrowing a YouTube login from a browser the user is
-/// already signed into — so the web player goes ad-free (Premium) without a fresh
-/// sign-in. Pick a browser, we read its cookies via the `pomo-cookies` helper,
-/// then the player uses that session when it loads YouTube.
-///
-/// Three states: choose a browser → working → result (imported / nothing found).
-/// Follows the system light/dark appearance via `AppPalette`, like Settings.
+/// already signed into — so the web player goes ad-free without a fresh sign-in.
+/// Chromium-family browsers expose multiple profiles, so we make those choices
+/// explicit instead of importing from an ambiguous browser-level default.
 struct CookieImportPanel: View {
     var account: AccountStatus
-    /// Imports auth cookies from the given browser id; returns how many it found.
-    var onImport: (String) async -> Int
+    var profiles: [CookieImporter.BrowserProfile]
+    /// Imports auth cookies from the given browser/profile; returns how many it found.
+    var onImport: (String, String?) async -> Int
     var onClose: () -> Void
 
     private struct Browser: Identifiable {
@@ -20,15 +18,53 @@ struct CookieImportPanel: View {
         let note: String?
     }
 
-    // Ordered most-common first so the browsers people actually use lead the list.
-    private let browsers: [Browser] = [
-        .init(id: "chrome",  name: "Chrome",  note: "Keychain prompt"),
-        .init(id: "safari",  name: "Safari",  note: "Full Disk Access"),
+    private struct ImportTarget: Identifiable {
+        let id: String
+        let title: String
+        let subtitle: String
+        let note: String?
+        let icon: String
+        let browser: String
+        let profile: String?
+
+        var workingName: String {
+            profile == nil ? title : "\(subtitle) / \(title)"
+        }
+    }
+
+    private let fallbackBrowsers: [Browser] = [
+        .init(id: "safari", name: "Safari", note: "Full Disk Access"),
         .init(id: "firefox", name: "Firefox", note: nil),
-        .init(id: "edge",    name: "Edge",    note: nil),
-        .init(id: "brave",   name: "Brave",   note: "Keychain prompt"),
-        .init(id: "arc",     name: "Arc",     note: nil),
+        .init(id: "arc", name: "Arc", note: nil),
     ]
+
+    private var profileTargets: [ImportTarget] {
+        profiles.map { profile in
+            ImportTarget(
+                id: "profile-\(profile.id)",
+                title: profile.title,
+                subtitle: profile.subtitle,
+                note: profile.note,
+                icon: "person.crop.circle",
+                browser: profile.browser,
+                profile: profile.profile
+            )
+        }
+    }
+
+    private var browserTargets: [ImportTarget] {
+        fallbackBrowsers.map { browser in
+            ImportTarget(
+                id: "browser-\(browser.id)",
+                title: browser.name,
+                subtitle: "Browser default",
+                note: browser.note,
+                icon: "globe",
+                browser: browser.id,
+                profile: nil
+            )
+        }
+    }
 
     private enum Phase { case choose, working, done }
     @State private var phase: Phase = .choose
@@ -50,7 +86,7 @@ struct CookieImportPanel: View {
             }
         }
         .padding(HudSpacing.huge)
-        .frame(width: 360)
+        .frame(width: 388)
         .background(pal.bg)
     }
 
@@ -63,7 +99,7 @@ struct CookieImportPanel: View {
                 Text("Import YouTube Login")
                     .font(HudFont.mono(HudTextSize.md, weight: .semibold))
                     .foregroundStyle(pal.ink)
-                Text("Go ad-free with a session you already have")
+                Text("Choose the browser profile signed into YouTube")
                     .font(HudFont.ui(HudTextSize.xs))
                     .foregroundStyle(pal.dim)
             }
@@ -74,16 +110,35 @@ struct CookieImportPanel: View {
 
     private var chooseStep: some View {
         VStack(alignment: .leading, spacing: HudSpacing.lg) {
-            Text("Borrow the login from a browser you're already signed into — the player goes ad-free with Premium.")
+            Text("Pick the same profile you use for YouTube. Chrome-based browsers may ask for Keychain access.")
                 .font(HudFont.ui(HudTextSize.xs))
                 .foregroundStyle(pal.muted)
                 .fixedSize(horizontal: false, vertical: true)
 
-            VStack(spacing: HudSpacing.sm) {
-                ForEach(browsers) { browser in
-                    browserRow(browser)
+            ScrollView {
+                VStack(alignment: .leading, spacing: HudSpacing.md) {
+                    if !profileTargets.isEmpty {
+                        sectionLabel("Detected Profiles")
+                        VStack(spacing: HudSpacing.sm) {
+                            ForEach(profileTargets) { target in
+                                targetRow(target)
+                            }
+                        }
+                    }
+
+                    if !browserTargets.isEmpty {
+                        sectionLabel(profileTargets.isEmpty ? "Browsers" : "Other Browsers")
+                            .padding(.top, profileTargets.isEmpty ? 0 : HudSpacing.sm)
+                        VStack(spacing: HudSpacing.sm) {
+                            ForEach(browserTargets) { target in
+                                targetRow(target)
+                            }
+                        }
+                    }
                 }
+                .padding(.vertical, 1)
             }
+            .frame(maxHeight: 292)
 
             HStack {
                 Spacer()
@@ -92,29 +147,48 @@ struct CookieImportPanel: View {
         }
     }
 
-    private func browserRow(_ browser: Browser) -> some View {
-        let isHovered = hovered == browser.id
-        return Button { start(browser) } label: {
+    private func sectionLabel(_ title: String) -> some View {
+        Text(title.uppercased())
+            .font(HudFont.mono(HudTextSize.micro, weight: .bold))
+            .foregroundStyle(pal.dim)
+            .tracking(1.6)
+    }
+
+    private func targetRow(_ target: ImportTarget) -> some View {
+        let isHovered = hovered == target.id
+        return Button { start(target) } label: {
             HStack(spacing: HudSpacing.md) {
-                Image(systemName: "globe")
+                Image(systemName: target.icon)
                     .font(HudFont.ui(HudTextSize.sm))
                     .foregroundStyle(isHovered ? pal.action : pal.muted)
                     .frame(width: 18)
-                Text(browser.name)
-                    .font(HudFont.ui(HudTextSize.sm, weight: .medium))
-                    .foregroundStyle(pal.ink)
-                Spacer()
-                if let note = browser.note {
+
+                VStack(alignment: .leading, spacing: 2) {
+                    Text(target.title)
+                        .font(HudFont.ui(HudTextSize.sm, weight: .medium))
+                        .foregroundStyle(pal.ink)
+                        .lineLimit(1)
+                    Text(target.subtitle)
+                        .font(HudFont.ui(HudTextSize.xs))
+                        .foregroundStyle(pal.dim)
+                        .lineLimit(1)
+                }
+
+                Spacer(minLength: HudSpacing.md)
+
+                if let note = target.note {
                     Text(note)
                         .font(HudFont.mono(HudTextSize.micro))
                         .foregroundStyle(pal.dim)
+                        .lineLimit(1)
                 }
+
                 Image(systemName: "chevron.right")
                     .font(HudFont.ui(HudTextSize.micro, weight: .semibold))
                     .foregroundStyle(pal.dim)
             }
             .padding(.horizontal, HudSpacing.lg)
-            .frame(height: 40)
+            .frame(height: 46)
             .background(
                 RoundedRectangle(cornerRadius: HudRadius.standard)
                     .fill(isHovered ? pal.surfaceHover : pal.inset)
@@ -125,7 +199,7 @@ struct CookieImportPanel: View {
             )
         }
         .buttonStyle(.plain)
-        .onHover { hovered = $0 ? browser.id : (hovered == browser.id ? nil : hovered) }
+        .onHover { hovered = $0 ? target.id : (hovered == target.id ? nil : hovered) }
     }
 
     // MARK: - Step 2 · working
@@ -138,9 +212,11 @@ struct CookieImportPanel: View {
             Text("Reading your login from \(pickedName)…")
                 .font(HudFont.ui(HudTextSize.sm))
                 .foregroundStyle(pal.muted)
-            Text("Chrome-based browsers may ask for Keychain access.")
+                .multilineTextAlignment(.center)
+            Text("If macOS asks for access, approve the browser's cookie/keychain prompt.")
                 .font(HudFont.ui(HudTextSize.xs))
                 .foregroundStyle(pal.dim)
+                .multilineTextAlignment(.center)
         }
         .frame(maxWidth: .infinity)
         .padding(.vertical, HudSpacing.xxl)
@@ -175,7 +251,7 @@ struct CookieImportPanel: View {
                 .fixedSize(horizontal: false, vertical: true)
 
                 if importedCount == 0 {
-                    Text("Make sure you're logged into YouTube in that browser, or pick another.")
+                    Text("Make sure you're logged into YouTube in that profile, or pick another.")
                         .font(HudFont.ui(HudTextSize.xs))
                         .foregroundStyle(pal.dim)
                         .fixedSize(horizontal: false, vertical: true)
@@ -232,13 +308,13 @@ struct CookieImportPanel: View {
 
     // MARK: - Flow
 
-    private func start(_ browser: Browser) {
-        pickedName = browser.name
+    private func start(_ target: ImportTarget) {
+        pickedName = target.workingName
         confirmed = false
         importedCount = 0
         phase = .working
         Task {
-            let count = await onImport(browser.id)
+            let count = await onImport(target.browser, target.profile)
             importedCount = count
             // The reload + masthead read is async; give it a moment to confirm.
             if count > 0 {

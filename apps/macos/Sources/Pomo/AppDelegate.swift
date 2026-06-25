@@ -137,7 +137,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         if audio.isPlaying {
             audio.pause()
         } else {
-            audio.resume(stored: settings.audioURL)
+            audio.resume(stored: preferredAudioURL())
         }
     }
 
@@ -145,6 +145,13 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         settings.audioURL = favorite.url
         settings.saveNow()
         audio.play(urlString: favorite.url)
+    }
+
+    private func preferredAudioURL() -> String {
+        if !audio.currentURL.isEmpty { return audio.currentURL }
+        if let url = settings.audioURL(for: model.sessionType) { return url }
+        if !settings.audioURL.isEmpty { return settings.audioURL }
+        return favorites.items.first?.url ?? ""
     }
 
     // MARK: - Agent control (pomo:// scheme)
@@ -184,7 +191,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
                 settings.saveNow()
                 audio.play(urlString: url)
             } else {
-                audio.resume(stored: settings.audioURL)
+                audio.resume(stored: preferredAudioURL())
             }
         case .audioPause:  audio.pause()
         case .audioStop:   audio.stop()
@@ -194,6 +201,9 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             audio.setVolume(settings.audioVolume)
         case .audioNext:   audio.next()
         case .audioPrev:   audio.previous()
+        case .sessionAudio(let type, let url):
+            settings.setAudioURL(url, for: type)
+            menuBar.refresh()
         case .login:       audio.signIn()
         case .importCookies(let browser, let profile): audio.importCookies(browser: browser, profile: profile)
         case .logout: audio.clearLogin()
@@ -201,6 +211,11 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         case .videoShow:   audio.setVideoVisible(true)
         case .videoHide:   audio.setVideoVisible(false)
         case .videoToggle: audio.toggleVideo()
+        case .videoPage:
+            hud.show()
+            audio.setOriginalPageVisible(true)
+        case .videoPlayer:
+            audio.setOriginalPageVisible(false)
         case .videoBrowser: audio.openInBrowser()
         case .favoriteAdd(let url, let title):
             favorites.add(url: url, title: title)
@@ -240,8 +255,9 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             watchface: settings.watchface.rawValue,
             hudVisible: hud.isShown,
             audioPlaying: audio.isPlaying,
-            audioURL: audio.currentURL.isEmpty ? settings.audioURL : audio.currentURL,
+            audioURL: preferredAudioURL(),
             audioEngine: audio.engineName,
+            sessionAudioURLs: settings.sessionAudioURLs,
             favorites: favorites.items,
             focusToday: history.focusCountToday(),
             focusTotal: history.totalFocusCount,

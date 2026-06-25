@@ -120,18 +120,31 @@ final class FavoritesStore {
         return dir.appendingPathComponent("favorites.json")
     }()
 
+    private static let defaultItems = [
+        Favorite(title: "lofi girl", url: "https://www.youtube.com/watch?v=jfKfPfyJRdk")
+    ]
+
     private func load() {
+        guard FileManager.default.fileExists(atPath: Self.fileURL.path) else {
+            items = Self.defaultItems
+            save()
+            return
+        }
         guard let data = try? Data(contentsOf: Self.fileURL),
               let decoded = try? JSONDecoder().decode([Favorite].self, from: data)
         else { return }
         items = decoded
     }
 
-    private func saveAndNotify() {
+    private func save() {
         let encoder = JSONEncoder()
         encoder.outputFormatting = [.prettyPrinted]
         guard let data = try? encoder.encode(items) else { return }
         try? data.write(to: Self.fileURL, options: .atomic)
+    }
+
+    private func saveAndNotify() {
+        save()
         onChange?()
     }
 

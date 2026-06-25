@@ -56,6 +56,7 @@ final class AudioController {
     var account: AccountStatus { web.account }
     func setVideoVisible(_ visible: Bool) { web.setWindowVisible(visible); syncVideo(); notify() }
     func toggleVideo() { web.toggleWindow(); syncVideo(); notify() }
+    func setOriginalPageVisible(_ visible: Bool) { web.setOriginalPageVisible(visible); syncVideo(); notify() }
 
     /// Pop the currently-playing video out to the default browser (where
     /// playlists, autoplay, queue and the user's extensions all work).

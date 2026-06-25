@@ -15,6 +15,7 @@ enum PomoCommand {
     case audioVolume(Int)       // 0–100
     case audioNext
     case audioPrev
+    case sessionAudio(SessionType, String?)
     case login
     case importCookies(browser: String?, profile: String?)
     case logout
@@ -22,6 +23,8 @@ enum PomoCommand {
     case videoShow
     case videoHide
     case videoToggle
+    case videoPage              // show the original YouTube page in the drawer
+    case videoPlayer            // return to the stripped player view
     case videoBrowser           // open the current video in the default browser
     case favoriteAdd(url: String, title: String?)
     case favoriteUpdate(index: Int, title: String?, url: String?)
@@ -88,6 +91,8 @@ enum PomoCommand {
             switch arg {
             case "show":   self = .videoShow
             case "hide":   self = .videoHide
+            case "page", "full", "original", "expand": self = .videoPage
+            case "player", "bare", "screen", "collapse": self = .videoPlayer
             case "browser", "open": self = .videoBrowser
             case "toggle", nil: self = .videoToggle
             default: return nil
@@ -106,7 +111,16 @@ enum PomoCommand {
             self = .duration(minutes)
 
         case "audio":
-            if let urlValue = query?.first(where: { $0.name == "url" })?.value, !urlValue.isEmpty {
+            if arg == "session" {
+                guard path.count > 1, let type = SessionType(command: path[1]) else { return nil }
+                if path.dropFirst(2).contains("clear") {
+                    self = .sessionAudio(type, nil)
+                } else {
+                    let urlValue = query?.first(where: { $0.name == "url" })?.value?
+                        .trimmingCharacters(in: .whitespacesAndNewlines)
+                    self = .sessionAudio(type, (urlValue?.isEmpty == false) ? urlValue : nil)
+                }
+            } else if let urlValue = query?.first(where: { $0.name == "url" })?.value, !urlValue.isEmpty {
                 self = .audioPlay(urlValue)
             } else {
                 switch arg {
@@ -213,6 +227,7 @@ struct PomoState: Codable {
     var audioPlaying: Bool
     var audioURL: String
     var audioEngine: String   // "web" | "none"
+    var sessionAudioURLs: [String: String]
     var favorites: [Favorite]
     // Focus history (see SessionHistoryStore).
     var focusToday: Int

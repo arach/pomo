@@ -1,5 +1,6 @@
 import SwiftUI
 import HudsonUI
+import UniformTypeIdentifiers
 
 /// The Settings window — a resizable, two-pane surface (sidebar nav + detail)
 /// that follows the system light/dark appearance via `AppPalette`. Native
@@ -21,8 +22,17 @@ struct SettingsView: View {
     @State private var tab: SettingsTab = .general
     @State private var newFavoriteURL = ""
     @State private var newFavoriteTitle = ""
+    @State private var playlistSearch = ""
+    @State private var draggingFavorite: Favorite?
+    @State private var dropTargetIndex: Int?
 
-    private var pal: AppPalette { .resolve(scheme) }
+    /// The appearance actually in effect: a user-forced mode if one is set,
+    /// otherwise the system scheme from the environment. Drives both the palette
+    /// and `.preferredColorScheme`, so the two never disagree.
+    private var effectiveScheme: ColorScheme {
+        settings.appearanceMode.colorScheme ?? scheme
+    }
+    private var pal: AppPalette { .resolve(effectiveScheme) }
 
     var body: some View {
         HStack(spacing: 0) {
@@ -33,6 +43,9 @@ struct SettingsView: View {
         .frame(minWidth: 640, idealWidth: 720, maxWidth: .infinity,
                minHeight: 480, idealHeight: 560, maxHeight: .infinity)
         .background(pal.bg)
+        // Pin the whole window — native controls and the titlebar's traffic
+        // lights included — to the chosen theme (nil = follow the system).
+        .preferredColorScheme(settings.appearanceMode.colorScheme)
     }
 
     // MARK: - Sidebar
@@ -135,7 +148,8 @@ struct SettingsView: View {
             button("Done", kind: .primary) { onClose() }
         }
         .padding(.horizontal, HudSpacing.xxl)
-        .padding(.top, 30)
+        // Align the pane title with the sidebar "Pomo" logo across the divider.
+        .padding(.top, 34)
         .padding(.bottom, HudSpacing.lg)
     }
 
@@ -167,6 +181,17 @@ struct SettingsView: View {
 
     private var appearanceTab: some View {
         VStack(alignment: .leading, spacing: HudSpacing.xl) {
+            group("THEME") {
+                VStack(alignment: .leading, spacing: HudSpacing.md) {
+                    appearanceSegmented(settings.binding(\.appearanceMode))
+                    Text("Auto follows your macOS appearance. Light and Dark pin Pomo's windows regardless of the system setting.")
+                        .font(HudFont.ui(HudTextSize.xs))
+                        .foregroundStyle(pal.dim)
+                        .fixedSize(horizontal: false, vertical: true)
+                }
+                .padding(HudSpacing.lg)
+            }
+
             group("WATCHFACE") {
                 row("Style") {
                     Picker("", selection: settings.binding(\.watchface)) {
@@ -192,22 +217,15 @@ struct SettingsView: View {
         VStack(alignment: .leading, spacing: HudSpacing.xl) {
             group("BACKGROUND AUDIO") {
                 VStack(alignment: .leading, spacing: HudSpacing.lg) {
-                    BrandTextField(
-                        text: settings.binding(\.audioURL),
-                        placeholder: "Paste a YouTube link…",
-                        textColor: pal.ink,
-                        selectionColor: pal.action
-                    )
-                    .padding(.horizontal, HudSpacing.md)
-                    .frame(height: 32)
-                    .background(
-                        RoundedRectangle(cornerRadius: HudRadius.standard)
-                            .fill(pal.inset)
-                            .overlay(
-                                RoundedRectangle(cornerRadius: HudRadius.standard)
-                                    .stroke(pal.border, lineWidth: 1)
-                            )
-                    )
+                    inputSurface(icon: "link") {
+                        BrandTextField(
+                            text: settings.binding(\.audioURL),
+                            placeholder: "Paste a YouTube link…",
+                            textColor: pal.ink,
+                            selectionColor: pal.action
+                        )
+                        .frame(maxWidth: .infinity)
+                    }
 
                     HStack(spacing: HudSpacing.sm) {
                         button("Play", icon: "play.fill", kind: .primary) { onAudioPlay(settings.audioURL) }
@@ -235,77 +253,64 @@ struct SettingsView: View {
                 .padding(HudSpacing.lg)
             }
 
-            group("PLAYLIST") {
-                VStack(alignment: .leading, spacing: 0) {
-                    if favorites.items.isEmpty {
-                        HStack(spacing: HudSpacing.md) {
-                            Image(systemName: "music.note.list")
-                                .font(.system(size: 16, weight: .semibold))
-                                .foregroundStyle(pal.dim)
-                                .frame(width: 28)
-                            VStack(alignment: .leading, spacing: 2) {
-                                Text("No saved videos")
-                                    .font(HudFont.ui(HudTextSize.sm, weight: .medium))
-                                    .foregroundStyle(pal.ink)
-                                Text("Add YouTube links here to populate the menu player.")
-                                    .font(HudFont.ui(HudTextSize.xs))
-                                    .foregroundStyle(pal.dim)
-                            }
-                            Spacer()
-                        }
-                        .padding(HudSpacing.lg)
-                    } else {
-                        ForEach(Array(favorites.items.enumerated()), id: \.element.id) { index, favorite in
-                            playlistRow(favorite, index: index)
-                            if index < favorites.items.count - 1 { rowDivider }
-                        }
-                    }
-
-                    rowDivider
-
-                    VStack(alignment: .leading, spacing: HudSpacing.md) {
+            group("PLAYLIST", accessory: {
+                if !favorites.items.isEmpty { countBadge(favorites.items.count) }
+            }) {
+                if showsPlaylistSearch {
+                    inputSurface(icon: "magnifyingglass", height: 30) {
                         BrandTextField(
-                            text: $newFavoriteURL,
-                            placeholder: "YouTube URL…",
+                            text: $playlistSearch,
+                            placeholder: "Filter playlist…",
                             textColor: pal.ink,
                             selectionColor: pal.action
                         )
-                        .padding(.horizontal, HudSpacing.md)
-                        .frame(height: 30)
-                        .background(
-                            RoundedRectangle(cornerRadius: HudRadius.standard)
-                                .fill(pal.inset)
-                                .overlay(
-                                    RoundedRectangle(cornerRadius: HudRadius.standard)
-                                        .stroke(pal.border, lineWidth: 1)
-                                )
-                        )
-
-                        HStack(spacing: HudSpacing.sm) {
-                            BrandTextField(
-                                text: $newFavoriteTitle,
-                                placeholder: "Optional title…",
-                                textColor: pal.ink,
-                                selectionColor: pal.action
-                            )
-                            .padding(.horizontal, HudSpacing.md)
-                            .frame(height: 30)
-                            .background(
-                                RoundedRectangle(cornerRadius: HudRadius.standard)
-                                    .fill(pal.inset)
-                                    .overlay(
-                                        RoundedRectangle(cornerRadius: HudRadius.standard)
-                                            .stroke(pal.border, lineWidth: 1)
-                                    )
-                            )
-
-                            button("Add", icon: "plus", kind: .primary) { addFavoriteFromFields() }
-                                .disabled(newFavoriteURL.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
-                                .opacity(newFavoriteURL.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty ? 0.45 : 1)
+                        .frame(maxWidth: .infinity)
+                        if !playlistSearch.isEmpty {
+                            Button { playlistSearch = "" } label: {
+                                Image(systemName: "xmark.circle.fill")
+                                    .font(.system(size: 12))
+                                    .foregroundStyle(pal.dim)
+                            }
+                            .buttonStyle(.plain)
+                            .help("Clear filter")
                         }
                     }
-                    .padding(HudSpacing.lg)
+                    .padding(.horizontal, HudSpacing.lg)
+                    .padding(.top, HudSpacing.lg)
+                    .padding(.bottom, HudSpacing.md)
+                    rowDivider
                 }
+
+                if favorites.items.isEmpty {
+                    playlistEmptyState
+                } else if filteredFavorites.isEmpty {
+                    playlistNoMatches
+                } else {
+                    ForEach(Array(filteredFavorites.enumerated()), id: \.element.id) { index, favorite in
+                        playlistRow(favorite, index: index)
+                        if index < filteredFavorites.count - 1 { rowDivider }
+                    }
+                    // A slim "drop at end" target, shown only mid-drag so the
+                    // bottom slot is reachable without cluttering the resting list.
+                    if draggingFavorite != nil, !isFiltering {
+                        Color.clear
+                            .frame(height: 14)
+                            .overlay(alignment: .top) {
+                                if dropTargetIndex == favorites.items.count {
+                                    insertionLine
+                                }
+                            }
+                            .onDrop(of: [UTType.text], delegate: PlaylistReorderDelegate(
+                                index: favorites.items.count,
+                                isDragging: draggingFavorite != nil,
+                                setTarget: { dropTargetIndex = $0 },
+                                commit: { commitReorderToEnd() }
+                            ))
+                    }
+                }
+
+                rowDivider
+                addFavoriteSection
             }
 
             group("YOUTUBE ACCOUNT") {
@@ -369,8 +374,36 @@ struct SettingsView: View {
 
     // MARK: - Playlist
 
+    /// Favorites filtered by the search field (only once the filter is shown).
+    private var filteredFavorites: [Favorite] {
+        guard isFiltering else { return favorites.items }
+        let q = playlistSearch.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
+        return favorites.items.filter {
+            $0.title.lowercased().contains(q) || $0.url.lowercased().contains(q)
+        }
+    }
+
+    /// The filter only earns its keep once the list is long enough to scan poorly.
+    private var showsPlaylistSearch: Bool { favorites.items.count >= 6 }
+
+    private var isFiltering: Bool {
+        showsPlaylistSearch &&
+        !playlistSearch.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+    }
+
     private func playlistRow(_ favorite: Favorite, index: Int) -> some View {
-        HStack(spacing: HudSpacing.md) {
+        let isActive = !favorite.url.isEmpty && favorite.url == settings.audioURL
+        let reorderable = !isFiltering
+        let isDropTarget = reorderable && dropTargetIndex == index
+
+        return HStack(spacing: HudSpacing.md) {
+            if reorderable {
+                Image(systemName: "line.3.horizontal")
+                    .font(.system(size: 12, weight: .medium))
+                    .foregroundStyle(pal.dim)
+                    .frame(width: 16)
+                    .help("Drag to reorder")
+            }
             VStack(alignment: .leading, spacing: 2) {
                 Text(favorite.title)
                     .font(HudFont.ui(HudTextSize.sm, weight: .medium))
@@ -384,23 +417,142 @@ struct SettingsView: View {
                     .truncationMode(.middle)
             }
             Spacer(minLength: HudSpacing.md)
-            settingsIconButton("play.fill", help: "Play") {
+            settingsIconButton(
+                isActive ? "speaker.wave.2.fill" : "play.fill",
+                help: isActive ? "Restart" : "Play",
+                tint: isActive ? pal.action : nil
+            ) {
                 settings.audioURL = favorite.url
                 settings.saveNow()
                 onAudioPlay(favorite.url)
             }
-            settingsIconButton("chevron.up", help: "Move up", enabled: index > 0) {
-                favorites.move(from: index + 1, to: index)
-            }
-            settingsIconButton("chevron.down", help: "Move down", enabled: index < favorites.items.count - 1) {
-                favorites.move(from: index + 1, to: index + 2)
-            }
             settingsIconButton("trash", help: "Remove") {
-                favorites.remove(at: index + 1)
+                if let i = favorites.items.firstIndex(of: favorite) {
+                    favorites.remove(at: i + 1)
+                }
             }
         }
         .padding(.horizontal, HudSpacing.lg)
         .padding(.vertical, HudSpacing.md)
+        .contentShape(Rectangle())
+        .overlay(alignment: .leading) {
+            if isActive {
+                Rectangle().fill(pal.action).frame(width: 3)
+            }
+        }
+        .overlay(alignment: .top) {
+            if isDropTarget { insertionLine }
+        }
+        .onDrag {
+            guard reorderable else { return NSItemProvider() }
+            draggingFavorite = favorite
+            return NSItemProvider(object: favorite.url as NSString)
+        }
+        .onDrop(of: [UTType.text], delegate: PlaylistReorderDelegate(
+            index: index,
+            isDragging: draggingFavorite != nil,
+            setTarget: { dropTargetIndex = $0 },
+            commit: { commitReorder(before: favorite) }
+        ))
+    }
+
+    /// The accent bar shown where a dragged row will land.
+    private var insertionLine: some View {
+        Rectangle()
+            .fill(pal.action)
+            .frame(height: 2)
+            .padding(.horizontal, HudSpacing.lg)
+    }
+
+    private var playlistEmptyState: some View {
+        HStack(spacing: HudSpacing.md) {
+            Image(systemName: "music.note.list")
+                .font(.system(size: 16, weight: .semibold))
+                .foregroundStyle(pal.dim)
+                .frame(width: 28)
+            VStack(alignment: .leading, spacing: 2) {
+                Text("No saved videos")
+                    .font(HudFont.ui(HudTextSize.sm, weight: .medium))
+                    .foregroundStyle(pal.ink)
+                Text("Add YouTube links here to populate the menu player.")
+                    .font(HudFont.ui(HudTextSize.xs))
+                    .foregroundStyle(pal.dim)
+            }
+            Spacer()
+        }
+        .padding(HudSpacing.lg)
+    }
+
+    private var playlistNoMatches: some View {
+        HStack(spacing: HudSpacing.md) {
+            Image(systemName: "magnifyingglass")
+                .font(.system(size: 14, weight: .semibold))
+                .foregroundStyle(pal.dim)
+                .frame(width: 28)
+            Text("No videos match “\(playlistSearch)”.")
+                .font(HudFont.ui(HudTextSize.sm))
+                .foregroundStyle(pal.muted)
+            Spacer()
+        }
+        .padding(HudSpacing.lg)
+    }
+
+    private var addFavoriteSection: some View {
+        VStack(alignment: .leading, spacing: HudSpacing.md) {
+            inputSurface(icon: "link", height: 30) {
+                BrandTextField(
+                    text: $newFavoriteURL,
+                    placeholder: "Paste a YouTube link to save…",
+                    textColor: pal.ink,
+                    selectionColor: pal.action
+                )
+                .frame(maxWidth: .infinity)
+            }
+
+            HStack(spacing: HudSpacing.sm) {
+                inputSurface(height: 30) {
+                    BrandTextField(
+                        text: $newFavoriteTitle,
+                        placeholder: "Optional title…",
+                        textColor: pal.ink,
+                        selectionColor: pal.action
+                    )
+                    .frame(maxWidth: .infinity)
+                }
+
+                button("Add", icon: "plus", kind: .primary) { addFavoriteFromFields() }
+                    .disabled(addDisabled)
+                    .opacity(addDisabled ? 0.45 : 1)
+            }
+        }
+        .padding(HudSpacing.lg)
+    }
+
+    private var addDisabled: Bool {
+        newFavoriteURL.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+    }
+
+    /// Reorder: drop the dragged favorite immediately *before* `target`.
+    private func commitReorder(before target: Favorite) {
+        defer { draggingFavorite = nil; dropTargetIndex = nil }
+        guard let dragging = draggingFavorite, dragging != target else { return }
+        var order = favorites.items
+        guard let from = order.firstIndex(of: dragging) else { return }
+        order.remove(at: from)
+        guard let to = order.firstIndex(of: target) else { return }
+        order.insert(dragging, at: to)
+        favorites.replace(with: order)
+    }
+
+    /// Reorder: drop the dragged favorite at the end of the list.
+    private func commitReorderToEnd() {
+        defer { draggingFavorite = nil; dropTargetIndex = nil }
+        guard let dragging = draggingFavorite else { return }
+        var order = favorites.items
+        guard let from = order.firstIndex(of: dragging) else { return }
+        order.remove(at: from)
+        order.append(dragging)
+        favorites.replace(with: order)
     }
 
     private func addFavoriteFromFields() {
@@ -429,13 +581,22 @@ struct SettingsView: View {
 
     // MARK: - Building blocks
 
-    /// A titled group: a dim mono eyebrow over a bordered card.
-    private func group<Content: View>(_ title: String, @ViewBuilder content: () -> Content) -> some View {
+    /// A titled group: a dim mono eyebrow (with an optional trailing accessory,
+    /// e.g. a count) over a bordered card.
+    private func group<Accessory: View, Content: View>(
+        _ title: String,
+        @ViewBuilder accessory: () -> Accessory = { EmptyView() },
+        @ViewBuilder content: () -> Content
+    ) -> some View {
         VStack(alignment: .leading, spacing: HudSpacing.sm) {
-            Text(title)
-                .font(HudFont.mono(HudTextSize.xxs, weight: .bold))
-                .tracking(1.5)
-                .foregroundStyle(pal.dim)
+            HStack(spacing: HudSpacing.sm) {
+                Text(title)
+                    .font(HudFont.mono(HudTextSize.xxs, weight: .bold))
+                    .tracking(1.5)
+                    .foregroundStyle(pal.dim)
+                Spacer(minLength: 0)
+                accessory()
+            }
             VStack(spacing: 0) { content() }
                 .background(
                     RoundedRectangle(cornerRadius: HudRadius.card).fill(pal.surface)
@@ -444,6 +605,46 @@ struct SettingsView: View {
                     RoundedRectangle(cornerRadius: HudRadius.card).stroke(pal.border, lineWidth: 1)
                 )
         }
+    }
+
+    /// A small count pill for a group eyebrow.
+    private func countBadge(_ count: Int) -> some View {
+        Text("\(count)")
+            .font(HudFont.mono(HudTextSize.micro, weight: .bold))
+            .foregroundStyle(pal.muted)
+            .padding(.horizontal, 6)
+            .padding(.vertical, 1)
+            .background(
+                Capsule().fill(pal.inset)
+                    .overlay(Capsule().stroke(pal.border, lineWidth: 1))
+            )
+    }
+
+    /// A recessed input capsule with an optional leading glyph — the shared
+    /// shell for URL / title / filter fields so they read consistently.
+    private func inputSurface<Content: View>(
+        icon: String? = nil,
+        height: CGFloat = 32,
+        @ViewBuilder content: () -> Content
+    ) -> some View {
+        HStack(spacing: HudSpacing.sm) {
+            if let icon {
+                Image(systemName: icon)
+                    .font(.system(size: 11, weight: .medium))
+                    .foregroundStyle(pal.dim)
+            }
+            content()
+        }
+        .padding(.horizontal, HudSpacing.md)
+        .frame(height: height)
+        .background(
+            RoundedRectangle(cornerRadius: HudRadius.standard)
+                .fill(pal.inset)
+                .overlay(
+                    RoundedRectangle(cornerRadius: HudRadius.standard)
+                        .stroke(pal.border, lineWidth: 1)
+                )
+        )
     }
 
     /// A label (+ optional subtitle) on the left, a control on the right.
@@ -509,6 +710,47 @@ struct SettingsView: View {
         }
     }
 
+    /// A bespoke segmented control — an inset track with a raised selected pill —
+    /// matching the settings token language (native `.segmented` can't be tinted
+    /// to the palette). Equal-width segments span the card. Drives the theme.
+    private func appearanceSegmented(_ selection: Binding<AppearanceMode>) -> some View {
+        HStack(spacing: 3) {
+            ForEach(AppearanceMode.allCases) { mode in
+                let on = selection.wrappedValue == mode
+                Button { selection.wrappedValue = mode } label: {
+                    HStack(spacing: HudSpacing.xs) {
+                        Image(systemName: mode.symbol)
+                            .font(.system(size: 11, weight: .semibold))
+                        Text(mode.displayName)
+                            .font(HudFont.ui(HudTextSize.sm, weight: on ? .semibold : .medium))
+                    }
+                    .foregroundStyle(on ? pal.ink : pal.muted)
+                    .frame(maxWidth: .infinity)
+                    .padding(.vertical, HudSpacing.sm)
+                    .background(
+                        RoundedRectangle(cornerRadius: HudRadius.standard - 2)
+                            .fill(on ? pal.surface : .clear)
+                            .overlay(
+                                RoundedRectangle(cornerRadius: HudRadius.standard - 2)
+                                    .stroke(on ? pal.border : .clear, lineWidth: 1)
+                            )
+                    )
+                    .contentShape(Rectangle())
+                }
+                .buttonStyle(.plain)
+            }
+        }
+        .padding(3)
+        .background(
+            RoundedRectangle(cornerRadius: HudRadius.standard)
+                .fill(pal.inset)
+                .overlay(
+                    RoundedRectangle(cornerRadius: HudRadius.standard)
+                        .stroke(pal.border, lineWidth: 1)
+                )
+        )
+    }
+
     private enum ButtonKind { case primary, secondary }
 
     private func button(_ title: String, icon: String? = nil, kind: ButtonKind = .secondary, action: @escaping () -> Void) -> some View {
@@ -538,19 +780,20 @@ struct SettingsView: View {
         _ symbol: String,
         help: String,
         enabled: Bool = true,
+        tint: Color? = nil,
         action: @escaping () -> Void
     ) -> some View {
         Button(action: action) {
             Image(systemName: symbol)
                 .font(.system(size: 11, weight: .semibold))
-                .foregroundStyle(enabled ? pal.muted : pal.dim)
+                .foregroundStyle(tint ?? (enabled ? pal.muted : pal.dim))
                 .frame(width: 26, height: 26)
                 .background(
                     RoundedRectangle(cornerRadius: HudRadius.standard)
-                        .fill(pal.inset)
+                        .fill(tint.map { $0.opacity(0.14) } ?? pal.inset)
                         .overlay(
                             RoundedRectangle(cornerRadius: HudRadius.standard)
-                                .stroke(pal.border, lineWidth: 1)
+                                .stroke(tint.map { $0.opacity(0.30) } ?? pal.border, lineWidth: 1)
                         )
                 )
         }
@@ -591,9 +834,28 @@ enum SettingsTab: String, CaseIterable, Identifiable {
     var subtitle: String {
         switch self {
         case .general:    return "Session lengths, auto-start, and the completion chime."
-        case .appearance: return "Watchface and HUD panel treatment."
+        case .appearance: return "Theme, watchface, and HUD panel treatment."
         case .audio:      return "Background audio and your YouTube account."
         case .shortcuts:  return "The global hotkey that summons the HUD."
         }
+    }
+}
+
+/// Drag-to-reorder for a single playlist row. Tracks which row the drag is over
+/// (for the insertion indicator) and commits the move once, on drop — so the
+/// favorites store is written to disk a single time per reorder.
+private struct PlaylistReorderDelegate: DropDelegate {
+    let index: Int
+    let isDragging: Bool
+    let setTarget: (Int?) -> Void
+    let commit: () -> Void
+
+    func validateDrop(info: DropInfo) -> Bool { isDragging }
+    func dropEntered(info: DropInfo) { setTarget(index) }
+    func dropExited(info: DropInfo) { setTarget(nil) }
+    func dropUpdated(info: DropInfo) -> DropProposal? { DropProposal(operation: .move) }
+    func performDrop(info: DropInfo) -> Bool {
+        commit()
+        return true
     }
 }

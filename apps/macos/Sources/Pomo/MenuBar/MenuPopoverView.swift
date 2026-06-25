@@ -40,32 +40,39 @@ struct MenuPopoverView: View {
 
     // MARK: - Adaptive theme
 
+    /// The appearance actually in effect: Pomo's own Light/Dark override if the
+    /// user set one in Settings, otherwise the system scheme. The popover tracks
+    /// this — not just the OS — so it stays in lockstep with the Settings window.
+    private var effectiveScheme: ColorScheme {
+        settings.appearanceMode.colorScheme ?? scheme
+    }
+
     /// Hudson controls still need a theme, while the popover shell uses Pomo's
     /// app palette so light mode feels native instead of like a tinted HUD copy.
-    private var theme: HudTheme { scheme == .light ? .lightDraft : .default }
-    private var pal: AppPalette { .resolve(scheme) }
+    private var theme: HudTheme { effectiveScheme == .light ? .lightDraft : .default }
+    private var pal: AppPalette { .resolve(effectiveScheme) }
 
     private var insetFill: Color {
-        scheme == .light ? Color(hex: 0xECEEF1).opacity(0.82) : Color.white.opacity(0.07)
+        effectiveScheme == .light ? Color(hex: 0xECEEF1).opacity(0.82) : Color.white.opacity(0.07)
     }
 
     private var controlFill: Color {
-        scheme == .light ? Color.white.opacity(0.70) : Color.white.opacity(0.08)
+        effectiveScheme == .light ? Color.white.opacity(0.70) : Color.white.opacity(0.08)
     }
 
     private var fieldFill: Color {
-        scheme == .light ? Color.white.opacity(0.86) : Color.white.opacity(0.06)
+        effectiveScheme == .light ? Color.white.opacity(0.86) : Color.white.opacity(0.06)
     }
 
     private var dividerColor: Color {
-        scheme == .light ? Color.black.opacity(0.08) : Color.white.opacity(0.08)
+        effectiveScheme == .light ? Color.black.opacity(0.08) : Color.white.opacity(0.08)
     }
 
-    private func tintFill(_ c: Color) -> Color { c.opacity(scheme == .light ? 0.20 : 0.15) }
-    private func tintBorder(_ c: Color) -> Color { c.opacity(scheme == .light ? 0.34 : 0.28) }
+    private func tintFill(_ c: Color) -> Color { c.opacity(effectiveScheme == .light ? 0.20 : 0.15) }
+    private func tintBorder(_ c: Color) -> Color { c.opacity(effectiveScheme == .light ? 0.34 : 0.28) }
 
     private func accentText(for type: SessionType) -> Color {
-        if scheme == .light, type == .focus { return Color(hex: 0x686313) }
+        if effectiveScheme == .light, type == .focus { return Color(hex: 0x686313) }
         return type.accentColor
     }
 
@@ -82,6 +89,10 @@ struct MenuPopoverView: View {
         .frame(width: 320)
         .background(frostedBackground)
         .environment(\.hudTheme, theme)
+        // Pin native controls + the colorScheme env to the override (nil = follow
+        // the system). The frosted material itself is driven at the window level
+        // by `popover.appearance` in MenuBarController.
+        .preferredColorScheme(settings.appearanceMode.colorScheme)
     }
 
     // MARK: - Background (frosted card that follows the system appearance)
@@ -89,12 +100,12 @@ struct MenuPopoverView: View {
     private var frostedBackground: some View {
         ZStack {
             HudVisualEffectView(
-                material: scheme == .light ? .popover : .hudWindow,
+                material: effectiveScheme == .light ? .popover : .hudWindow,
                 blendingMode: .behindWindow,
                 state: .active
             )
             LinearGradient(
-                colors: scheme == .light
+                colors: effectiveScheme == .light
                     ? [pal.surface.opacity(0.92), Color(hex: 0xF2F3F5).opacity(0.82)]
                     : [Color(hex: 0x19191D).opacity(0.84), Color.black.opacity(0.62)],
                 startPoint: .top,
@@ -102,7 +113,7 @@ struct MenuPopoverView: View {
             )
             .overlay(alignment: .top) {
                 Rectangle()
-                    .fill(Color.white.opacity(scheme == .light ? 0.34 : 0.05))
+                    .fill(Color.white.opacity(effectiveScheme == .light ? 0.34 : 0.05))
                     .frame(height: 1)
             }
         }
@@ -340,7 +351,7 @@ struct MenuPopoverView: View {
                     .clipShape(RoundedRectangle(cornerRadius: HudRadius.standard - 2, style: .continuous))
                     .overlay(
                         RoundedRectangle(cornerRadius: HudRadius.standard - 2, style: .continuous)
-                            .stroke(Color.white.opacity(scheme == .light ? 0.55 : 0.12), lineWidth: 1)
+                            .stroke(Color.white.opacity(effectiveScheme == .light ? 0.55 : 0.12), lineWidth: 1)
                     )
                 Text(face.displayName)
                     .font(HudFont.ui(HudTextSize.micro, weight: selected ? .bold : .semibold))
@@ -481,7 +492,7 @@ struct MenuPopoverView: View {
         HStack(alignment: .top, spacing: AudioLayout.columnSpacing) {
             VStack(spacing: AudioLayout.playerStackSpacing) {
                 thumbnail(
-                    for: audio.currentURL,
+                    for: displayedAudioURL,
                     width: AudioLayout.thumbnailWidth,
                     height: AudioLayout.thumbnailHeight,
                     iconSize: AudioLayout.thumbnailIconSize
@@ -567,14 +578,12 @@ struct MenuPopoverView: View {
                     .onPreferenceChange(PlaylistScrollOffsetKey.self) { playlistScrollOffset = $0 }
                     .onPreferenceChange(PlaylistContentHeightKey.self) { playlistContentHeight = $0 }
 
-                    VStack {
-                        if canScrollPlaylistUp {
-                            playlistEdgeCaret("chevron.up")
-                        }
-                        Spacer(minLength: 0)
-                        if canScrollPlaylistDown {
-                            playlistEdgeCaret("chevron.down")
-                        }
+                    if canScrollPlaylistUp {
+                        playlistEdgeCue("chevron.up", isTop: true)
+                    }
+
+                    if canScrollPlaylistDown {
+                        playlistEdgeCue("chevron.down", isTop: false)
                     }
                 }
                 .frame(height: playlistViewportHeight)
@@ -591,7 +600,13 @@ struct MenuPopoverView: View {
     }
 
     private var canScrollPlaylistDown: Bool {
-        playlistContentHeight + playlistScrollOffset > playlistViewportHeight + 1
+        max(playlistContentHeight, estimatedPlaylistContentHeight) + playlistScrollOffset > playlistViewportHeight + 1
+    }
+
+    private var estimatedPlaylistContentHeight: CGFloat {
+        guard !playlistItems.isEmpty else { return 0 }
+        return CGFloat(playlistItems.count) * AudioLayout.playlistRowHeight
+            + CGFloat(max(0, playlistItems.count - 1)) * AudioLayout.playlistSeparatorHeight
     }
 
     private var audioTransport: some View {
@@ -612,7 +627,7 @@ struct MenuPopoverView: View {
     }
 
     private var canToggleAudio: Bool {
-        audio.isPlaying || !audio.currentURL.isEmpty || !settings.audioURL.isEmpty || !favorites.items.isEmpty
+        audio.isPlaying || !displayedAudioURL.isEmpty
     }
 
     private var canStepAudio: Bool {
@@ -620,12 +635,20 @@ struct MenuPopoverView: View {
     }
 
     private var currentFavoriteIndex: Int? {
-        favorites.items.firstIndex { $0.url == audio.currentURL }
+        favorites.items.firstIndex { $0.url == displayedAudioURL }
     }
 
     private var playlistItems: [Favorite] {
-        let others = favorites.items.filter { $0.url != audio.currentURL }
+        let current = displayedAudioURL
+        let others = favorites.items.filter { current.isEmpty || $0.url != current }
         return others.isEmpty ? favorites.items : others
+    }
+
+    private var displayedAudioURL: String {
+        if !audio.currentURL.isEmpty { return audio.currentURL }
+        if let url = settings.audioURL(for: session) { return url }
+        if !settings.audioURL.isEmpty { return settings.audioURL }
+        return favorites.items.first?.url ?? ""
     }
 
     private func adjacentFavorite(_ delta: Int) -> Favorite? {
@@ -647,8 +670,10 @@ struct MenuPopoverView: View {
     }
 
     private func toggleAudioFromPopover() {
-        if audio.currentURL.isEmpty, settings.audioURL.isEmpty, let favorite = favorites.items.first {
+        if audio.currentURL.isEmpty, let favorite = favorites.items.first(where: { $0.url == displayedAudioURL }) {
             onPlayFavorite(favorite)
+        } else if audio.currentURL.isEmpty, !displayedAudioURL.isEmpty {
+            onPlayFavorite(Favorite(title: Self.shortURL(displayedAudioURL), url: displayedAudioURL))
         } else {
             onToggleAudio()
         }
@@ -680,7 +705,7 @@ struct MenuPopoverView: View {
                 Spacer(minLength: 0)
             }
             .padding(3)
-            .frame(maxWidth: .infinity, minHeight: 27)
+            .frame(maxWidth: .infinity, minHeight: AudioLayout.playlistRowHeight)
         }
         .buttonStyle(.plain)
         .help(favorite.title)
@@ -720,16 +745,17 @@ struct MenuPopoverView: View {
     }
 
     private var nowPlayingTitle: String {
-        if audio.currentURL.isEmpty { return "Nothing playing" }
-        if let favorite = favorites.items.first(where: { $0.url == audio.currentURL }) {
+        if displayedAudioURL.isEmpty { return "Nothing playing" }
+        if let favorite = favorites.items.first(where: { $0.url == displayedAudioURL }) {
             return favorite.title
         }
-        return Self.shortURL(audio.currentURL)
+        return Self.shortURL(displayedAudioURL)
     }
 
     private var nowPlayingSubtitle: String {
-        if audio.currentURL.isEmpty { return "pick a favorite below" }
+        if displayedAudioURL.isEmpty { return "pick a favorite below" }
         if audio.isPlaying { return audio.engineName == "native" ? "▶ ad-free" : "▶ stream" }
+        if audio.currentURL.isEmpty { return "ready" }
         return "paused"
     }
 
@@ -838,12 +864,30 @@ struct MenuPopoverView: View {
         .help(help)
     }
 
-    private func playlistEdgeCaret(_ symbol: String) -> some View {
-        Image(systemName: symbol)
-            .font(HudFont.ui(HudTextSize.micro, weight: .semibold))
-            .foregroundStyle(pal.dim)
-            .frame(width: 14, height: 14)
-            .padding(.trailing, 1)
+    private func playlistEdgeCue(_ symbol: String, isTop: Bool) -> some View {
+        VStack {
+            if !isTop { Spacer(minLength: 0) }
+            ZStack {
+                LinearGradient(
+                    colors: isTop
+                        ? [insetFill, insetFill.opacity(0.78), .clear]
+                        : [.clear, insetFill.opacity(0.78), insetFill],
+                    startPoint: .top,
+                    endPoint: .bottom
+                )
+                Image(systemName: symbol)
+                    .font(HudFont.ui(HudTextSize.micro, weight: .bold))
+                    .foregroundStyle(pal.muted)
+                    .frame(width: 18, height: 14)
+                    .background(Capsule().fill(controlFill.opacity(effectiveScheme == .light ? 0.86 : 0.72)))
+                    .overlay(Capsule().stroke(dividerColor, lineWidth: 1))
+                    .padding(isTop ? .top : .bottom, 1)
+            }
+            .frame(height: 24)
+            if isTop { Spacer(minLength: 0) }
+        }
+        .frame(maxWidth: .infinity, maxHeight: .infinity)
+        .allowsHitTesting(false)
     }
 
     /// A square, chrome-styled icon button for secondary transport / footer actions.
@@ -912,6 +956,8 @@ private enum AudioLayout {
     static let thumbnailIconSize: CGFloat = 17
     static let titleBlockHeight: CGFloat = 18
     static let playlistColumnWidth: CGFloat = 106
+    static let playlistRowHeight: CGFloat = 27
+    static let playlistSeparatorHeight: CGFloat = 1
 
     static var thumbnailWidth: CGFloat {
         compactButtonWidth + prominentButtonWidth + compactButtonWidth + transportSpacing * 2

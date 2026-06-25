@@ -39,7 +39,6 @@ final class MenuBarController: NSObject, NSPopoverDelegate {
 
     private func configureButton() {
         guard let button = statusItem.button else { return }
-        button.image = MenuBarController.ringMarkImage()
         button.imagePosition = .imageLeading
         button.font = NSFont.monospacedDigitSystemFont(ofSize: NSFont.systemFontSize - 1, weight: .medium)
         button.target = self
@@ -67,9 +66,10 @@ final class MenuBarController: NSObject, NSPopoverDelegate {
     }
 
     /// The Pomo ring mark, drawn as a template image so the menu bar tints it
-    /// to match the system appearance. Mirrors the website / app logo: a faint
-    /// ring, a brighter top-right progress arc, a 12 o'clock tick, a centre dot.
-    private static func ringMarkImage() -> NSImage {
+    /// to match the system appearance. The outer stroke doubles as an elapsed
+    /// timer ring while the tick + centre dot keep the app-mark silhouette.
+    private static func ringMarkImage(progress rawProgress: Double, isPaused: Bool, isIdle: Bool) -> NSImage {
+        let progress = CGFloat(max(0, min(1, rawProgress)))
         let image = NSImage(size: NSSize(width: 18, height: 18), flipped: false) { _ in
             let center = NSPoint(x: 9, y: 9)
             let radius: CGFloat = 6.0
@@ -77,15 +77,24 @@ final class MenuBarController: NSObject, NSPopoverDelegate {
             let ring = NSBezierPath()
             ring.appendArc(withCenter: center, radius: radius, startAngle: 0, endAngle: 360)
             ring.lineWidth = 1.3
-            NSColor.black.withAlphaComponent(0.5).setStroke()
+            NSColor.black.withAlphaComponent(isIdle ? 0.42 : 0.24).setStroke()
             ring.stroke()
 
-            let arc = NSBezierPath()
-            arc.appendArc(withCenter: center, radius: radius, startAngle: 90, endAngle: 0, clockwise: true)
-            arc.lineWidth = 1.7
-            arc.lineCapStyle = .round
-            NSColor.black.setStroke()
-            arc.stroke()
+            if !isIdle {
+                let arc = NSBezierPath()
+                let capped = min(progress, 0.999)
+                arc.appendArc(
+                    withCenter: center,
+                    radius: radius,
+                    startAngle: 90,
+                    endAngle: 90 - capped * 360,
+                    clockwise: true
+                )
+                arc.lineWidth = 1.9
+                arc.lineCapStyle = .round
+                NSColor.black.withAlphaComponent(isPaused ? 0.62 : 1.0).setStroke()
+                arc.stroke()
+            }
 
             let tick = NSBezierPath()
             tick.move(to: NSPoint(x: center.x, y: center.y + radius + 1.8))
@@ -110,6 +119,11 @@ final class MenuBarController: NSObject, NSPopoverDelegate {
     /// Update the countdown title. Called from `TimerModel.onTick`.
     func refresh() {
         guard let button = statusItem.button else { return }
+        button.image = MenuBarController.ringMarkImage(
+            progress: model.progress,
+            isPaused: model.isPaused,
+            isIdle: model.isIdle
+        )
         if model.isIdle {
             button.title = ""
         } else {

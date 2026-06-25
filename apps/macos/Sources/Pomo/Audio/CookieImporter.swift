@@ -9,6 +9,18 @@ import Foundation
 /// prompt ("… wants to use Chrome Safe Storage"); Safari needs Full Disk Access.
 /// No yt-dlp, no playback-path dependency — invoked only on demand.
 enum CookieImporter {
+    struct BrowserProfile: Identifiable, Hashable {
+        let browser: String
+        let browserName: String
+        let profile: String
+        let profileName: String
+        let note: String?
+
+        var id: String { "\(browser):\(profile)" }
+        var title: String { profileName.isEmpty ? profile : profileName }
+        var subtitle: String { "\(browserName) · \(profile)" }
+    }
+
     /// Extract YouTube/Google cookies from the named browser (nil = all detected),
     /// optionally from a specific Chromium profile (e.g. "Profile 1").
     static func cookies(fromBrowser browser: String?, profile: String?) async -> [HTTPCookie] {
@@ -18,6 +30,61 @@ enum CookieImporter {
         if let profile, !profile.isEmpty { args.append(profile) }
         guard let output = await run(bin, args) else { return [] }
         return parse(output)
+    }
+
+    /// Detected Chromium-family browser profiles, matching the CLI's picker.
+    static func detectedProfiles() -> [BrowserProfile] {
+        struct Source {
+            let browser: String
+            let name: String
+            let base: String
+            let note: String?
+            let order: Int
+        }
+
+        let sources = [
+            Source(browser: "chrome", name: "Chrome", base: "Google/Chrome", note: "Keychain prompt", order: 0),
+            Source(browser: "edge", name: "Edge", base: "Microsoft Edge", note: nil, order: 1),
+            Source(browser: "brave", name: "Brave", base: "BraveSoftware/Brave-Browser", note: "Keychain prompt", order: 2),
+            Source(browser: "chromium", name: "Chromium", base: "Chromium", note: nil, order: 3),
+        ]
+
+        let home = FileManager.default.homeDirectoryForCurrentUser
+        var profiles: [(source: Source, profile: BrowserProfile)] = []
+
+        for source in sources {
+            let localState = home
+                .appendingPathComponent("Library/Application Support")
+                .appendingPathComponent(source.base)
+                .appendingPathComponent("Local State")
+            guard let data = try? Data(contentsOf: localState),
+                  let json = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
+                  let profileRoot = json["profile"] as? [String: Any],
+                  let cache = profileRoot["info_cache"] as? [String: Any]
+            else { continue }
+
+            for (dir, rawInfo) in cache {
+                let info = rawInfo as? [String: Any]
+                let name = (info?["name"] as? String)?.trimmingCharacters(in: .whitespacesAndNewlines)
+                profiles.append((
+                    source,
+                    BrowserProfile(
+                        browser: source.browser,
+                        browserName: source.name,
+                        profile: dir,
+                        profileName: (name?.isEmpty == false) ? name! : dir,
+                        note: source.note
+                    )
+                ))
+            }
+        }
+
+        return profiles
+            .sorted { lhs, rhs in
+                if lhs.source.order != rhs.source.order { return lhs.source.order < rhs.source.order }
+                return profileOrder(lhs.profile.profile) < profileOrder(rhs.profile.profile)
+            }
+            .map(\.profile)
     }
 
     /// The helper ships inside the app bundle (Contents/MacOS/pomo-cookies).
@@ -52,6 +119,15 @@ enum CookieImporter {
             if let cookie = HTTPCookie(properties: props) { cookies.append(cookie) }
         }
         return cookies
+    }
+
+    private static func profileOrder(_ dir: String) -> (Int, Int, String) {
+        if dir == "Default" { return (0, 0, dir) }
+        if dir.hasPrefix("Profile ") {
+            let suffix = dir.dropFirst("Profile ".count)
+            if let number = Int(suffix) { return (1, number, dir) }
+        }
+        return (2, 0, dir)
     }
 
     // MARK: - Process

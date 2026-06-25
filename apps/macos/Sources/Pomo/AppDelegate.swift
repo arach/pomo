@@ -44,6 +44,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
                 ))
             }
             self.hud.show() // surface the HUD when a session ends
+            self.audio.purgeBrowserMemoryAtSessionBoundary()
             self.writeState()
         }
 
@@ -99,6 +100,11 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
 
         // Let the video menu's "Change Track" submenu list favorites.
         audio.bindFavorites(favorites)
+        favorites.onChange = { [weak self] in
+            guard let self else { return }
+            self.menuBar.refresh()
+            self.writeState()
+        }
 
         // System-wide summon hotkey (default Hyper+P), configurable in Settings.
         registerSummonHotkey()
@@ -132,7 +138,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         if audio.isPlaying {
             audio.pause()
         } else {
-            audio.resume(stored: settings.audioURL)
+            audio.resume(stored: preferredAudioURL())
         }
     }
 
@@ -140,6 +146,13 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         settings.audioURL = favorite.url
         settings.saveNow()
         audio.play(urlString: favorite.url)
+    }
+
+    private func preferredAudioURL() -> String {
+        if !audio.currentURL.isEmpty { return audio.currentURL }
+        if let url = settings.audioURL(for: model.sessionType) { return url }
+        if !settings.audioURL.isEmpty { return settings.audioURL }
+        return favorites.items.first?.url ?? ""
     }
 
     // MARK: - Agent control (pomo:// scheme)
@@ -179,7 +192,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
                 settings.saveNow()
                 audio.play(urlString: url)
             } else {
-                audio.resume(stored: settings.audioURL)
+                audio.resume(stored: preferredAudioURL())
             }
         case .audioPause:  audio.pause()
         case .audioStop:   audio.stop()
@@ -189,6 +202,9 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             audio.setVolume(settings.audioVolume)
         case .audioNext:   audio.next()
         case .audioPrev:   audio.previous()
+        case .sessionAudio(let type, let url):
+            settings.setAudioURL(url, for: type)
+            menuBar.refresh()
         case .login:       audio.signIn()
         case .importCookies(let browser, let profile): audio.importCookies(browser: browser, profile: profile)
         case .logout: audio.clearLogin()
@@ -196,9 +212,22 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         case .videoShow:   audio.setVideoVisible(true)
         case .videoHide:   audio.setVideoVisible(false)
         case .videoToggle: audio.toggleVideo()
+        case .videoPage:
+            hud.show()
+            audio.setOriginalPageVisible(true)
+        case .videoPlayer:
+            audio.setOriginalPageVisible(false)
         case .videoBrowser: audio.openInBrowser()
         case .favoriteAdd(let url, let title):
             favorites.add(url: url, title: title)
+        case .favoriteUpdate(let index, let title, let url):
+            favorites.update(at: index, title: title, url: url)
+        case .favoriteMove(let from, let to):
+            favorites.move(from: from, to: to)
+        case .favoriteSet(let items):
+            favorites.replace(with: items)
+        case .favoriteClear:
+            favorites.clear()
         case .favoritePlay(let index):
             if let favorite = favorites.item(at: index) { playFavorite(favorite) }
         case .favoriteRemove(let index):
@@ -227,8 +256,9 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             watchface: settings.watchface.rawValue,
             hudVisible: hud.isShown,
             audioPlaying: audio.isPlaying,
-            audioURL: audio.currentURL.isEmpty ? settings.audioURL : audio.currentURL,
+            audioURL: preferredAudioURL(),
             audioEngine: audio.engineName,
+            sessionAudioURLs: settings.sessionAudioURLs,
             favorites: favorites.items,
             focusToday: history.focusCountToday(),
             focusTotal: history.totalFocusCount,
@@ -257,6 +287,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         }
         let view = SettingsView(
             settings: settings,
+            favorites: favorites,
             account: audio.account,
             onClose: { [weak self] in self?.settingsWindow?.close() },
             onAudioPlay: { [weak self] url in self?.audio.play(urlString: url) },

@@ -45,3 +45,12 @@ pnpm-debug.log*
 # ────────────────────────────── Misc ──────────────────────────────
 .env
 .env.*
+.openscout/
+# OpenScout local state
+.openscout/project.json
+
+# Landing site build output
+landing/.next/
+landing/out/
+landing/next-env.d.ts
+landing/*.tsbuildinfo

@@ -30,9 +30,12 @@ pomo status
 Timer      status [--json] · start · pause · toggle · reset · skip
            session <focus|short|long> · duration <minutes>
 Intent     intent <text…> · intent clear
-Audio      audio <url> · audio <play|pause|stop|next|prev> · volume <0-100>
-Video      video <show|hide|toggle|browser>
-Favorites  fav · fav add <url> [title…] · fav play <n> · fav remove <n>
+Audio      audio <url> · audio <play|pause|stop|next|prev>
+           audio session <focus|break|long> <favorite#|url|clear> · volume <0-100>
+Video      video <show|hide|toggle|page|player|browser>
+Favorites  fav · fav add <url> [title…] · fav rename <n> <title…>
+           fav url <n> <url> · fav move <from> <to>
+           fav set <json-file|json|-> · fav play <n> · fav remove <n> · fav clear
 Window     show · hide · hud · menu · face <name> · settings · stats
 Login      login · login import [--browser b] [--profile p] · login profiles
            login account <n> · logout
@@ -46,7 +49,10 @@ Run `pomo` with no arguments for a live status; `pomo help` for the full list.
 ```sh
 pomo intent "Writing the launch post"
 pomo audio "https://youtube.com/watch?v=jfKfPfyJRdk"
+pomo audio session focus 1
 pomo fav play 1
+pomo fav move 4 1
+pomo fav set ./playlist.json
 pomo status --json | jq .remainingSeconds
 ```
 

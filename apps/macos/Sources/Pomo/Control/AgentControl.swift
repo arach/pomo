@@ -15,6 +15,7 @@ enum PomoCommand {
     case audioVolume(Int)       // 0–100
     case audioNext
     case audioPrev
+    case sessionAudio(SessionType, String?)
     case login
     case importCookies(browser: String?, profile: String?)
     case logout
@@ -22,8 +23,14 @@ enum PomoCommand {
     case videoShow
     case videoHide
     case videoToggle
+    case videoPage              // show the original YouTube page in the drawer
+    case videoPlayer            // return to the stripped player view
     case videoBrowser           // open the current video in the default browser
     case favoriteAdd(url: String, title: String?)
+    case favoriteUpdate(index: Int, title: String?, url: String?)
+    case favoriteMove(from: Int, to: Int)
+    case favoriteSet([Favorite])
+    case favoriteClear
     case favoritePlay(Int)      // 1-based
     case favoriteRemove(Int)    // 1-based
     case favoritesList
@@ -84,6 +91,8 @@ enum PomoCommand {
             switch arg {
             case "show":   self = .videoShow
             case "hide":   self = .videoHide
+            case "page", "full", "original", "expand": self = .videoPage
+            case "player", "bare", "screen", "collapse": self = .videoPlayer
             case "browser", "open": self = .videoBrowser
             case "toggle", nil: self = .videoToggle
             default: return nil
@@ -102,7 +111,16 @@ enum PomoCommand {
             self = .duration(minutes)
 
         case "audio":
-            if let urlValue = query?.first(where: { $0.name == "url" })?.value, !urlValue.isEmpty {
+            if arg == "session" {
+                guard path.count > 1, let type = SessionType(command: path[1]) else { return nil }
+                if path.dropFirst(2).contains("clear") {
+                    self = .sessionAudio(type, nil)
+                } else {
+                    let urlValue = query?.first(where: { $0.name == "url" })?.value?
+                        .trimmingCharacters(in: .whitespacesAndNewlines)
+                    self = .sessionAudio(type, (urlValue?.isEmpty == false) ? urlValue : nil)
+                }
+            } else if let urlValue = query?.first(where: { $0.name == "url" })?.value, !urlValue.isEmpty {
                 self = .audioPlay(urlValue)
             } else {
                 switch arg {
@@ -131,6 +149,23 @@ enum PomoCommand {
                 guard let value = query?.first(where: { $0.name == "url" })?.value, !value.isEmpty else { return nil }
                 let title = query?.first(where: { $0.name == "title" })?.value
                 self = .favoriteAdd(url: value, title: title)
+            case "update", "edit", "rename":
+                guard path.count > 1, let index = Int(path[1]) else { return nil }
+                let title = query?.first(where: { $0.name == "title" })?.value
+                let url = query?.first(where: { $0.name == "url" })?.value
+                guard title != nil || url != nil else { return nil }
+                self = .favoriteUpdate(index: index, title: title, url: url)
+            case "move":
+                guard path.count > 2, let from = Int(path[1]), let to = Int(path[2]) else { return nil }
+                self = .favoriteMove(from: from, to: to)
+            case "set", "replace":
+                guard let value = query?.first(where: { $0.name == "items" })?.value,
+                      let data = value.data(using: .utf8),
+                      let items = try? JSONDecoder().decode([Favorite].self, from: data)
+                else { return nil }
+                self = .favoriteSet(items)
+            case "clear":
+                self = .favoriteClear
             case "play":
                 guard path.count > 1, let index = Int(path[1]) else { return nil }
                 self = .favoritePlay(index)
@@ -192,6 +227,7 @@ struct PomoState: Codable {
     var audioPlaying: Bool
     var audioURL: String
     var audioEngine: String   // "web" | "none"
+    var sessionAudioURLs: [String: String]
     var favorites: [Favorite]
     // Focus history (see SessionHistoryStore).
     var focusToday: Int

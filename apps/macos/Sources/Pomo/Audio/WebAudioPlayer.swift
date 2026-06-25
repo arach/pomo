@@ -49,6 +49,9 @@ final class WebAudioPlayer: NSObject {
     private var loadingView: PomoLoadingView?
     private var loadingHideWork: DispatchWorkItem?
     private var avatarView: NSImageView?
+    private var idleMemoryPurgeWork: DispatchWorkItem?
+    private var boundaryMemoryPurgeWork: DispatchWorkItem?
+    private var pendingThresholdPurgeReason: String?
 
     /// Signed-in YouTube identity, surfaced in Settings + the drawer avatar.
     let account = AccountStatus()
@@ -89,6 +92,8 @@ final class WebAudioPlayer: NSObject {
         let urlString = raw.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !urlString.isEmpty, let base = Self.watchURL(from: urlString) else { return }
         let url = Self.withAuthUser(base, authUser)
+        cancelIdleMemoryPurge()
+        cancelBoundaryMemoryPurge()
         currentURL = urlString
         ensureWebView()
         log("play \(url.absoluteString)")
@@ -104,7 +109,13 @@ final class WebAudioPlayer: NSObject {
     }
 
     func resume(stored: String) {
-        if currentURL.isEmpty { play(urlString: stored); return }
+        cancelIdleMemoryPurge()
+        cancelBoundaryMemoryPurge()
+        let url = currentURL.isEmpty ? stored : currentURL
+        if currentURL.isEmpty || webView == nil {
+            play(urlString: url)
+            return
+        }
         eval("document.querySelector('video,audio')&&document.querySelector('video,audio').play();")
         isPlaying = true
     }
@@ -112,6 +123,7 @@ final class WebAudioPlayer: NSObject {
     func pause() {
         eval("document.querySelector('video,audio')&&document.querySelector('video,audio').pause();")
         isPlaying = false
+        scheduleIdleMemoryPurge(reason: "paused audio")
     }
 
     func stop() {
@@ -119,6 +131,7 @@ final class WebAudioPlayer: NSObject {
         currentURL = ""
         isPlaying = false
         setWindowVisible(false)
+        scheduleIdleMemoryPurge(reason: "stopped audio")
     }
 
     func setVolume(_ value: Double) {
@@ -155,10 +168,12 @@ final class WebAudioPlayer: NSObject {
     func setWindowVisible(_ visible: Bool) {
         drawerOpen = visible
         if visible {
+            cancelIdleMemoryPurge()
             ensureWebView()
             openDrawer()
         } else {
             closeDrawer()
+            scheduleIdleMemoryPurge(reason: "hidden video drawer")
         }
     }
 
@@ -180,8 +195,8 @@ final class WebAudioPlayer: NSObject {
         host.alphaValue = 1
     }
 
-    /// Expand the drawer to the full page (playlist/related, chrome shown) or
-    /// collapse it back to the chrome-stripped "screen" that matches the HUD.
+    /// Switch between the original YouTube page (comments/details/account UI)
+    /// and the chrome-stripped player view that matches the HUD.
     func setExpanded(_ on: Bool) {
         guard drawerOpen, let host = hostWindow, let anchor = anchorWindow else { return }
         drawerExpanded = on
@@ -189,7 +204,8 @@ final class WebAudioPlayer: NSObject {
         applyDrawerCorners()
         updateExpandButton()
         let a = anchor.frame
-        let open = drawerFrame(size: size(for: drawerEdge, in: a), edge: drawerEdge, anchor: a)
+        let screen = (anchor.screen ?? NSScreen.main)?.visibleFrame ?? a
+        let open = openFrame(size: size(for: drawerEdge, in: a), edge: drawerEdge, anchor: a, screen: screen)
         if host.parent === anchor { anchor.removeChildWindow(host) }
         host.order(.below, relativeTo: anchor.windowNumber)
         NSAnimationContext.runAnimationGroup({ ctx in
@@ -203,6 +219,17 @@ final class WebAudioPlayer: NSObject {
                 anchor.addChildWindow(host, ordered: .below)
             }
         })
+    }
+
+    func setOriginalPageVisible(_ visible: Bool) {
+        if visible && !drawerOpen {
+            setWindowVisible(true)
+        }
+        guard drawerOpen else {
+            drawerExpanded = visible
+            return
+        }
+        setExpanded(visible)
     }
 
     @objc private func didTapExpand() { setExpanded(!drawerExpanded) }
@@ -256,10 +283,10 @@ final class WebAudioPlayer: NSObject {
     }
 
     private func expandedSize(_ edge: DrawerEdge, hud: NSRect) -> NSSize {
-        switch edge {
-        case .right, .left: return NSSize(width: 480, height: max(hud.height, 340))
-        case .below, .above: return NSSize(width: max(hud.width, 460), height: 360)
-        }
+        let screen = (anchorWindow?.screen ?? NSScreen.main)?.visibleFrame ?? hud
+        let width = min(760, max(560, screen.width - 64))
+        let height = min(560, max(420, screen.height - 96))
+        return NSSize(width: width, height: height)
     }
 
     private func size(for edge: DrawerEdge, in hud: NSRect) -> NSSize {
@@ -275,6 +302,22 @@ final class WebAudioPlayer: NSObject {
         case .below: return NSRect(x: a.midX - s.width / 2,     y: a.minY + seam - s.height, width: s.width, height: s.height)
         case .above: return NSRect(x: a.midX - s.width / 2,     y: a.maxY - seam, width: s.width, height: s.height)
         }
+    }
+
+    private func openFrame(size s: NSSize, edge: DrawerEdge, anchor a: NSRect, screen: NSRect) -> NSRect {
+        let frame = drawerFrame(size: s, edge: edge, anchor: a)
+        return drawerExpanded ? constrained(frame, to: screen.insetBy(dx: 16, dy: 16)) : frame
+    }
+
+    private func constrained(_ frame: NSRect, to bounds: NSRect) -> NSRect {
+        var frame = frame
+        frame.size.width = min(frame.width, bounds.width)
+        frame.size.height = min(frame.height, bounds.height)
+        if frame.minX < bounds.minX { frame.origin.x = bounds.minX }
+        if frame.maxX > bounds.maxX { frame.origin.x = bounds.maxX - frame.width }
+        if frame.minY < bounds.minY { frame.origin.y = bounds.minY }
+        if frame.maxY > bounds.maxY { frame.origin.y = bounds.maxY - frame.height }
+        return frame
     }
 
     /// The collapsed open frame shifted fully behind the HUD along the slide axis.
@@ -300,7 +343,7 @@ final class WebAudioPlayer: NSObject {
         applyVideoQuality()              // bump if it was playing audio-only at low res
 
         let collapsedOpen = drawerFrame(size: collapsedSize(drawerEdge, hud: a), edge: drawerEdge, anchor: a)
-        let open = drawerFrame(size: size(for: drawerEdge, in: a), edge: drawerEdge, anchor: a)
+        let open = openFrame(size: size(for: drawerEdge, in: a), edge: drawerEdge, anchor: a, screen: screen)
         host.setFrame(tuckedFrame(collapsedOpen, edge: drawerEdge), display: false)
         host.alphaValue = 0
         host.order(.below, relativeTo: anchor.windowNumber)        // emerge from behind
@@ -318,12 +361,16 @@ final class WebAudioPlayer: NSObject {
         })
     }
 
-    /// Slide the drawer back behind the HUD and order it out (resetting to the
-    /// collapsed screen so the next open is compact).
+    /// Slide the drawer back behind the HUD and order it out. Preserve the
+    /// current page/player mode so reopening feels like returning to the same
+    /// surface, not starting over.
     private func closeDrawer() {
         showLoading(false)
         guard let host = hostWindow, host.isVisible else {
-            hostWindow?.orderOut(nil); return
+            hostWindow?.orderOut(nil)
+            scheduleIdleMemoryPurge(reason: "hidden video drawer")
+            completePendingThresholdPurge(at: "hidden video drawer", delay: 0)
+            return
         }
         let target: NSRect
         if let anchor = anchorWindow {
@@ -345,10 +392,139 @@ final class WebAudioPlayer: NSObject {
                 guard let self, let host = self.hostWindow, !self.drawerOpen else { return }
                 host.orderOut(nil)
                 host.alphaValue = 1
-                self.drawerExpanded = false
                 self.updateExpandButton()
+                self.scheduleIdleMemoryPurge(reason: "hidden video drawer")
+                self.completePendingThresholdPurge(at: "hidden video drawer", delay: 0)
             }
         })
+    }
+
+    // MARK: - Browser/video memory reclamation
+
+    /// Main entry point for proactive cleanup. Cache data is safe to drop while
+    /// active; the actual WKWebView is released only when playback is idle and
+    /// the video drawer is hidden, so cleanup never interrupts a visible player.
+    func purgeBrowserMemory(reason: String, aggressive: Bool = false) {
+        log("memory purge requested (\(reason))")
+        URLCache.shared.removeAllCachedResponses()
+        purgeWebsiteCaches(reason: reason)
+
+        if isPlaying || drawerOpen {
+            if aggressive { applyVideoQuality() }
+            return
+        }
+
+        releaseWebView(reason: reason)
+    }
+
+    /// A memory threshold crossed while WebKit may still be useful. Mark the
+    /// cleanup pending and let track/session boundaries complete it.
+    func deferBrowserMemoryPurgeUntilBoundary(reason: String) {
+        pendingThresholdPurgeReason = reason
+        log("memory threshold crossed; deferring web player release until boundary (\(reason))")
+        URLCache.shared.removeAllCachedResponses()
+        purgeWebsiteCaches(reason: reason)
+        if !isPlaying {
+            completePendingThresholdPurge(at: "idle threshold check", delay: 0)
+        }
+    }
+
+    func purgeBrowserMemoryAtSessionBoundary() {
+        if pendingThresholdPurgeReason != nil {
+            completePendingThresholdPurge(at: "pomo session boundary", delay: 0)
+        } else {
+            purgeBrowserMemory(reason: "pomo session boundary")
+        }
+    }
+
+    private func scheduleIdleMemoryPurge(reason: String) {
+        idleMemoryPurgeWork?.cancel()
+        guard !isPlaying, !drawerOpen else { return }
+        let work = DispatchWorkItem { [weak self] in
+            MainActor.assumeIsolated {
+                self?.purgeBrowserMemory(reason: reason)
+            }
+        }
+        idleMemoryPurgeWork = work
+        DispatchQueue.main.asyncAfter(deadline: .now() + 180, execute: work)
+    }
+
+    private func cancelIdleMemoryPurge() {
+        idleMemoryPurgeWork?.cancel()
+        idleMemoryPurgeWork = nil
+    }
+
+    private func completePendingThresholdPurge(at boundary: String, delay: TimeInterval = 4) {
+        guard pendingThresholdPurgeReason != nil else { return }
+        boundaryMemoryPurgeWork?.cancel()
+        let work = DispatchWorkItem { [weak self] in
+            MainActor.assumeIsolated {
+                guard let self, let reason = self.pendingThresholdPurgeReason else { return }
+                guard !self.isPlaying else {
+                    self.log("deferred memory purge still waiting; playback resumed before \(boundary)")
+                    return
+                }
+                guard !self.drawerOpen else {
+                    self.log("deferred memory purge still waiting; drawer visible at \(boundary)")
+                    self.purgeWebsiteCaches(reason: "\(boundary) after \(reason)")
+                    return
+                }
+                self.pendingThresholdPurgeReason = nil
+                self.purgeBrowserMemory(reason: "\(boundary) after \(reason)", aggressive: true)
+            }
+        }
+        boundaryMemoryPurgeWork = work
+        DispatchQueue.main.asyncAfter(deadline: .now() + delay, execute: work)
+    }
+
+    private func cancelBoundaryMemoryPurge() {
+        boundaryMemoryPurgeWork?.cancel()
+        boundaryMemoryPurgeWork = nil
+    }
+
+    private func purgeWebsiteCaches(reason: String) {
+        let types: Set<String> = [
+            WKWebsiteDataTypeMemoryCache,
+            WKWebsiteDataTypeDiskCache,
+        ]
+        WKWebsiteDataStore.default().removeData(ofTypes: types, modifiedSince: .distantPast) { [weak self] in
+            Task { @MainActor in self?.log("purged browser caches (\(reason))") }
+        }
+    }
+
+    private func releaseWebView(reason: String) {
+        guard webView != nil || hostWindow != nil else { return }
+        log("releasing idle web player (\(reason))")
+        pendingThresholdPurgeReason = nil
+        cancelIdleMemoryPurge()
+        cancelBoundaryMemoryPurge()
+        loadingHideWork?.cancel()
+        loadingHideWork = nil
+        loadingView?.stop()
+        showLoading(false)
+
+        if let host = hostWindow, let anchor = anchorWindow, host.parent === anchor {
+            anchor.removeChildWindow(host)
+        }
+
+        if let drawer = webView as? DrawerWebView {
+            drawer.owner = nil
+        }
+        webView?.stopLoading()
+        webView?.navigationDelegate = nil
+        webView?.configuration.userContentController.removeScriptMessageHandler(forName: "pomo")
+        webView?.loadHTMLString("", baseURL: nil)
+        hostWindow?.contentView = nil
+        hostWindow?.orderOut(nil)
+
+        webView = nil
+        hostWindow = nil
+        navProxy = nil
+        messageProxy = nil
+        drawerContainer = nil
+        expandButton = nil
+        loadingView = nil
+        avatarView = nil
     }
 
     /// Round only the *outer* corners when collapsed (so the inner edge butts the
@@ -371,13 +547,45 @@ final class WebAudioPlayer: NSObject {
 
     /// Toggle the injected "bare" class that strips YouTube to just the player.
     private func applyBare(_ bare: Bool) {
-        eval("(function(){var h=document.documentElement;if(h){h.classList[\(bare ? "add" : "remove")]('pomo-bare');}})();")
+        if bare {
+            eval("(function(){var h=document.documentElement;if(h){h.classList.add('pomo-bare');}window.dispatchEvent(new Event('resize'));})();")
+        } else {
+            eval("""
+            (function(){
+              var h=document.documentElement, b=document.body;
+              if (h) {
+                h.classList.remove('pomo-bare');
+                h.style.overflow='';
+                h.style.background='';
+              }
+              if (b) {
+                b.style.overflow='';
+                b.style.background='';
+              }
+              ['ytd-app','ytd-page-manager','ytd-watch-flexy','#page-manager','#columns','#primary','#secondary','#below'].forEach(function(sel){
+                var el=document.querySelector(sel);
+                if(!el) return;
+                el.style.display='';
+                el.style.visibility='';
+                el.style.position='';
+                el.style.inset='';
+                el.style.width='';
+                el.style.height='';
+                el.style.maxWidth='';
+                el.style.maxHeight='';
+                el.style.overflow='';
+              });
+              window.dispatchEvent(new Event('resize'));
+              setTimeout(function(){ window.dispatchEvent(new Event('resize')); }, 120);
+            })();
+            """)
+        }
     }
 
     private func updateExpandButton() {
         let symbol = drawerExpanded ? "arrow.down.right.and.arrow.up.left" : "arrow.up.left.and.arrow.down.right"
-        expandButton?.image = NSImage(systemSymbolName: symbol, accessibilityDescription: drawerExpanded ? "Collapse" : "Expand")
-        expandButton?.toolTip = drawerExpanded ? "Collapse to screen" : "Expand to full page"
+        expandButton?.image = NSImage(systemSymbolName: symbol, accessibilityDescription: drawerExpanded ? "Show Player" : "Show Page")
+        expandButton?.toolTip = drawerExpanded ? "Show Player" : "Show Page"
     }
 
     // MARK: - Sign in (persistent profile)
@@ -538,6 +746,12 @@ final class WebAudioPlayer: NSObject {
             .forEach { menu.removeItem($0) }
 
         menu.addItem(.separator())
+        addItem(
+            to: menu,
+            drawerExpanded ? "Show Player" : "Show Page",
+            #selector(ctxToggleFullPage),
+            icon: drawerExpanded ? "rectangle.compress.vertical" : "rectangle.expand.vertical"
+        )
         addItem(to: menu, "Open in Browser", #selector(ctxOpenInBrowser), icon: "safari")
         menu.addItem(changeTrackItem())
         addItem(to: menu, "Hide Video", #selector(ctxHideVideo), icon: "eye.slash")
@@ -593,6 +807,7 @@ final class WebAudioPlayer: NSObject {
     }
 
     @objc private func ctxOpenInBrowser() { openInBrowser() }
+    @objc private func ctxToggleFullPage() { setOriginalPageVisible(!drawerExpanded) }
     @objc private func ctxHideVideo() { setWindowVisible(false) }
     @objc private func ctxPlayFavorite(_ sender: NSMenuItem) {
         guard let url = sender.representedObject as? String else { return }
@@ -612,7 +827,10 @@ final class WebAudioPlayer: NSObject {
         }
         let view = CookieImportPanel(
             account: account,
-            onImport: { [weak self] browser in await self?.importLogin(fromBrowser: browser, profile: nil) ?? 0 },
+            profiles: CookieImporter.detectedProfiles(),
+            onImport: { [weak self] browser, profile in
+                await self?.importLogin(fromBrowser: browser, profile: profile) ?? 0
+            },
             onClose: { [weak self] in self?.importLoginWindow?.close() }
         )
         let window = NSWindow(contentViewController: NSHostingController(rootView: view))
@@ -819,15 +1037,38 @@ final class WebAudioPlayer: NSObject {
     private static let accountJS = """
     (function(){
       function post(m){ try{ window.webkit.messageHandlers.pomo.postMessage(m); }catch(e){} }
+      function clean(s){ return (s || '').toString().replace(/[|]/g,' ').trim(); }
+      function cfg(k){
+        try { return window.ytcfg && window.ytcfg.get && window.ytcfg.get(k); }
+        catch(e) { return undefined; }
+      }
       function check(n){
-        var img = document.querySelector('#avatar-btn img, ytd-topbar-menu-button-renderer img, #masthead #avatar-btn img, ytmusic-settings-button img, ytmusic-nav-bar img#right-content-icon');
-        var signin = document.querySelector('a[href*="ServiceLogin"], a[href*="accounts.google.com"][aria-label], ytd-button-renderer#sign-in-button a, tp-yt-paper-button[aria-label="Sign in"], a.sign-in-link');
+        var loggedIn = cfg('LOGGED_IN');
+        var cfgName = cfg('SESSION_USER_DISPLAY_NAME') || cfg('DELEGATED_SESSION_NAME') || '';
+        var img = document.querySelector([
+          '#avatar-btn img',
+          'button#avatar-btn img',
+          'ytd-topbar-menu-button-renderer img',
+          'ytd-masthead #avatar-btn img',
+          'ytmusic-settings-button img',
+          'ytmusic-nav-bar img#right-content-icon',
+          'a[href*="account"] img[src^="http"]',
+          'button[aria-label*="Account"] img[src^="http"]',
+          'img[src*="yt3.ggpht.com"]',
+          'img[src*="googleusercontent.com"]'
+        ].join(','));
+        var accountButton = document.querySelector('#avatar-btn, button#avatar-btn, button[aria-label*="Account"], ytd-topbar-menu-button-renderer button');
+        var signin = document.querySelector('a[href*="ServiceLogin"], a[href*="accounts.google.com"][aria-label], ytd-button-renderer#sign-in-button a, tp-yt-paper-button[aria-label*="Sign in"], a.sign-in-link, a[aria-label*="Sign in"], button[aria-label*="Sign in"]');
         if (img && img.src && img.src.indexOf('http') === 0) {
-          post('account:1|' + (img.alt || '').replace(/[|]/g,' ') + '|' + img.src);
-        } else if (signin) {
+          post('account:1|' + clean(img.alt || img.getAttribute('aria-label') || cfgName) + '|' + img.src);
+        } else if (loggedIn === true || loggedIn === 'true') {
+          post('account:1|' + clean(cfgName || (accountButton && accountButton.getAttribute('aria-label'))) + '|');
+        } else if (loggedIn === false || loggedIn === 'false' || signin) {
           post('account:0||');
         } else if (n > 0) {
           setTimeout(function(){ check(n - 1); }, 800);
+        } else {
+          post('account:?||');
         }
       }
       check(8);
@@ -849,6 +1090,9 @@ final class WebAudioPlayer: NSObject {
             || message.hasPrefix("playfail") || message == "no-video" {
             isPlaying = false
             if message.hasPrefix("playfail") || message == "no-video" { showLoading(false) }
+            if message.contains("state:0") {
+                completePendingThresholdPurge(at: "track boundary")
+            }
         }
         onStateChange?()
     }
@@ -887,6 +1131,7 @@ final class WebAudioPlayer: NSObject {
 
     private func handleAccount(_ payload: String) {
         let parts = payload.components(separatedBy: "|")
+        guard parts.first != "?" else { return }
         let signedIn = parts.first == "1"
         let name = parts.count > 1 ? parts[1].trimmingCharacters(in: .whitespaces) : ""
         let avatarURL = parts.count > 2 ? parts[2] : ""

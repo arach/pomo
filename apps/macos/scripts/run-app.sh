@@ -21,6 +21,54 @@ configuration=release
 restart=false
 sign_identity=""
 
+pomo_process_lines() {
+  ps -axo pid=,command= | awk '/\/Pomo\.app\/Contents\/MacOS\/Pomo$/'
+}
+
+parse_process_line() {
+  local line="$1"
+  line="${line#"${line%%[![:space:]]*}"}"
+  local pid="${line%%[[:space:]]*}"
+  local command="${line#"$pid"}"
+  command="${command#"${command%%[![:space:]]*}"}"
+  printf '%s\t%s\n' "$pid" "$command"
+}
+
+stop_pomo_processes() {
+  local line parsed pid
+  while IFS= read -r line; do
+    [[ -n "$line" ]] || continue
+    parsed="$(parse_process_line "$line")"
+    pid="${parsed%%$'\t'*}"
+    [[ -n "$pid" ]] || continue
+    kill "$pid" 2>/dev/null || true
+  done < <(pomo_process_lines)
+}
+
+wait_for_pomo_processes_to_exit() {
+  local attempt
+  for attempt in {1..20}; do
+    if [[ -z "$(pomo_process_lines)" ]]; then
+      return 0
+    fi
+    sleep 0.1
+  done
+}
+
+stop_other_pomo_processes() {
+  local expected_executable="$1"
+  local line parsed pid command
+  while IFS= read -r line; do
+    [[ -n "$line" ]] || continue
+    parsed="$(parse_process_line "$line")"
+    pid="${parsed%%$'\t'*}"
+    command="${parsed#*$'\t'}"
+    [[ -n "$pid" && "$command" != "$expected_executable" ]] || continue
+    echo "  Stopping duplicate Pomo at $command"
+    kill "$pid" 2>/dev/null || true
+  done < <(pomo_process_lines)
+}
+
 copy_framework() {
   local framework_name="$1"
   local search_root="$2"
@@ -233,11 +281,15 @@ else
 fi
 
 if [[ "$restart" == true ]]; then
-  killall "$app_name" 2>/dev/null || true
-  sleep 0.3
+  stop_pomo_processes
+  wait_for_pomo_processes_to_exit
 fi
 
 if [[ "$open_app" == true ]]; then
   echo "▸ Launching…"
   open "$app_path"
+  if [[ "$restart" == true ]]; then
+    sleep 0.7
+    stop_other_pomo_processes "$app_path/Contents/MacOS/$app_name"
+  fi
 fi

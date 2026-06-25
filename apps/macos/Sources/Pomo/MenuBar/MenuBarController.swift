@@ -157,6 +157,11 @@ final class MenuBarController: NSObject, NSPopoverDelegate {
     private func showPopover() {
         guard let button = statusItem.button else { return }
         let popover = makePopover()
+        // Match the popover chrome (arrow + border) and its behind-window frost —
+        // which sample at the window level — to Pomo's appearance override, so a
+        // forced Light/Dark popover doesn't show a system-coloured arrow or a
+        // mistinted frosted panel. Set on every open so it tracks live changes.
+        popover.appearance = popoverAppearance()
         popover.show(relativeTo: button.bounds, of: button, preferredEdge: .minY)
         // An accessory app isn't active by default, so make the popover's window
         // key — otherwise its buttons/toggles won't take the first click.
@@ -198,6 +203,17 @@ final class MenuBarController: NSObject, NSPopoverDelegate {
         popover.delegate = self
         self.popover = popover
         return popover
+    }
+
+    /// The popover's window appearance for the current override. `nil` follows
+    /// the system (Auto); `.aqua` / `.darkAqua` pin it to match the Settings
+    /// Light / Dark choice.
+    private func popoverAppearance() -> NSAppearance? {
+        switch settings.appearanceMode {
+        case .system: return nil
+        case .light:  return NSAppearance(named: .aqua)
+        case .dark:   return NSAppearance(named: .darkAqua)
+        }
     }
 
     // MARK: - Native menu (right-click) — a small utility surface

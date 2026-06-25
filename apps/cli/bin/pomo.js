@@ -116,6 +116,20 @@ function printStatus(args) {
   console.log(`  hud     ${s.hudVisible ? 'visible' : 'hidden'} · face ${s.watchface}`);
 
   const favs = s.favorites || [];
+  const sessionAudio = s.sessionAudioURLs || {};
+  const sessionLabels = [
+    ['focus', 'focus'],
+    ['shortBreak', 'break'],
+    ['longBreak', 'long'],
+  ];
+  const assigned = sessionLabels.filter(([key]) => sessionAudio[key]);
+  if (assigned.length) {
+    console.log('  session audio');
+    assigned.forEach(([key, label]) => {
+      const fav = favs.find((f) => f.url === sessionAudio[key]);
+      console.log(`    ${label.padEnd(5)} ${fav ? fav.title : sessionAudio[key]}`);
+    });
+  }
   if (favs.length) {
     console.log('  favorites');
     favs.forEach((f, i) => console.log(`    ${i + 1}. ${f.title}`));
@@ -320,6 +334,51 @@ function favorites(args) {
       const title = args.slice(2).join(' ') || undefined;
       return send(`favorite/add${query({ url, title })}`);
     }
+    case 'rename': {
+      const n = parseInt(args[1], 10);
+      const title = args.slice(2).join(' ');
+      if (!Number.isInteger(n) || !title) die('usage: pomo fav rename <n> <title…>');
+      return send(`favorite/update/${n}${query({ title })}`);
+    }
+    case 'url': {
+      const n = parseInt(args[1], 10);
+      const url = args[2];
+      if (!Number.isInteger(n) || !url) die('usage: pomo fav url <n> <url>');
+      return send(`favorite/update/${n}${query({ url })}`);
+    }
+    case 'move': {
+      const from = parseInt(args[1], 10);
+      const to = parseInt(args[2], 10);
+      if (!Number.isInteger(from) || !Number.isInteger(to)) die('usage: pomo fav move <from> <to>');
+      return send(`favorite/move/${from}/${to}`);
+    }
+    case 'set':
+    case 'replace': {
+      const source = args[1];
+      if (!source) die('usage: pomo fav set <json-file|json|->');
+      const raw = source === '-'
+        ? readFileSync(0, 'utf8')
+        : existsSync(source)
+          ? readFileSync(source, 'utf8')
+          : args.slice(1).join(' ');
+      let items;
+      try {
+        items = JSON.parse(raw);
+      } catch (error) {
+        die(`invalid favorites JSON: ${error.message}`);
+      }
+      if (!Array.isArray(items)) die('favorites JSON must be an array of { "title": "...", "url": "..." } objects');
+      const normalized = items.map((item, index) => {
+        if (!item || typeof item !== 'object') die(`favorite ${index + 1} must be an object`);
+        const url = String(item.url || '').trim();
+        if (!url) die(`favorite ${index + 1} is missing url`);
+        const title = String(item.title || '').trim();
+        return { title: title || url, url };
+      });
+      return send(`favorite/set${query({ items: JSON.stringify(normalized) })}`);
+    }
+    case 'clear':
+      return send('favorite/clear');
     case 'play': {
       const n = parseInt(args[1], 10);
       if (!Number.isInteger(n)) die('usage: pomo fav play <n>');
@@ -333,6 +392,43 @@ function favorites(args) {
     default:
       die(`unknown fav command: ${sub}`);
   }
+}
+
+function sessionKey(input) {
+  switch ((input || '').toLowerCase()) {
+    case 'focus':
+    case 'work':
+      return 'focus';
+    case 'short':
+    case 'break':
+    case 'shortbreak':
+    case 'short-break':
+      return 'break';
+    case 'long':
+    case 'longbreak':
+    case 'long-break':
+      return 'long';
+    default:
+      return null;
+  }
+}
+
+function sessionAudio(args) {
+  const type = sessionKey(args[0]);
+  if (!type) die('usage: pomo audio session <focus|break|long> <favorite#|url|clear>');
+
+  const value = args[1];
+  if (!value) die('usage: pomo audio session <focus|break|long> <favorite#|url|clear>');
+  if (value.toLowerCase() === 'clear') return send(`audio/session/${type}/clear`);
+
+  let url = value;
+  if (/^\d+$/.test(value)) {
+    const favorite = (readState().favorites || [])[Number(value) - 1];
+    if (!favorite) die(`no favorite #${value}`);
+    url = favorite.url;
+  }
+  if (!/^https?:\/\//i.test(url)) die('session audio must be a favorite number, URL, or clear');
+  return send(`audio/session/${type}${query({ url })}`);
 }
 
 // ─── help ─────────────────────────────────────────────────────────────────
@@ -355,14 +451,20 @@ Intent
 Audio / video
   audio <url>            play a YouTube/stream link
   audio <play|pause|stop|next|prev>
+  audio session <focus|break|long> <favorite#|url|clear>
   volume <0-100>
-  video <show|hide|toggle|browser>
+  video <show|hide|toggle|page|player|browser>
 
 Favorites
   fav                    list saved stations
   fav add <url> [title…]
+  fav rename <n> <title…>
+  fav url <n> <url>
+  fav move <from> <to>
+  fav set <json-file|json|->
   fav play <n>
   fav remove <n>
+  fav clear
 
 Window & app
   show | hide | hud      summon / dismiss / toggle the HUD
@@ -433,10 +535,11 @@ switch (cmd) {
 
   case 'audio': {
     const a = rest[0] || '';
-    if (/^https?:\/\//i.test(a)) send(`audio${query({ url: a })}`);
+    if (a === 'session' || a === 'for') sessionAudio(rest.slice(1));
+    else if (/^https?:\/\//i.test(a)) send(`audio${query({ url: a })}`);
     else if (['play', 'pause', 'stop', 'next', 'prev', 'previous'].includes(a.toLowerCase()))
       send(`audio/${a.toLowerCase()}`);
-    else die('usage: pomo audio <url|play|pause|stop|next|prev>');
+    else die('usage: pomo audio <url|play|pause|stop|next|prev|session>');
     break;
   }
 
@@ -447,8 +550,8 @@ switch (cmd) {
 
   case 'video': {
     const sub = (rest[0] || 'toggle').toLowerCase();
-    if (!['show', 'hide', 'toggle', 'browser', 'open'].includes(sub))
-      die('usage: pomo video <show|hide|toggle|browser>');
+    if (!['show', 'hide', 'toggle', 'page', 'full', 'original', 'expand', 'player', 'bare', 'screen', 'collapse', 'browser', 'open'].includes(sub))
+      die('usage: pomo video <show|hide|toggle|page|player|browser>');
     send(`video/${sub}`);
     break;
   }

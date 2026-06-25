@@ -1,5 +1,14 @@
 import AppKit
+import Observation
 import SwiftUI
+
+/// HUD-only presentation chrome the SwiftUI content reacts to but the AppKit key
+/// monitor drives — currently just the keyboard cheat sheet toggled with `?`.
+@MainActor
+@Observable
+final class HUDChrome {
+    var showShortcuts = false
+}
 
 /// Owns the floating HUD panel: lazy construction, summon/dismiss with a fade,
 /// first-summon positioning (respecting later drags), and the in-panel keyboard
@@ -13,6 +22,14 @@ final class HUDController {
 
     /// Opens the settings window (⌘,). Wired by AppDelegate.
     var onOpenSettings: (() -> Void)?
+
+    /// Fired after the HUD is summoned/dismissed so the app can match its Dock
+    /// presence to HUD visibility (a regular Dock app while shown — so it's
+    /// ⌘-Tab-able — dropping back to a menu-bar accessory when hidden).
+    var onVisibilityChange: ((Bool) -> Void)?
+
+    /// HUD-only chrome (keyboard cheat sheet) shared with the SwiftUI content.
+    let chrome = HUDChrome()
 
     private let contentSize = NSSize(width: 352, height: 268)
     private var panel: HUDPanel?
@@ -35,6 +52,7 @@ final class HUDController {
         let hosting = NSHostingView(
             rootView: HUDRootView(
                 model: model, settings: settings, audio: audio, favorites: favorites,
+                chrome: chrome,
                 size: contentSize,
                 onHide: { [weak self] in self?.hide() },
                 onEditingChange: { [weak self] editing in self?.setEditingFocus(editing) }
@@ -72,15 +90,18 @@ final class HUDController {
         }
         // Dock the video drawer to the panel (slides back out if it was open).
         audio.attachDrawer(to: panel)
+        onVisibilityChange?(true)
     }
 
     func hide() {
         guard let panel, isShown else { return }
         isShown = false
-        // Don't leave a quick field armed for the next summon.
+        // Don't leave a quick field armed — or the cheat sheet up — for next summon.
         model.cancelEditing()
+        chrome.showShortcuts = false
         removeKeyMonitor()
         audio.detachDrawer()
+        onVisibilityChange?(false)
         NSAnimationContext.runAnimationGroup({ ctx in
             ctx.duration = 0.14
             ctx.timingFunction = CAMediaTimingFunction(name: .easeIn)
@@ -146,6 +167,12 @@ final class HUDController {
             return false
         }
 
+        // While the cheat sheet is up, Escape closes the sheet (not the whole HUD).
+        if chrome.showShortcuts, event.keyCode == 53 {
+            chrome.showShortcuts = false
+            return true
+        }
+
         let flags = event.modifierFlags.intersection(.deviceIndependentFlagsMask)
         let command = flags.contains(.command)
         let shift = flags.contains(.shift)
@@ -179,7 +206,12 @@ final class HUDController {
         case "n": model.skip(); return true
         case "c": model.cycleSessionType(); return true
         case "i": model.beginEditing(.intent); return true
-        case "v": model.beginEditing(.video); return true
+        case "v":
+            if shift { toggleVideoDrawer() }            // ⇧V: show / hide the video drawer
+            else { model.beginEditing(.video) }         // v: paste an audio / video link
+            return true
+        case "m": toggleMusic(); return true            // play/pause background music
+        case "?", "/": chrome.showShortcuts.toggle(); return true  // keyboard cheat sheet
         case "q": hide(); return true
         case "t":
             settings.watchface = settings.watchface.next
@@ -194,5 +226,29 @@ final class HUDController {
         default:
             return false
         }
+    }
+
+    // MARK: - Music
+
+    private func toggleMusic() {
+        if audio.isPlaying { audio.pause() }
+        else { audio.resume(stored: preferredAudioURL()) }
+    }
+
+    /// Show / hide the docked video drawer. Mirrors the on-face button: if nothing
+    /// is loaded yet, kick off the saved station so the drawer has something to show.
+    private func toggleVideoDrawer() {
+        if !audio.videoOpen, !audio.isPlaying, audio.currentURL.isEmpty, !settings.audioURL.isEmpty {
+            audio.play(urlString: settings.audioURL)
+        }
+        audio.toggleVideo()
+    }
+
+    /// Best URL to (re)start when toggling music from the HUD: whatever's already
+    /// loaded, then the saved station, then the first favorite.
+    private func preferredAudioURL() -> String {
+        if !audio.currentURL.isEmpty { return audio.currentURL }
+        if !settings.audioURL.isEmpty { return settings.audioURL }
+        return favorites.items.first?.url ?? ""
     }
 }

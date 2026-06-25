@@ -11,6 +11,8 @@ struct HUDRootView: View {
     let settings: PomoSettings
     let audio: AudioController
     let favorites: FavoritesStore
+    /// Shared HUD chrome (keyboard cheat sheet), driven by HUDController's key monitor.
+    let chrome: HUDChrome
     let size: CGSize
     /// Dismiss the HUD (right-click → Hide). Wired by HUDController.
     var onHide: (() -> Void)? = nil
@@ -96,7 +98,15 @@ struct HUDRootView: View {
             if audioFaceControls.enabled, model.quickField == .none {
                 audioCornerControls
             }
+
+            // Keyboard cheat sheet, toggled with `?` (or the right-click menu).
+            // Sits above everything; tap / `?` / Esc to dismiss.
+            if chrome.showShortcuts {
+                ShortcutsOverlay(onClose: { chrome.showShortcuts = false })
+                    .transition(.opacity)
+            }
         }
+        .animation(.easeOut(duration: 0.12), value: chrome.showShortcuts)
         .frame(width: size.width, height: size.height)
         .clipShape(panelShape)
         .overlay(
@@ -184,10 +194,99 @@ struct HUDRootView: View {
 
         Divider()
 
+        Button("Keyboard Shortcuts") { chrome.showShortcuts = true }
+
+        Divider()
+
         Button("Hide HUD") { onHide?() }
         // You can't right-click a hidden HUD, so remind them how to bring it back.
         Button("Reopen with \(settings.hotkeyDisplay)") {}
             .disabled(true)
+    }
+}
+
+/// A translucent reference card of the HUD's keyboard shortcuts. Toggled with
+/// `?` (or the right-click menu); dismissed with `?` again, Escape, or a tap.
+/// Two compact columns so it fits the panel without scrolling.
+private struct ShortcutsOverlay: View {
+    var onClose: () -> Void
+
+    private let left: [(String, String)] = [
+        ("Space", "Start / Pause"),
+        ("S", "Start"),
+        ("P", "Pause"),
+        ("R", "Reset"),
+        ("N", "Skip session"),
+        ("C", "Cycle type"),
+        ("T", "Next face"),
+        ("↑ ↓", "±1 min · ⇧5"),
+    ]
+    private let right: [(String, String)] = [
+        ("1–9", "Set 5–45 min"),
+        ("I", "Set intent"),
+        ("V", "Paste link"),
+        ("⇧V", "Show/hide video"),
+        ("M", "Music play/pause"),
+        ("⌘ ,", "Settings"),
+        ("Esc Q", "Hide HUD"),
+        ("?", "Close help"),
+    ]
+
+    var body: some View {
+        ZStack {
+            // Tap anywhere to dismiss.
+            Rectangle()
+                .fill(Color.black.opacity(0.86))
+                .contentShape(Rectangle())
+                .onTapGesture(perform: onClose)
+
+            VStack(alignment: .leading, spacing: HudSpacing.md) {
+                HStack {
+                    Text("KEYBOARD")
+                        .font(HudFont.mono(HudTextSize.micro, weight: .bold))
+                        .tracking(1.5)
+                        .foregroundStyle(HudPalette.dim)
+                    Spacer(minLength: HudSpacing.sm)
+                    Text("? or esc to close")
+                        .font(HudFont.mono(HudTextSize.micro))
+                        .foregroundStyle(HudPalette.dim.opacity(0.7))
+                }
+
+                HStack(alignment: .top, spacing: HudSpacing.lg) {
+                    column(left)
+                    column(right)
+                }
+            }
+            .padding(HudSpacing.xl)
+        }
+    }
+
+    private func column(_ rows: [(String, String)]) -> some View {
+        VStack(alignment: .leading, spacing: HudSpacing.xs) {
+            ForEach(rows.indices, id: \.self) { i in
+                HStack(spacing: HudSpacing.sm) {
+                    keyCap(rows[i].0)
+                    Text(rows[i].1)
+                        .font(HudFont.mono(HudTextSize.xxs))
+                        .foregroundStyle(HudPalette.muted)
+                        .lineLimit(1)
+                        .minimumScaleFactor(0.75)
+                    Spacer(minLength: 0)
+                }
+            }
+        }
+        .frame(maxWidth: .infinity, alignment: .leading)
+    }
+
+    private func keyCap(_ key: String) -> some View {
+        Text(key)
+            .font(HudFont.mono(HudTextSize.xxs, weight: .semibold))
+            .foregroundStyle(HudPalette.ink)
+            .padding(.horizontal, 5)
+            .padding(.vertical, 2)
+            .frame(minWidth: 40)
+            .background(RoundedRectangle(cornerRadius: HudRadius.tight, style: .continuous).fill(Color.white.opacity(0.08)))
+            .overlay(RoundedRectangle(cornerRadius: HudRadius.tight, style: .continuous).stroke(HudPalette.border, lineWidth: 1))
     }
 }
 

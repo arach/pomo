@@ -35,6 +35,7 @@ enum PomoCommand {
     case favoriteRemove(Int)    // 1-based
     case favoritesList
     case setIntent(String)      // set the current session's focus intent ("" clears)
+    case shortcuts(Bool?)       // keyboard cheat sheet: nil = toggle, true/false = show/hide
     case openStats
     case openMenu
     case openSettings
@@ -60,6 +61,13 @@ enum PomoCommand {
         case "hide":       self = .hideHUD
         case "toggle-hud", "togglehud", "hud": self = .toggleHUD
         case "menu":       self = .openMenu
+        case "shortcuts", "help", "keys":
+            switch arg {
+            case "show":            self = .shortcuts(true)
+            case "hide":            self = .shortcuts(false)
+            case "toggle", nil:     self = .shortcuts(nil)
+            default:                return nil
+            }
         case "login":
             switch arg {
             case "import":

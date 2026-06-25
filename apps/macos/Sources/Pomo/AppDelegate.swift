@@ -44,6 +44,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
                 ))
             }
             self.hud.show() // surface the HUD when a session ends
+            self.audio.purgeBrowserMemoryAtSessionBoundary()
             self.writeState()
         }
 

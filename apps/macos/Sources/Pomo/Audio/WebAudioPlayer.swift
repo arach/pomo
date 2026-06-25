@@ -49,6 +49,9 @@ final class WebAudioPlayer: NSObject {
     private var loadingView: PomoLoadingView?
     private var loadingHideWork: DispatchWorkItem?
     private var avatarView: NSImageView?
+    private var idleMemoryPurgeWork: DispatchWorkItem?
+    private var boundaryMemoryPurgeWork: DispatchWorkItem?
+    private var pendingThresholdPurgeReason: String?
 
     /// Signed-in YouTube identity, surfaced in Settings + the drawer avatar.
     let account = AccountStatus()
@@ -89,6 +92,8 @@ final class WebAudioPlayer: NSObject {
         let urlString = raw.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !urlString.isEmpty, let base = Self.watchURL(from: urlString) else { return }
         let url = Self.withAuthUser(base, authUser)
+        cancelIdleMemoryPurge()
+        cancelBoundaryMemoryPurge()
         currentURL = urlString
         ensureWebView()
         log("play \(url.absoluteString)")
@@ -104,7 +109,13 @@ final class WebAudioPlayer: NSObject {
     }
 
     func resume(stored: String) {
-        if currentURL.isEmpty { play(urlString: stored); return }
+        cancelIdleMemoryPurge()
+        cancelBoundaryMemoryPurge()
+        let url = currentURL.isEmpty ? stored : currentURL
+        if currentURL.isEmpty || webView == nil {
+            play(urlString: url)
+            return
+        }
         eval("document.querySelector('video,audio')&&document.querySelector('video,audio').play();")
         isPlaying = true
     }
@@ -112,6 +123,7 @@ final class WebAudioPlayer: NSObject {
     func pause() {
         eval("document.querySelector('video,audio')&&document.querySelector('video,audio').pause();")
         isPlaying = false
+        scheduleIdleMemoryPurge(reason: "paused audio")
     }
 
     func stop() {
@@ -119,6 +131,7 @@ final class WebAudioPlayer: NSObject {
         currentURL = ""
         isPlaying = false
         setWindowVisible(false)
+        scheduleIdleMemoryPurge(reason: "stopped audio")
     }
 
     func setVolume(_ value: Double) {
@@ -155,10 +168,12 @@ final class WebAudioPlayer: NSObject {
     func setWindowVisible(_ visible: Bool) {
         drawerOpen = visible
         if visible {
+            cancelIdleMemoryPurge()
             ensureWebView()
             openDrawer()
         } else {
             closeDrawer()
+            scheduleIdleMemoryPurge(reason: "hidden video drawer")
         }
     }
 
@@ -352,7 +367,10 @@ final class WebAudioPlayer: NSObject {
     private func closeDrawer() {
         showLoading(false)
         guard let host = hostWindow, host.isVisible else {
-            hostWindow?.orderOut(nil); return
+            hostWindow?.orderOut(nil)
+            scheduleIdleMemoryPurge(reason: "hidden video drawer")
+            completePendingThresholdPurge(at: "hidden video drawer", delay: 0)
+            return
         }
         let target: NSRect
         if let anchor = anchorWindow {
@@ -375,8 +393,138 @@ final class WebAudioPlayer: NSObject {
                 host.orderOut(nil)
                 host.alphaValue = 1
                 self.updateExpandButton()
+                self.scheduleIdleMemoryPurge(reason: "hidden video drawer")
+                self.completePendingThresholdPurge(at: "hidden video drawer", delay: 0)
             }
         })
+    }
+
+    // MARK: - Browser/video memory reclamation
+
+    /// Main entry point for proactive cleanup. Cache data is safe to drop while
+    /// active; the actual WKWebView is released only when playback is idle and
+    /// the video drawer is hidden, so cleanup never interrupts a visible player.
+    func purgeBrowserMemory(reason: String, aggressive: Bool = false) {
+        log("memory purge requested (\(reason))")
+        URLCache.shared.removeAllCachedResponses()
+        purgeWebsiteCaches(reason: reason)
+
+        if isPlaying || drawerOpen {
+            if aggressive { applyVideoQuality() }
+            return
+        }
+
+        releaseWebView(reason: reason)
+    }
+
+    /// A memory threshold crossed while WebKit may still be useful. Mark the
+    /// cleanup pending and let track/session boundaries complete it.
+    func deferBrowserMemoryPurgeUntilBoundary(reason: String) {
+        pendingThresholdPurgeReason = reason
+        log("memory threshold crossed; deferring web player release until boundary (\(reason))")
+        URLCache.shared.removeAllCachedResponses()
+        purgeWebsiteCaches(reason: reason)
+        if !isPlaying {
+            completePendingThresholdPurge(at: "idle threshold check", delay: 0)
+        }
+    }
+
+    func purgeBrowserMemoryAtSessionBoundary() {
+        if pendingThresholdPurgeReason != nil {
+            completePendingThresholdPurge(at: "pomo session boundary", delay: 0)
+        } else {
+            purgeBrowserMemory(reason: "pomo session boundary")
+        }
+    }
+
+    private func scheduleIdleMemoryPurge(reason: String) {
+        idleMemoryPurgeWork?.cancel()
+        guard !isPlaying, !drawerOpen else { return }
+        let work = DispatchWorkItem { [weak self] in
+            MainActor.assumeIsolated {
+                self?.purgeBrowserMemory(reason: reason)
+            }
+        }
+        idleMemoryPurgeWork = work
+        DispatchQueue.main.asyncAfter(deadline: .now() + 180, execute: work)
+    }
+
+    private func cancelIdleMemoryPurge() {
+        idleMemoryPurgeWork?.cancel()
+        idleMemoryPurgeWork = nil
+    }
+
+    private func completePendingThresholdPurge(at boundary: String, delay: TimeInterval = 4) {
+        guard pendingThresholdPurgeReason != nil else { return }
+        boundaryMemoryPurgeWork?.cancel()
+        let work = DispatchWorkItem { [weak self] in
+            MainActor.assumeIsolated {
+                guard let self, let reason = self.pendingThresholdPurgeReason else { return }
+                guard !self.isPlaying else {
+                    self.log("deferred memory purge still waiting; playback resumed before \(boundary)")
+                    return
+                }
+                guard !self.drawerOpen else {
+                    self.log("deferred memory purge still waiting; drawer visible at \(boundary)")
+                    self.purgeWebsiteCaches(reason: "\(boundary) after \(reason)")
+                    return
+                }
+                self.pendingThresholdPurgeReason = nil
+                self.purgeBrowserMemory(reason: "\(boundary) after \(reason)", aggressive: true)
+            }
+        }
+        boundaryMemoryPurgeWork = work
+        DispatchQueue.main.asyncAfter(deadline: .now() + delay, execute: work)
+    }
+
+    private func cancelBoundaryMemoryPurge() {
+        boundaryMemoryPurgeWork?.cancel()
+        boundaryMemoryPurgeWork = nil
+    }
+
+    private func purgeWebsiteCaches(reason: String) {
+        let types: Set<String> = [
+            WKWebsiteDataTypeMemoryCache,
+            WKWebsiteDataTypeDiskCache,
+        ]
+        WKWebsiteDataStore.default().removeData(ofTypes: types, modifiedSince: .distantPast) { [weak self] in
+            Task { @MainActor in self?.log("purged browser caches (\(reason))") }
+        }
+    }
+
+    private func releaseWebView(reason: String) {
+        guard webView != nil || hostWindow != nil else { return }
+        log("releasing idle web player (\(reason))")
+        pendingThresholdPurgeReason = nil
+        cancelIdleMemoryPurge()
+        cancelBoundaryMemoryPurge()
+        loadingHideWork?.cancel()
+        loadingHideWork = nil
+        loadingView?.stop()
+        showLoading(false)
+
+        if let host = hostWindow, let anchor = anchorWindow, host.parent === anchor {
+            anchor.removeChildWindow(host)
+        }
+
+        if let drawer = webView as? DrawerWebView {
+            drawer.owner = nil
+        }
+        webView?.stopLoading()
+        webView?.navigationDelegate = nil
+        webView?.configuration.userContentController.removeScriptMessageHandler(forName: "pomo")
+        webView?.loadHTMLString("", baseURL: nil)
+        hostWindow?.contentView = nil
+        hostWindow?.orderOut(nil)
+
+        webView = nil
+        hostWindow = nil
+        navProxy = nil
+        messageProxy = nil
+        drawerContainer = nil
+        expandButton = nil
+        loadingView = nil
+        avatarView = nil
     }
 
     /// Round only the *outer* corners when collapsed (so the inner edge butts the
@@ -942,6 +1090,9 @@ final class WebAudioPlayer: NSObject {
             || message.hasPrefix("playfail") || message == "no-video" {
             isPlaying = false
             if message.hasPrefix("playfail") || message == "no-video" { showLoading(false) }
+            if message.contains("state:0") {
+                completePendingThresholdPurge(at: "track boundary")
+            }
         }
         onStateChange?()
     }

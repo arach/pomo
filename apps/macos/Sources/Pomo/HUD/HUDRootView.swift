@@ -227,9 +227,9 @@ private struct ShortcutsOverlay: View {
         ("V", "Paste link"),
         ("⇧V", "Show/hide video"),
         ("M", "Music play/pause"),
+        ("← →", "Timestamp section"),
         ("⌘ ,", "Settings"),
         ("Esc Q", "Hide HUD"),
-        ("?", "Close help"),
     ]
 
     var body: some View {

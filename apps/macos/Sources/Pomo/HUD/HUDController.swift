@@ -49,6 +49,9 @@ final class HUDController {
     private func ensurePanel() -> HUDPanel {
         if let panel { return panel }
         let panel = HUDPanel(contentSize: contentSize)
+        panel.onKeyDown = { [weak self] event in
+            self?.handle(event) ?? false
+        }
         let hosting = NSHostingView(
             rootView: HUDRootView(
                 model: model, settings: settings, audio: audio, favorites: favorites,
@@ -176,7 +179,7 @@ final class HUDController {
         let flags = event.modifierFlags.intersection(.deviceIndependentFlagsMask)
         let command = flags.contains(.command)
         let shift = flags.contains(.shift)
-        let onlyShiftOrNone = flags.subtracting(.shift).isEmpty
+        let onlyShiftOrNone = flags.subtracting([.shift, .numericPad, .function]).isEmpty
 
         // Command shortcuts
         if command {
@@ -191,6 +194,8 @@ final class HUDController {
         switch event.keyCode {
         case 49: model.toggle(); return true                 // space
         case 53: hide(); return true                         // escape
+        case 123 where onlyShiftOrNone: audio.previousTimestampSection(); return true // left arrow
+        case 124 where onlyShiftOrNone: audio.nextTimestampSection(); return true     // right arrow
         case 126: model.adjustMinutes(shift ? 5 : 1); return true   // up arrow
         case 125: model.adjustMinutes(shift ? -5 : -1); return true // down arrow
         default: break

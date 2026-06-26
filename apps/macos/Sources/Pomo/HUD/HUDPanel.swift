@@ -4,6 +4,8 @@ import AppKit
 /// can still become key (so keyboard control + buttons work) despite being
 /// borderless. Mirrors the OverlayPanel pattern used by openscout/lattices.
 final class HUDPanel: NSPanel {
+    var onKeyDown: ((NSEvent) -> Bool)?
+
     override var canBecomeKey: Bool { true }
     override var canBecomeMain: Bool { true }
 
@@ -25,5 +27,10 @@ final class HUDPanel: NSPanel {
         becomesKeyOnlyIfNeeded = false
         collectionBehavior = [.canJoinAllSpaces, .fullScreenAuxiliary]
         animationBehavior = .none
+    }
+
+    override func keyDown(with event: NSEvent) {
+        if onKeyDown?(event) == true { return }
+        super.keyDown(with: event)
     }
 }

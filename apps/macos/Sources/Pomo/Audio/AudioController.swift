@@ -52,6 +52,8 @@ final class AudioController {
 
     func next() { web.next() }
     func previous() { web.previous() }
+    func nextTimestampSection() { web.nextTimestampSection() }
+    func previousTimestampSection() { web.previousTimestampSection() }
     func signIn() { web.signIn() }
     func showImportLogin() { web.showImportLogin() }
     func importCookies(browser: String?, profile: String?) { web.importCookies(fromBrowser: browser, profile: profile) }

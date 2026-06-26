@@ -51,7 +51,9 @@ final class WebAudioPlayer: NSObject {
     private var avatarView: NSImageView?
     private var idleMemoryPurgeWork: DispatchWorkItem?
     private var boundaryMemoryPurgeWork: DispatchWorkItem?
+    private var preparedBrowserSwapWork: DispatchWorkItem?
     private var pendingThresholdPurgeReason: String?
+    private var preparedBrowser: BrowserInstance?
 
     /// Signed-in YouTube identity, surfaced in Settings + the drawer avatar.
     let account = AccountStatus()
@@ -61,6 +63,17 @@ final class WebAudioPlayer: NSObject {
     weak var favorites: FavoritesStore?
 
     private static let drawerRadius: CGFloat = 12
+
+    private struct BrowserInstance {
+        let webView: DrawerWebView
+        let hostWindow: NSWindow
+        let navProxy: NavProxy
+        let messageProxy: MessageProxy
+        let drawerContainer: NSView
+        let expandButton: NSButton
+        let loadingView: PomoLoadingView
+        let avatarView: NSImageView
+    }
 
     /// Fired when playback state changes (from JS player events).
     var onStateChange: (() -> Void)?
@@ -94,6 +107,7 @@ final class WebAudioPlayer: NSObject {
         let url = Self.withAuthUser(base, authUser)
         cancelIdleMemoryPurge()
         cancelBoundaryMemoryPurge()
+        cancelPreparedBrowserSwap()
         currentURL = urlString
         ensureWebView()
         log("play \(url.absoluteString)")
@@ -111,6 +125,7 @@ final class WebAudioPlayer: NSObject {
     func resume(stored: String) {
         cancelIdleMemoryPurge()
         cancelBoundaryMemoryPurge()
+        cancelPreparedBrowserSwap()
         let url = currentURL.isEmpty ? stored : currentURL
         if currentURL.isEmpty || webView == nil {
             play(urlString: url)
@@ -157,6 +172,14 @@ final class WebAudioPlayer: NSObject {
         ]))
     }
 
+    func nextTimestampSection() {
+        seekTimestampSection(direction: 1)
+    }
+
+    func previousTimestampSection() {
+        seekTimestampSection(direction: -1)
+    }
+
     // MARK: - Attached video drawer
 
     /// Reflects user intent (not raw window visibility) so the on-face toggle
@@ -169,6 +192,7 @@ final class WebAudioPlayer: NSObject {
         drawerOpen = visible
         if visible {
             cancelIdleMemoryPurge()
+            cancelPreparedBrowserSwap()
             ensureWebView()
             openDrawer()
         } else {
@@ -408,13 +432,19 @@ final class WebAudioPlayer: NSObject {
         log("memory purge requested (\(reason))")
         URLCache.shared.removeAllCachedResponses()
         purgeWebsiteCaches(reason: reason)
+        if aggressive { discardPreparedBrowser(reason: reason) }
 
         if isPlaying || drawerOpen {
             if aggressive { applyVideoQuality() }
+            else { prepareReplacementBrowser(reason: reason) }
             return
         }
 
-        releaseWebView(reason: reason)
+        if aggressive {
+            releaseWebView(reason: reason)
+        } else {
+            rotateIdleWebView(reason: reason)
+        }
     }
 
     /// A memory threshold crossed while WebKit may still be useful. Mark the
@@ -422,6 +452,7 @@ final class WebAudioPlayer: NSObject {
     func deferBrowserMemoryPurgeUntilBoundary(reason: String) {
         pendingThresholdPurgeReason = reason
         log("memory threshold crossed; deferring web player release until boundary (\(reason))")
+        discardPreparedBrowser(reason: reason)
         URLCache.shared.removeAllCachedResponses()
         purgeWebsiteCaches(reason: reason)
         if !isPlaying {
@@ -482,6 +513,32 @@ final class WebAudioPlayer: NSObject {
         boundaryMemoryPurgeWork = nil
     }
 
+    private func completePreparedBrowserSwap(at boundary: String, delay: TimeInterval = 4) {
+        guard preparedBrowser != nil else { return }
+        preparedBrowserSwapWork?.cancel()
+        let work = DispatchWorkItem { [weak self] in
+            MainActor.assumeIsolated {
+                guard let self, self.preparedBrowser != nil else { return }
+                guard !self.isPlaying else {
+                    self.log("prepared web player still waiting; playback resumed before \(boundary)")
+                    return
+                }
+                guard !self.drawerOpen else {
+                    self.log("prepared web player still waiting; drawer visible at \(boundary)")
+                    return
+                }
+                self.rotateIdleWebView(reason: "\(boundary) warm replacement")
+            }
+        }
+        preparedBrowserSwapWork = work
+        DispatchQueue.main.asyncAfter(deadline: .now() + delay, execute: work)
+    }
+
+    private func cancelPreparedBrowserSwap() {
+        preparedBrowserSwapWork?.cancel()
+        preparedBrowserSwapWork = nil
+    }
+
     private func purgeWebsiteCaches(reason: String) {
         let types: Set<String> = [
             WKWebsiteDataTypeMemoryCache,
@@ -492,30 +549,79 @@ final class WebAudioPlayer: NSObject {
         }
     }
 
-    private func releaseWebView(reason: String) {
+    private func prepareReplacementBrowser(reason: String) {
         guard webView != nil || hostWindow != nil else { return }
+        guard preparedBrowser == nil else { return }
+        let replacement = makeBrowserInstance()
+        preparedBrowser = replacement
+        replacement.webView.loadHTMLString("<!doctype html><meta charset=\"utf-8\">", baseURL: nil)
+        log("prepared replacement web player (\(reason))")
+    }
+
+    private func discardPreparedBrowser(reason: String) {
+        guard let prepared = preparedBrowser else { return }
+        cancelPreparedBrowserSwap()
+        preparedBrowser = nil
+        tearDownBrowserInstance(prepared)
+        log("discarded prepared web player (\(reason))")
+    }
+
+    private func rotateIdleWebView(reason: String) {
+        guard webView != nil || hostWindow != nil else { return }
+        guard let current = currentBrowserInstance() else {
+            releaseWebView(reason: reason)
+            return
+        }
+
+        let replacement: BrowserInstance
+        if let prepared = preparedBrowser {
+            preparedBrowser = nil
+            replacement = prepared
+            log("swapping to prepared web player (\(reason))")
+        } else {
+            replacement = makeBrowserInstance()
+            log("created replacement web player before releasing old one (\(reason))")
+        }
+
+        loadingHideWork?.cancel()
+        loadingHideWork = nil
+        installBrowserInstance(replacement)
+        tearDownBrowserInstance(current)
+        pendingThresholdPurgeReason = nil
+        cancelIdleMemoryPurge()
+        cancelBoundaryMemoryPurge()
+        cancelPreparedBrowserSwap()
+    }
+
+    private func releaseWebView(reason: String) {
+        guard webView != nil || hostWindow != nil || preparedBrowser != nil else { return }
         log("releasing idle web player (\(reason))")
         pendingThresholdPurgeReason = nil
         cancelIdleMemoryPurge()
         cancelBoundaryMemoryPurge()
+        cancelPreparedBrowserSwap()
         loadingHideWork?.cancel()
         loadingHideWork = nil
         loadingView?.stop()
         showLoading(false)
 
-        if let host = hostWindow, let anchor = anchorWindow, host.parent === anchor {
-            anchor.removeChildWindow(host)
+        discardPreparedBrowser(reason: reason)
+        if let current = currentBrowserInstance() {
+            tearDownBrowserInstance(current)
+        } else {
+            if let host = hostWindow, let anchor = anchorWindow, host.parent === anchor {
+                anchor.removeChildWindow(host)
+            }
+            if let drawer = webView as? DrawerWebView {
+                drawer.owner = nil
+            }
+            webView?.stopLoading()
+            webView?.navigationDelegate = nil
+            webView?.configuration.userContentController.removeScriptMessageHandler(forName: "pomo")
+            webView?.loadHTMLString("", baseURL: nil)
+            hostWindow?.contentView = nil
+            hostWindow?.orderOut(nil)
         }
-
-        if let drawer = webView as? DrawerWebView {
-            drawer.owner = nil
-        }
-        webView?.stopLoading()
-        webView?.navigationDelegate = nil
-        webView?.configuration.userContentController.removeScriptMessageHandler(forName: "pomo")
-        webView?.loadHTMLString("", baseURL: nil)
-        hostWindow?.contentView = nil
-        hostWindow?.orderOut(nil)
 
         webView = nil
         hostWindow = nil
@@ -852,6 +958,57 @@ final class WebAudioPlayer: NSObject {
 
     private func eval(_ js: String) { webView?.evaluateJavaScript(js, completionHandler: nil) }
 
+    private func currentBrowserInstance() -> BrowserInstance? {
+        guard let webView = webView as? DrawerWebView,
+              let hostWindow,
+              let navProxy,
+              let messageProxy,
+              let drawerContainer,
+              let expandButton,
+              let loadingView,
+              let avatarView
+        else { return nil }
+        return BrowserInstance(
+            webView: webView,
+            hostWindow: hostWindow,
+            navProxy: navProxy,
+            messageProxy: messageProxy,
+            drawerContainer: drawerContainer,
+            expandButton: expandButton,
+            loadingView: loadingView,
+            avatarView: avatarView
+        )
+    }
+
+    private func installBrowserInstance(_ instance: BrowserInstance) {
+        hostWindow = instance.hostWindow
+        webView = instance.webView
+        navProxy = instance.navProxy
+        messageProxy = instance.messageProxy
+        drawerContainer = instance.drawerContainer
+        expandButton = instance.expandButton
+        loadingView = instance.loadingView
+        avatarView = instance.avatarView
+        avatarView?.image = account.avatar
+        avatarView?.isHidden = !(account.signedIn && account.avatar != nil)
+        applyDrawerCorners()
+        updateExpandButton()
+    }
+
+    private func tearDownBrowserInstance(_ instance: BrowserInstance) {
+        if let anchor = anchorWindow, instance.hostWindow.parent === anchor {
+            anchor.removeChildWindow(instance.hostWindow)
+        }
+        instance.loadingView.stop()
+        instance.webView.owner = nil
+        instance.webView.stopLoading()
+        instance.webView.navigationDelegate = nil
+        instance.webView.configuration.userContentController.removeScriptMessageHandler(forName: "pomo")
+        instance.webView.loadHTMLString("", baseURL: nil)
+        instance.hostWindow.contentView = nil
+        instance.hostWindow.orderOut(nil)
+    }
+
     /// Injected as a "content script": a user stylesheet that, while the
     /// `pomo-bare` class is on `<html>`, strips YouTube down to just the player +
     /// its transport controls. Toggling the class (see `applyBare`) flips between
@@ -899,93 +1056,250 @@ final class WebAudioPlayer: NSObject {
         eval("(function(){var mp=document.getElementById('movie_player');if(mp){try{mp.setPlaybackQualityRange&&mp.setPlaybackQualityRange('\(q)','\(q)');}catch(e){}try{mp.setPlaybackQuality&&mp.setPlaybackQuality('\(q)');}catch(e){}}})();")
     }
 
+    private func seekTimestampSection(direction: Int) {
+        log("timestamp section seek \(direction < 0 ? "previous" : "next")")
+        let js = #"""
+        (function(){
+          var direction = \#(direction) < 0 ? -1 : 1;
+          function post(m){ try{ window.webkit.messageHandlers.pomo.postMessage(m); }catch(e){} }
+          function player(){ return document.getElementById('movie_player'); }
+          function media(){ return document.querySelector('video,audio'); }
+          function duration(){
+            var mp = player(), v = media();
+            try { if (mp && mp.getDuration) return Number(mp.getDuration()) || 0; } catch(e){}
+            return v && isFinite(v.duration) ? v.duration : 0;
+          }
+          function currentTime(){
+            var mp = player(), v = media();
+            try { if (mp && mp.getCurrentTime) return Number(mp.getCurrentTime()) || 0; } catch(e){}
+            return v ? Number(v.currentTime) || 0 : 0;
+          }
+          function parseClock(text){
+            var match = String(text || '').match(/\b(?:(\d{1,2}):)?(\d{1,2}):(\d{2})\b/);
+            if (!match) return null;
+            var hours = match[1] == null ? 0 : Number(match[1]);
+            return hours * 3600 + Number(match[2]) * 60 + Number(match[3]);
+          }
+          function parseTimeParam(value){
+            if (!value) return null;
+            value = String(value).trim().toLowerCase();
+            if (/^\d+$/.test(value)) return Number(value);
+            var total = 0, found = false, part;
+            var re = /(\d+(?:\.\d+)?)(h|m|s)/g;
+            while ((part = re.exec(value))) {
+              found = true;
+              var n = Number(part[1]);
+              if (part[2] === 'h') total += n * 3600;
+              if (part[2] === 'm') total += n * 60;
+              if (part[2] === 's') total += n;
+            }
+            return found ? total : null;
+          }
+          function add(list, seconds){
+            if (seconds == null) return;
+            seconds = Number(seconds);
+            var d = duration();
+            if (!isFinite(seconds) || seconds < 0) return;
+            if (d > 0 && seconds > d - 0.5) return;
+            list.push(seconds);
+          }
+          function playerResponseChapters(list){
+            var mp = player(), response;
+            try { response = mp && mp.getPlayerResponse && mp.getPlayerResponse(); } catch(e){}
+            var maps = response
+              && response.playerOverlays
+              && response.playerOverlays.playerOverlayRenderer
+              && response.playerOverlays.playerOverlayRenderer.decoratedPlayerBarRenderer
+              && response.playerOverlays.playerOverlayRenderer.decoratedPlayerBarRenderer.decoratedPlayerBarRenderer
+              && response.playerOverlays.playerOverlayRenderer.decoratedPlayerBarRenderer.decoratedPlayerBarRenderer.playerBar
+              && response.playerOverlays.playerOverlayRenderer.decoratedPlayerBarRenderer.decoratedPlayerBarRenderer.playerBar.multiMarkersPlayerBarRenderer
+              && response.playerOverlays.playerOverlayRenderer.decoratedPlayerBarRenderer.decoratedPlayerBarRenderer.playerBar.multiMarkersPlayerBarRenderer.markersMap;
+            if (!Array.isArray(maps)) return;
+            maps.forEach(function(map){
+              var chapters = map && map.value && map.value.chapters;
+              if (!Array.isArray(chapters)) return;
+              chapters.forEach(function(chapter){
+                var start = chapter && chapter.chapterRenderer && chapter.chapterRenderer.timeRangeStartMillis;
+                if (start != null) add(list, Number(start) / 1000);
+              });
+            });
+          }
+          function descriptionRoots(){
+            var selectors = [
+              'ytd-watch-metadata',
+              '#description',
+              '#description-inline-expander',
+              'ytd-text-inline-expander',
+              'ytd-expander',
+              'yt-attributed-string',
+              'ytmusic-description-shelf-renderer'
+            ];
+            var roots = [];
+            selectors.forEach(function(selector){
+              Array.prototype.forEach.call(document.querySelectorAll(selector), function(root){
+                if (roots.indexOf(root) < 0) roots.push(root);
+              });
+            });
+            return roots;
+          }
+          function addTimestampAnchor(list, anchor, includeText){
+            var href = anchor.getAttribute('href') || '';
+            try {
+              var url = new URL(href, location.href);
+              add(list, parseTimeParam(url.searchParams.get('t') || url.searchParams.get('start')));
+            } catch(e){}
+            if (includeText) {
+              add(list, parseClock(anchor.textContent || anchor.getAttribute('aria-label') || ''));
+            }
+          }
+          function timestampLinks(list){
+            var roots = descriptionRoots();
+            roots.forEach(function(root){
+              Array.prototype.forEach.call(root.querySelectorAll('a[href]'), function(anchor){
+                addTimestampAnchor(list, anchor, true);
+              });
+            });
+            if (!roots.length) {
+              Array.prototype.forEach.call(document.querySelectorAll('a[href*="t="],a[href*="start="]'), function(anchor){
+                addTimestampAnchor(list, anchor, false);
+              });
+            }
+          }
+          function sectionStarts(){
+            var list = [];
+            playerResponseChapters(list);
+            timestampLinks(list);
+            return list
+              .sort(function(a, b){ return a - b; })
+              .filter(function(value, index, arr){ return index === 0 || Math.abs(value - arr[index - 1]) > 1; });
+          }
+          var starts = sectionStarts();
+          if (!starts.length) { post('section-seek:none'); return; }
+          var now = currentTime();
+          var target = null;
+          if (direction > 0) {
+            target = starts.find(function(start){ return start > now + 2; });
+          } else {
+            for (var i = starts.length - 1; i >= 0; i--) {
+              if (starts[i] < now - 3) { target = starts[i]; break; }
+            }
+          }
+          if (target == null) { post('section-seek:edge'); return; }
+          var mp = player(), v = media();
+          try {
+            if (mp && mp.seekTo) mp.seekTo(target, true);
+            else if (v) v.currentTime = target;
+            if (v && !v.paused) {
+              var play = v.play();
+              if (play && play.catch) play.catch(function(){});
+            }
+            post('section-seek:' + Math.round(target));
+          } catch(e) {
+            post('section-seek:error:' + e);
+          }
+        })();
+        """#
+        eval(js)
+    }
+
     private func ensureWebView() {
-        if webView == nil {
-            let config = WKWebViewConfiguration()
-            config.mediaTypesRequiringUserActionForPlayback = []
-            config.allowsAirPlayForMediaPlayback = true
-            config.websiteDataStore = .default()     // persistent cookies/login
-            let messageProxy = MessageProxy(self)
-            self.messageProxy = messageProxy
-            config.userContentController.add(messageProxy, name: "pomo")
-            // Our "extension": strip the page to just the player while bare.
-            config.userContentController.addUserScript(
-                WKUserScript(source: Self.bareScript, injectionTime: .atDocumentStart, forMainFrameOnly: false)
-            )
-
-            let frame = NSRect(x: 0, y: 0, width: 360, height: 244)
-            let wv = DrawerWebView(frame: frame, configuration: config)
-            wv.owner = self
-            wv.customUserAgent = Self.desktopUA
-            let navProxy = NavProxy(self)
-            self.navProxy = navProxy
-            wv.navigationDelegate = navProxy
-
-            // Rounded container clips the web view and hosts the expand button, so
-            // the drawer reads as a screen tucked against the HUD. Per-corner
-            // rounding (see applyDrawerCorners) squares the edge facing the HUD.
-            let container = NSView(frame: frame)
-            container.wantsLayer = true
-            container.layer?.cornerRadius = Self.drawerRadius
-            container.layer?.masksToBounds = true
-            container.layer?.backgroundColor = NSColor.black.cgColor
-            wv.frame = container.bounds
-            wv.autoresizingMask = [.width, .height]
-            container.addSubview(wv)
-
-            // Branded loading overlay — masks the cold YouTube player load.
-            let loading = PomoLoadingView(frame: container.bounds)
-            loading.autoresizingMask = [.width, .height]
-            loading.alphaValue = 0
-            container.addSubview(loading)
-            self.loadingView = loading
-
-            // Corner overlay buttons, pinned top-right: open-in-browser, then expand.
-            let bsize: CGFloat = 22, margin: CGFloat = 8, gap: CGFloat = 6
-            let expand = Self.overlayButton(symbol: "arrow.up.left.and.arrow.down.right",
-                                            tip: "Expand to full page", target: self, action: #selector(didTapExpand))
-            expand.frame = NSRect(x: frame.width - bsize - margin, y: frame.height - bsize - margin, width: bsize, height: bsize)
-            expand.autoresizingMask = [.minXMargin, .minYMargin]
-            container.addSubview(expand)
-            self.expandButton = expand
-
-            let browser = Self.overlayButton(symbol: "safari",
-                                             tip: "Open in browser", target: self, action: #selector(didTapOpenInBrowser))
-            browser.frame = NSRect(x: frame.width - bsize * 2 - margin - gap, y: frame.height - bsize - margin, width: bsize, height: bsize)
-            browser.autoresizingMask = [.minXMargin, .minYMargin]
-            container.addSubview(browser)
-
-            // Signed-in avatar, pinned top-left (the top-right corner is taken by the
-            // open-in-browser / expand controls). Hidden until we know the identity.
-            let avatarSize: CGFloat = 22
-            let avatar = NSImageView(frame: NSRect(x: margin, y: frame.height - avatarSize - margin, width: avatarSize, height: avatarSize))
-            avatar.wantsLayer = true
-            avatar.layer?.cornerRadius = avatarSize / 2
-            avatar.layer?.masksToBounds = true
-            avatar.layer?.borderWidth = 1
-            avatar.layer?.borderColor = NSColor.white.withAlphaComponent(0.5).cgColor
-            avatar.imageScaling = .scaleProportionallyUpOrDown
-            avatar.autoresizingMask = [.maxXMargin, .minYMargin]
-            avatar.isHidden = !(account.signedIn && account.avatar != nil)
-            avatar.image = account.avatar
-            avatar.toolTip = "Signed in to YouTube"
-            container.addSubview(avatar)
-            self.avatarView = avatar
-
-            let window = NSWindow(contentRect: frame, styleMask: [.borderless], backing: .buffered, defer: false)
-            window.isReleasedWhenClosed = false
-            window.isOpaque = false
-            window.backgroundColor = .clear
-            window.hasShadow = true
-            window.level = .floating
-            window.collectionBehavior = [.canJoinAllSpaces, .fullScreenAuxiliary]
-            window.contentView = container
-            positionBottomRight(window)
-            hostWindow = window
-            webView = wv
-            drawerContainer = container
-            updateExpandButton()
+        guard webView == nil else { return }
+        if let prepared = preparedBrowser {
+            preparedBrowser = nil
+            log("using prepared web player")
+            installBrowserInstance(prepared)
+        } else {
+            installBrowserInstance(makeBrowserInstance())
         }
+    }
+
+    private func makeBrowserInstance() -> BrowserInstance {
+        let config = WKWebViewConfiguration()
+        config.mediaTypesRequiringUserActionForPlayback = []
+        config.allowsAirPlayForMediaPlayback = true
+        config.websiteDataStore = .default()     // persistent cookies/login
+        let messageProxy = MessageProxy(self)
+        config.userContentController.add(messageProxy, name: "pomo")
+        // Our "extension": strip the page to just the player while bare.
+        config.userContentController.addUserScript(
+            WKUserScript(source: Self.bareScript, injectionTime: .atDocumentStart, forMainFrameOnly: false)
+        )
+
+        let frame = NSRect(x: 0, y: 0, width: 360, height: 244)
+        let wv = DrawerWebView(frame: frame, configuration: config)
+        wv.owner = self
+        wv.customUserAgent = Self.desktopUA
+        let navProxy = NavProxy(self)
+        wv.navigationDelegate = navProxy
+
+        // Rounded container clips the web view and hosts the expand button, so
+        // the drawer reads as a screen tucked against the HUD. Per-corner
+        // rounding (see applyDrawerCorners) squares the edge facing the HUD.
+        let container = NSView(frame: frame)
+        container.wantsLayer = true
+        container.layer?.cornerRadius = Self.drawerRadius
+        container.layer?.masksToBounds = true
+        container.layer?.backgroundColor = NSColor.black.cgColor
+        wv.frame = container.bounds
+        wv.autoresizingMask = [.width, .height]
+        container.addSubview(wv)
+
+        // Branded loading overlay — masks the cold YouTube player load.
+        let loading = PomoLoadingView(frame: container.bounds)
+        loading.autoresizingMask = [.width, .height]
+        loading.alphaValue = 0
+        container.addSubview(loading)
+
+        // Corner overlay buttons, pinned top-right: open-in-browser, then expand.
+        let bsize: CGFloat = 22, margin: CGFloat = 8, gap: CGFloat = 6
+        let expand = Self.overlayButton(symbol: "arrow.up.left.and.arrow.down.right",
+                                        tip: "Expand to full page", target: self, action: #selector(didTapExpand))
+        expand.frame = NSRect(x: frame.width - bsize - margin, y: frame.height - bsize - margin, width: bsize, height: bsize)
+        expand.autoresizingMask = [.minXMargin, .minYMargin]
+        container.addSubview(expand)
+
+        let browser = Self.overlayButton(symbol: "safari",
+                                         tip: "Open in browser", target: self, action: #selector(didTapOpenInBrowser))
+        browser.frame = NSRect(x: frame.width - bsize * 2 - margin - gap, y: frame.height - bsize - margin, width: bsize, height: bsize)
+        browser.autoresizingMask = [.minXMargin, .minYMargin]
+        container.addSubview(browser)
+
+        // Signed-in avatar, pinned top-left (the top-right corner is taken by the
+        // open-in-browser / expand controls). Hidden until we know the identity.
+        let avatarSize: CGFloat = 22
+        let avatar = NSImageView(frame: NSRect(x: margin, y: frame.height - avatarSize - margin, width: avatarSize, height: avatarSize))
+        avatar.wantsLayer = true
+        avatar.layer?.cornerRadius = avatarSize / 2
+        avatar.layer?.masksToBounds = true
+        avatar.layer?.borderWidth = 1
+        avatar.layer?.borderColor = NSColor.white.withAlphaComponent(0.5).cgColor
+        avatar.imageScaling = .scaleProportionallyUpOrDown
+        avatar.autoresizingMask = [.maxXMargin, .minYMargin]
+        avatar.isHidden = !(account.signedIn && account.avatar != nil)
+        avatar.image = account.avatar
+        avatar.toolTip = "Signed in to YouTube"
+        container.addSubview(avatar)
+
+        let window = NSWindow(contentRect: frame, styleMask: [.borderless], backing: .buffered, defer: false)
+        window.isReleasedWhenClosed = false
+        window.isOpaque = false
+        window.backgroundColor = .clear
+        window.hasShadow = true
+        window.level = .floating
+        window.collectionBehavior = [.canJoinAllSpaces, .fullScreenAuxiliary]
+        window.contentView = container
+        positionBottomRight(window)
+
+        return BrowserInstance(
+            webView: wv,
+            hostWindow: window,
+            navProxy: navProxy,
+            messageProxy: messageProxy,
+            drawerContainer: container,
+            expandButton: expand,
+            loadingView: loading,
+            avatarView: avatar
+        )
     }
 
     private func positionBottomRight(_ window: NSWindow) {
@@ -996,7 +1310,8 @@ final class WebAudioPlayer: NSObject {
 
     /// Injected after the watch page loads: find <video>, set volume, play, and
     /// report state. Retries because the element appears asynchronously.
-    fileprivate func didFinishNavigation() {
+    fileprivate func didFinishNavigation(for candidate: WKWebView) {
+        guard candidate === webView else { return }
         log("navigation finished")
         let js = """
         (function(){
@@ -1029,6 +1344,7 @@ final class WebAudioPlayer: NSObject {
         eval(js)
         applyBare(!drawerExpanded)        // a fresh navigation re-asserts the bare default
         eval(Self.accountJS)              // read the signed-in identity off the masthead
+        eval(Self.timestampKeyJS)
     }
 
     /// Reads the signed-in avatar (and best-effort name) from the YouTube /
@@ -1075,11 +1391,44 @@ final class WebAudioPlayer: NSObject {
     })();
     """
 
+    private static let timestampKeyJS = """
+    (function(){
+      if (window.__pomoTimestampKeysInstalled) return;
+      window.__pomoTimestampKeysInstalled = true;
+      function post(m){ try{ window.webkit.messageHandlers.pomo.postMessage(m); }catch(e){} }
+      function editableTarget(target) {
+        var el = target;
+        while (el && el !== document.documentElement) {
+          var tag = (el.tagName || '').toLowerCase();
+          if (tag === 'input' || tag === 'textarea' || tag === 'select' || el.isContentEditable) return true;
+          el = el.parentElement;
+        }
+        return false;
+      }
+      document.addEventListener('keydown', function(event){
+        if (event.defaultPrevented || event.metaKey || event.ctrlKey || event.altKey) return;
+        if (event.key !== 'ArrowLeft' && event.key !== 'ArrowRight') return;
+        if (editableTarget(event.target)) return;
+        event.preventDefault();
+        event.stopPropagation();
+        post(event.key === 'ArrowRight' ? 'section-key:next' : 'section-key:previous');
+      }, true);
+    })();
+    """
+
     fileprivate func handlePlayerEvent(_ body: Any) {
         let message = "\(body)"
         log("event: \(message)")
         if message.hasPrefix("account:") {
             handleAccount(String(message.dropFirst("account:".count)))
+            return
+        }
+        if message == "section-key:next" {
+            nextTimestampSection()
+            return
+        }
+        if message == "section-key:previous" {
+            previousTimestampSection()
             return
         }
         if message.contains("state:1") || message == "playing" {
@@ -1092,16 +1441,34 @@ final class WebAudioPlayer: NSObject {
             if message.hasPrefix("playfail") || message == "no-video" { showLoading(false) }
             if message.contains("state:0") {
                 completePendingThresholdPurge(at: "track boundary")
+                completePreparedBrowserSwap(at: "track boundary")
             }
         }
         onStateChange?()
+    }
+
+    fileprivate func handleDrawerKeyDown(_ event: NSEvent) -> Bool {
+        guard drawerOpen, !drawerExpanded else { return false }
+        let flags = event.modifierFlags.intersection(.deviceIndependentFlagsMask)
+        guard flags.subtracting([.shift, .numericPad, .function]).isEmpty else { return false }
+        switch event.keyCode {
+        case 123:
+            previousTimestampSection()
+            return true
+        case 124:
+            nextTimestampSection()
+            return true
+        default:
+            return false
+        }
     }
 
     // MARK: - Loading overlay (branded shimmer over the cold YouTube load)
 
     /// A fresh main-frame navigation started — if the drawer is on screen, cover
     /// it with the branded shimmer until the player reports it's rendering.
-    fileprivate func navigationStarted() {
+    fileprivate func navigationStarted(for candidate: WKWebView) {
+        guard candidate === webView else { return }
         if drawerOpen { showLoading(true) }
     }
 
@@ -1250,10 +1617,10 @@ private final class NavProxy: NSObject, WKNavigationDelegate {
     weak var owner: WebAudioPlayer?
     init(_ owner: WebAudioPlayer) { self.owner = owner }
     func webView(_ webView: WKWebView, didStartProvisionalNavigation navigation: WKNavigation!) {
-        Task { @MainActor in self.owner?.navigationStarted() }
+        Task { @MainActor in self.owner?.navigationStarted(for: webView) }
     }
     func webView(_ webView: WKWebView, didFinish navigation: WKNavigation!) {
-        Task { @MainActor in self.owner?.didFinishNavigation() }
+        Task { @MainActor in self.owner?.didFinishNavigation(for: webView) }
     }
 }
 
@@ -1263,6 +1630,11 @@ private final class NavProxy: NSObject, WKNavigationDelegate {
 /// web-content menu through the former; a `rightMouseDown` override is bypassed.
 final class DrawerWebView: WKWebView {
     weak var owner: WebAudioPlayer?
+
+    override func keyDown(with event: NSEvent) {
+        if MainActor.assumeIsolated({ owner?.handleDrawerKeyDown(event) ?? false }) { return }
+        super.keyDown(with: event)
+    }
 
     override func willOpenMenu(_ menu: NSMenu, with event: NSEvent) {
         MainActor.assumeIsolated {

@@ -130,16 +130,15 @@ drops and bounces without querying the YouTube page.
 - `webAudio`: `bands`, `waveform`, `rms`, `peak`, `low`, `mid`, `high`, and
   `drop` are derived from a live Web Audio analyser attached to the YouTube media
   element as it plays.
-- `screenCapture`: Web Audio was unavailable or silent, so the native host is
-  deriving scope data from ScreenCaptureKit audio for the app's playing WebKit
-  content.
+- `coreAudioTap`: Web Audio was unavailable or silent, so the native host is
+  deriving scope data from a Core Audio process tap.
 - `none`: no audio scope is available yet.
 - `stale`: the last analyser frame is too old to trust.
 - `blocked`: WebKit/YouTube blocked analysis or the analyser returned silent
   data while playback was active. Check `sourceError`.
 
 Pomo Amp does not synthesize fake beat, BPM, or spectrum data. If `source` is not
-`webAudio` or `screenCapture`, skins should render a quiet visualizer state.
+`webAudio` or `coreAudioTap`, skins should render a quiet visualizer state.
 `beatIndex`, `beatPhase`, `barIndex`, and `barPhase` are reserved for future
 native beat detection and are not meaningful yet.
 

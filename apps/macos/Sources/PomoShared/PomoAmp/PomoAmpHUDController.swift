@@ -89,6 +89,29 @@ final class PomoAmpHUDController {
         }
     }
 
+    func showVideo() {
+        show()
+        showDrawer()
+    }
+
+    func hideVideo() {
+        hideDrawer()
+    }
+
+    func toggleVideo() {
+        audio.videoVisible ? hideVideo() : showVideo()
+    }
+
+    func showVideoPageMode() {
+        show()
+        showVideoPage()
+    }
+
+    func showVideoPlayerMode() {
+        show()
+        showVideoPlayer()
+    }
+
     func showShortcutsOverlay() {
         show()
         chrome.showShortcuts = true

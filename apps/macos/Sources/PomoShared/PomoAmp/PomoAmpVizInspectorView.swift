@@ -68,7 +68,7 @@ struct PomoAmpVizInspectorView: View {
 
     private var sourceColor: Color {
         switch viz.source {
-        case "webAudio", "screenCapture", "coreAudioTap":
+        case "webAudio", "coreAudioTap":
             return Color(red: 0.51, green: 0.90, blue: 0.69)
         case "blocked":
             return Color(red: 0.96, green: 0.59, blue: 0.37)

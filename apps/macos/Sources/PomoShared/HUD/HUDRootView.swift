@@ -16,6 +16,7 @@ struct HUDRootView: View {
     let size: CGSize
     /// Dismiss the HUD (right-click → Hide). Wired by HUDController.
     var onHide: (() -> Void)? = nil
+    var onToggleVideoDrawer: (() -> Void)? = nil
     /// Editing a quick field → make the panel fully opaque so the card is crisp
     /// rather than bleeding the face + desktop through the panel's translucency.
     var onEditingChange: ((Bool) -> Void)? = nil
@@ -32,6 +33,10 @@ struct HUDRootView: View {
                 else { audio.resume(stored: settings.audioURL) }
             },
             toggleDrawer: {
+                if let onToggleVideoDrawer {
+                    onToggleVideoDrawer()
+                    return
+                }
                 // Opening with nothing loaded yet? Kick off the saved station so
                 // the drawer has something to show.
                 if !audio.videoVisible, !audio.isPlaying, audio.currentURL.isEmpty,

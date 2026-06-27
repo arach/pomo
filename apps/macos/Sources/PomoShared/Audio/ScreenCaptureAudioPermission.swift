@@ -2,13 +2,12 @@ import AppKit
 import Combine
 import CoreGraphics
 import Foundation
-import ScreenCaptureKit
 import SwiftUI
 
 enum ScreenCaptureAudioPermission {
     static let neededMessage = "audio scope needs macOS screen/system audio permission"
     static let requirementLabel = "Screen & System Audio Recording"
-    private static let successfulAccessUntilKey = "pomo.screenCaptureAudio.successfulAccessUntil"
+    private static let successfulAccessUntilKey = "pomo.visualizerAudio.successfulAccessUntil"
     private static let successfulAccessTTL: TimeInterval = 60 * 60
 
     static var systemReportsAccess: Bool {
@@ -66,16 +65,7 @@ final class ScreenCaptureAudioPermissionChecker: ObservableObject {
 
     private var pollTimer: Timer?
     private var burstRefreshTask: Task<Void, Never>?
-    private var probeInFlight = false
-    private var probeGrantedUntil: Date?
-    private var probeCooldownUntil: Date?
     private var hasLoggedIdentity = false
-    private static let deniedProbeCooldown: TimeInterval = 20
-    private static let successfulProbeTTL: TimeInterval = 8
-
-    var hasRecentProbeGrant: Bool {
-        probeGrantedUntil.map { $0 > Date() } ?? false
-    }
 
     var granted: Bool {
         screenAudio || ScreenCaptureAudioPermission.hasAccess
@@ -83,29 +73,19 @@ final class ScreenCaptureAudioPermissionChecker: ObservableObject {
 
     func noteSuccessfulAccess(reason: String) {
         ScreenCaptureAudioPermission.recordSuccessfulAccess()
-        probeGrantedUntil = Date().addingTimeInterval(Self.successfulProbeTTL)
-        probeCooldownUntil = nil
         screenAudio = true
         refreshInFlight = false
         lastCheckedAt = Date()
         lastMessage = "\(ScreenCaptureAudioPermission.requirementLabel) is enabled."
-        print("[pomo-permissions] successful ScreenCaptureKit access (\(reason))")
+        print("[pomo-permissions] successful visualizer audio capture access (\(reason))")
         stopPolling()
     }
 
-    func check(pollIfMissing: Bool = false, probeIfMissing: Bool = false) {
-        let now = Date()
-        lastCheckedAt = now
+    func check(pollIfMissing: Bool = false) {
+        lastCheckedAt = Date()
 
         let preflight = CGPreflightScreenCaptureAccess()
-        if preflight {
-            probeGrantedUntil = nil
-            probeCooldownUntil = nil
-        } else if !(probeGrantedUntil.map { $0 > now } ?? false) {
-            probeGrantedUntil = nil
-        }
-
-        let next = ScreenCaptureAudioPermission.hasAccess || hasRecentProbeGrant
+        let next = ScreenCaptureAudioPermission.hasAccess
         if next != screenAudio {
             lastMessage = next
                 ? "\(ScreenCaptureAudioPermission.requirementLabel) is enabled."
@@ -128,10 +108,6 @@ final class ScreenCaptureAudioPermissionChecker: ObservableObject {
         } else if pollIfMissing {
             startPolling()
         }
-
-        if probeIfMissing && !screenAudio {
-            probeScreenCapturePermissionIfNeeded()
-        }
     }
 
     func requestScreenAudio() {
@@ -145,38 +121,13 @@ final class ScreenCaptureAudioPermissionChecker: ObservableObject {
         let requestResult = CGRequestScreenCaptureAccess()
         print("[pomo-permissions] CGRequestScreenCaptureAccess() -> \(requestResult)")
         if requestResult {
-            probeGrantedUntil = Date().addingTimeInterval(Self.successfulProbeTTL)
             screenAudio = true
             refreshInFlight = false
             lastMessage = "\(ScreenCaptureAudioPermission.requirementLabel) is enabled."
             return
         }
 
-        if #available(macOS 15.0, *) {
-            Task { @MainActor [weak self] in
-                guard let self else { return }
-                let shareableProbe = await self.probeShareableContent()
-                print("[pomo-permissions] ScreenCaptureKit shareable probe -> \(shareableProbe)")
-                if shareableProbe.hasPrefix("ok ") {
-                    self.noteSuccessfulAccess(reason: "shareable probe")
-                }
-
-                if #available(macOS 15.2, *) {
-                    let afterShareable = CGPreflightScreenCaptureAccess()
-                    if !afterShareable {
-                        let screenshotProbe = await self.probeScreenshot()
-                        print("[pomo-permissions] ScreenCaptureKit screenshot probe -> \(screenshotProbe)")
-                        if screenshotProbe == "ok" {
-                            self.noteSuccessfulAccess(reason: "screenshot probe")
-                        }
-                    }
-                }
-
-                self.finishRequestAfterProbe()
-            }
-        } else {
-            finishRequestAfterProbe()
-        }
+        finishRequestAfterPermissionRequest()
     }
 
     func openSettings() {
@@ -189,12 +140,12 @@ final class ScreenCaptureAudioPermissionChecker: ObservableObject {
         check()
     }
 
-    func recheckNow(reason: String = "manual", probeIfMissing: Bool = true) {
+    func recheckNow(reason: String = "manual") {
         print("[pomo-permissions] recheck requested (\(reason))")
         burstRefreshTask?.cancel()
         refreshInFlight = true
-        check(pollIfMissing: true, probeIfMissing: probeIfMissing)
-        schedulePermissionRefresh(probeScreenAudio: probeIfMissing)
+        check(pollIfMissing: true)
+        schedulePermissionRefresh()
     }
 
     func resetSavedApproval() {
@@ -202,7 +153,6 @@ final class ScreenCaptureAudioPermissionChecker: ObservableObject {
         guard !bundleId.isEmpty else { return }
         refreshInFlight = true
         screenAudio = false
-        probeGrantedUntil = nil
         lastMessage = "Clearing saved macOS permission row..."
 
         DispatchQueue.global(qos: .userInitiated).async {
@@ -217,7 +167,7 @@ final class ScreenCaptureAudioPermissionChecker: ObservableObject {
                     self.lastMessage = "Could not clear the saved row: \(detail)"
                 }
                 self.openSettings()
-                self.schedulePermissionRefresh(probeScreenAudio: true)
+                self.schedulePermissionRefresh()
             }
         }
     }
@@ -234,7 +184,7 @@ final class ScreenCaptureAudioPermissionChecker: ObservableObject {
         NSApp.terminate(nil)
     }
 
-    func schedulePermissionRefresh(probeScreenAudio: Bool = false) {
+    func schedulePermissionRefresh() {
         burstRefreshTask?.cancel()
         refreshInFlight = true
         burstRefreshTask = Task { @MainActor [weak self] in
@@ -253,13 +203,13 @@ final class ScreenCaptureAudioPermissionChecker: ObservableObject {
             for delay in delays {
                 try? await Task.sleep(nanoseconds: delay)
                 guard !Task.isCancelled else { return }
-                self.check(pollIfMissing: true, probeIfMissing: probeScreenAudio)
+                self.check(pollIfMissing: true)
             }
         }
     }
 
-    private func finishRequestAfterProbe() {
-        screenAudio = ScreenCaptureAudioPermission.hasAccess || hasRecentProbeGrant
+    private func finishRequestAfterPermissionRequest() {
+        screenAudio = ScreenCaptureAudioPermission.hasAccess
         refreshInFlight = false
 
         if screenAudio {
@@ -269,65 +219,7 @@ final class ScreenCaptureAudioPermissionChecker: ObservableObject {
             lastMessage = "Open System Settings, add Pomo Amp if needed, and toggle it on."
             openSettings()
             startPolling()
-            schedulePermissionRefresh(probeScreenAudio: true)
-        }
-    }
-
-    @available(macOS 15.0, *)
-    private func probeShareableContent() async -> String {
-        await withCheckedContinuation { continuation in
-            SCShareableContent.getExcludingDesktopWindows(true, onScreenWindowsOnly: true) { content, error in
-                if let error {
-                    continuation.resume(returning: "error \(Self.describe(error))")
-                    return
-                }
-
-                let windows = content?.windows.count ?? 0
-                let displays = content?.displays.count ?? 0
-                let apps = content?.applications.count ?? 0
-                continuation.resume(returning: "ok windows=\(windows) displays=\(displays) apps=\(apps)")
-            }
-        }
-    }
-
-    @available(macOS 15.2, *)
-    private func probeScreenshot() async -> String {
-        let rect = CGRect(x: 0, y: 0, width: 1, height: 1)
-        return await withCheckedContinuation { continuation in
-            SCScreenshotManager.captureImage(in: rect) { _, error in
-                if let error {
-                    continuation.resume(returning: "error \(Self.describe(error))")
-                } else {
-                    continuation.resume(returning: "ok")
-                }
-            }
-        }
-    }
-
-    private func probeScreenCapturePermissionIfNeeded() {
-        guard !probeInFlight else { return }
-        guard #available(macOS 15.0, *) else { return }
-        if let cooldownUntil = probeCooldownUntil, cooldownUntil > Date() {
-            return
-        }
-
-        probeInFlight = true
-        probeCooldownUntil = Date().addingTimeInterval(2)
-
-        Task { @MainActor [weak self] in
-            guard let self else { return }
-            let result = await self.probeShareableContent()
-            self.probeInFlight = false
-            print("[pomo-permissions] ScreenCaptureKit permission recheck probe -> \(result)")
-
-            guard result.hasPrefix("ok ") else {
-                self.probeGrantedUntil = nil
-                self.probeCooldownUntil = Date().addingTimeInterval(Self.deniedProbeCooldown)
-                self.screenAudio = CGPreflightScreenCaptureAccess()
-                return
-            }
-
-            self.noteSuccessfulAccess(reason: "permission recheck probe")
+            schedulePermissionRefresh()
         }
     }
 
@@ -346,14 +238,6 @@ final class ScreenCaptureAudioPermissionChecker: ObservableObject {
         burstRefreshTask?.cancel()
         burstRefreshTask = nil
         refreshInFlight = false
-    }
-
-    nonisolated private static func describe(_ error: Error) -> String {
-        let nsError = error as NSError
-        if nsError.localizedDescription.isEmpty {
-            return "\(nsError.domain)#\(nsError.code)"
-        }
-        return "\(nsError.domain)#\(nsError.code) \(nsError.localizedDescription)"
     }
 
     nonisolated private static func runTccutilReset(service: String, bundleId: String) -> (status: Int32, output: String) {
@@ -645,7 +529,7 @@ private struct ScreenCaptureAudioPermissionAssistantView: View {
                 } label: {
                     Label("Clear Row", systemImage: "trash")
                 }
-                .help("Clears the saved macOS ScreenCapture permission row for this Pomo Amp bundle id.")
+                .help("Clears the saved macOS permission row for this Pomo Amp bundle id.")
             }
 
             Spacer()
@@ -780,7 +664,14 @@ private final class PomoAmpPermissionAppDragTileView: NSView, NSDraggingSource {
             width: iconSize,
             height: iconSize
         )
-        appIcon.draw(in: iconRect, from: .zero, operation: .sourceOver, fraction: isDragEnabled ? 1 : 0.45)
+        appIcon.draw(
+            in: iconRect,
+            from: NSRect(origin: .zero, size: appIcon.size),
+            operation: .sourceOver,
+            fraction: isDragEnabled ? 1 : 0.45,
+            respectFlipped: true,
+            hints: nil
+        )
 
         if let symbol = NSImage(
             systemSymbolName: isDragEnabled ? "hand.draw" : "checkmark.circle.fill",

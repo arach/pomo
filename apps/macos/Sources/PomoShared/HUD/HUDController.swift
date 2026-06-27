@@ -23,6 +23,10 @@ final class HUDController {
     /// Opens the settings window (⌘,). Wired by AppDelegate.
     var onOpenSettings: (() -> Void)?
 
+    /// Lets Pomo hand video drawer commands to Pomo Amp when the music app is
+    /// already running, while preserving the local drawer fallback otherwise.
+    var onVideoCommand: ((PomoCommand) -> Bool)?
+
     /// Fired after the HUD is summoned/dismissed so the app can match its Dock
     /// presence to HUD visibility (a regular Dock app while shown — so it's
     /// ⌘-Tab-able — dropping back to a menu-bar accessory when hidden).
@@ -58,6 +62,7 @@ final class HUDController {
                 chrome: chrome,
                 size: contentSize,
                 onHide: { [weak self] in self?.hide() },
+                onToggleVideoDrawer: { [weak self] in self?.toggleVideoDrawer() },
                 onEditingChange: { [weak self] editing in self?.setEditingFocus(editing) }
             )
         )
@@ -243,6 +248,7 @@ final class HUDController {
     /// Show / hide the docked video drawer. Mirrors the on-face button: if nothing
     /// is loaded yet, kick off the saved station so the drawer has something to show.
     private func toggleVideoDrawer() {
+        if onVideoCommand?(.videoToggle) == true { return }
         if !audio.videoVisible, !audio.isPlaying, audio.currentURL.isEmpty, !settings.audioURL.isEmpty {
             audio.play(urlString: settings.audioURL)
         }

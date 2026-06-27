@@ -78,7 +78,7 @@ enum PomoAmpVizAnalyzer {
         }
 
         let age = max(0, hostTime - scope.hostTime)
-        let maxAge = scope.source == "screenCapture" || scope.source == "coreAudioTap"
+        let maxAge = scope.source == "coreAudioTap"
             ? nativeAudioScopeFreshnessSeconds
             : webAudioScopeFreshnessSeconds
         guard age <= maxAge else {

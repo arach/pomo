@@ -209,7 +209,7 @@ jobs:
           cat > "$notes_path" <<EOF
           Release $VERSION
 
-          Download and install Pomo for Mac.
+          Download and install Pomo and Pomo Amp for Mac.
           EOF
 
           if gh release view "$release_tag" >/dev/null 2>&1; then

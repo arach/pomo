@@ -42,7 +42,7 @@ scripts/run-app.sh --restart        # quit a running copy before launching
 scripts/run-app.sh --no-open        # build dist/Pomo.app without launching
 scripts/run-app.sh --amp --debug    # build and launch the Pomo Amp music-player app
 scripts/run-app.sh --no-open --sign -  # local ad-hoc signature
-scripts/build-dmg.sh --local        # build a local smoke-test dist/Pomo.dmg
+scripts/build-dmg.sh --local        # build a local smoke-test DMG with Pomo + Pomo Amp
 open dist/Pomo.app                  # launch the built app later
 ```
 
@@ -96,15 +96,16 @@ codesign --verify --deep --strict --verbose=2 dist/Pomo.app
 open dist/Pomo.app
 ```
 
-To package the app as a drag-to-Applications DMG for local testing:
+To package Pomo and Pomo Amp as peer apps in a drag-to-Applications DMG for local testing:
 
 ```sh
 scripts/build-dmg.sh --local
 open dist/Pomo.dmg
 ```
 
-That DMG is convenient for local testing, but it is still not a publicly trusted
-download unless you sign and notarize it.
+That DMG contains `Pomo.app`, `Pomo Amp.app`, and an Applications shortcut. It is
+convenient for local testing, but it is still not a publicly trusted download
+unless you sign and notarize it.
 
 For a build you plan to share, use an Apple Developer ID Application certificate
 and notarize the DMG. Replace the identity and notary profile names with your own:
@@ -154,6 +155,9 @@ The workflow creates or updates release `v<version>` with:
 Pomo.dmg
 Pomo-<version>.dmg
 ```
+
+Both assets are the same notarized product DMG. The mounted volume contains
+`Pomo.app`, `Pomo Amp.app`, and an Applications shortcut.
 
 The landing page downloads from:
 
@@ -225,11 +229,13 @@ clean clone builds standalone. The first build downloads the release XCFramework
 
 ## Pomo Amp
 
-`Pomo Amp` is a sibling macOS product built from the same shared native code. It uses
-the YouTube/audio engine and timestamp navigation as a compact music player, with
-`⌃⌥⇧⌘Y` as its default summon hotkey on a fresh profile. Drag the top strip
-to move it, press `B` or the top-right big button to switch sizes, and use the
-small Pomo icon to show or hide Pomo from Amp.
+`Pomo Amp` is a sibling macOS product built from the same shared native code and
+shipped in the same DMG as `Pomo.app`. It uses the YouTube/audio engine and
+timestamp navigation as a compact music player, with `⌃⌥⇧⌘Y` as its default
+summon hotkey on a fresh profile. Drag the top strip to move it, press `B` or the
+top-right big button to switch sizes, and use the small Pomo icon to show or hide
+Pomo from Amp. When Pomo Amp is already running, Pomo defers video show/hide
+commands to Amp while keeping Pomo's timer lifecycle independent.
 
 ```sh
 cd apps/macos

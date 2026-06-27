@@ -27,7 +27,7 @@ scripts/run-app.sh            # build dist/Pomo.app and launch
 scripts/run-app.sh --no-open  # build only
 scripts/run-app.sh --debug    # faster local build
 scripts/run-app.sh --amp --debug  # build and launch Pomo Amp
-scripts/build-dmg.sh --local  # build a local smoke-test dist/Pomo.dmg
+scripts/build-dmg.sh --local  # build a local smoke-test DMG with Pomo + Pomo Amp
 ```
 
 No private checkout needed — HudsonKit is consumed as a public, prebuilt **binary**

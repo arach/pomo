@@ -41,8 +41,10 @@ enum PomoCommand {
     case openSettings
     case quit
 
-    init?(url: URL) {
-        guard url.scheme?.lowercased() == "pomo" else { return nil }
+    init?(url: URL, allowedSchemes: Set<String> = ["pomo"]) {
+        guard let scheme = url.scheme?.lowercased(),
+              allowedSchemes.contains(scheme)
+        else { return nil }
         let comps = URLComponents(url: url, resolvingAgainstBaseURL: false)
         let host = (comps?.host ?? url.host ?? "").lowercased()
         let path = (comps?.path ?? url.path)

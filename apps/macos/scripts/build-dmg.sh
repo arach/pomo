@@ -5,7 +5,9 @@ script_dir="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 repo_root="$(cd "$script_dir/.." && pwd)"
 
 app_name="Pomo"
+amp_app_name="Pomo Amp"
 app_path="${POMO_APP_PATH:-$repo_root/dist/$app_name.app}"
+amp_app_path="${POMO_AMP_APP_PATH:-$repo_root/dist/$amp_app_name.app}"
 dmg_path="${POMO_DMG_PATH:-$repo_root/dist/$app_name.dmg}"
 volname="${POMO_DMG_VOLUME_NAME:-$app_name}"
 version="${POMO_VERSION:-0.1.0}"
@@ -25,14 +27,15 @@ sign_identity="${POMO_SIGN_IDENTITY:-$(default_sign_identity || true)}"
 
 usage() {
   cat <<EOF
-Usage: build-dmg.sh [--debug] [--local] [--no-build] [--app PATH] [--output PATH] [--volname NAME]
+Usage: build-dmg.sh [--debug] [--local] [--no-build] [--app PATH] [--amp-app PATH] [--output PATH] [--volname NAME]
 
-Builds, signs, notarizes, and packages Pomo.app into a drag-to-Applications DMG.
+Builds, signs, notarizes, and packages Pomo.app plus Pomo Amp.app into a drag-to-Applications DMG.
 
-  --debug          Build the debug app before packaging
+  --debug          Build debug apps before packaging
   --local          Build a local unsigned smoke DMG; skips signing and notarization
-  --no-build       Package an existing app bundle
-  --app PATH       App bundle to build/package (default: $app_path)
+  --no-build       Package existing app bundles
+  --app PATH       Pomo app bundle to build/package (default: $app_path)
+  --amp-app PATH   Pomo Amp app bundle to build/package (default: $amp_app_path)
   --output PATH    DMG output path (default: $dmg_path)
   --volname NAME   Mounted volume name (default: $volname)
 
@@ -67,6 +70,15 @@ while [[ $# -gt 0 ]]; do
         exit 64
       fi
       app_path="$2"
+      shift 2
+      ;;
+    --amp-app)
+      if [[ $# -lt 2 || "${2:-}" == --* ]]; then
+        echo "--amp-app requires a path." >&2
+        usage
+        exit 64
+      fi
+      amp_app_path="$2"
       shift 2
       ;;
     --output)
@@ -133,21 +145,34 @@ if [[ "$build_app" == true ]]; then
   POMO_APP_PATH="$app_path" POMO_VERSION="$version" \
     POMO_BUNDLE_ID="${POMO_BUNDLE_ID:-dev.pomo.hud}" POMO_DISPLAY_NAME="${POMO_DISPLAY_NAME:-Pomo}" \
     "$repo_root/scripts/run-app.sh" "${run_args[@]}"
+
+  POMO_APP_PATH="$amp_app_path" POMO_VERSION="$version" \
+    POMO_BUNDLE_ID="${POMO_AMP_BUNDLE_ID:-dev.pomo.amp}" \
+    POMO_DISPLAY_NAME="${POMO_AMP_DISPLAY_NAME:-Pomo Amp}" \
+    POMO_SUPPORT_DIR="${POMO_AMP_SUPPORT_DIR:-Pomo Amp}" \
+    POMO_URL_SCHEME="${POMO_AMP_URL_SCHEME:-pomo-amp}" \
+    "$repo_root/scripts/run-app.sh" --amp "${run_args[@]}"
 elif [[ "$skip_sign" != "1" ]]; then
   echo "Signing $app_path"
   codesign --force --deep --options runtime --timestamp --sign "$sign_identity" "$app_path"
   codesign --verify --deep --strict --verbose=2 "$app_path"
+
+  echo "Signing $amp_app_path"
+  codesign --force --deep --options runtime --timestamp --sign "$sign_identity" "$amp_app_path"
+  codesign --verify --deep --strict --verbose=2 "$amp_app_path"
 fi
 
-if [[ ! -d "$app_path" ]]; then
-  echo "App bundle not found: $app_path" >&2
-  exit 66
-fi
+for bundle in "$app_path" "$amp_app_path"; do
+  if [[ ! -d "$bundle" ]]; then
+    echo "App bundle not found: $bundle" >&2
+    exit 66
+  fi
 
-if [[ ! -f "$app_path/Contents/Info.plist" ]]; then
-  echo "That does not look like a macOS .app bundle: $app_path" >&2
-  exit 65
-fi
+  if [[ ! -f "$bundle/Contents/Info.plist" ]]; then
+    echo "That does not look like a macOS .app bundle: $bundle" >&2
+    exit 65
+  fi
+done
 
 mkdir -p "$(dirname "$dmg_path")" "$repo_root/dist"
 staging_dir="$(mktemp -d "$repo_root/dist/dmg-staging.XXXXXXXX")"
@@ -158,6 +183,7 @@ trap cleanup EXIT
 
 echo "Packaging $dmg_path"
 ditto "$app_path" "$staging_dir/$app_name.app"
+ditto "$amp_app_path" "$staging_dir/$amp_app_name.app"
 ln -s /Applications "$staging_dir/Applications"
 
 rm -f "$dmg_path"

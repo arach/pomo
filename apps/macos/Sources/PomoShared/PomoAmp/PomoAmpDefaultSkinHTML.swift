@@ -1,0 +1,1722 @@
+import Foundation
+
+enum PomoAmpDefaultSkinHTML {
+    static let html = #"""
+<!doctype html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Pomo Amp Studio</title>
+  <style>
+    :root {
+      color-scheme: dark;
+      --bg: #0b0d10;
+      --panel: rgba(17, 19, 22, 0.92);
+      --panel-solid: #141619;
+      --line: rgba(255, 255, 255, 0.10);
+      --line-soft: rgba(255, 255, 255, 0.12);
+      --text: #f2f1ec;
+      --muted: rgba(242, 241, 236, 0.54);
+      --green: #8fd8c2;
+      --green-2: #6ebca8;
+      --amber: #c6a46a;
+      --blue: #91b1ce;
+      --red: #d98a78;
+      --shadow: 0 10px 26px rgba(0, 0, 0, 0.38);
+      font-family: ui-monospace, "SFMono-Regular", "Menlo", "Monaco", monospace;
+    }
+
+    * { box-sizing: border-box; }
+    html, body { margin: 0; width: 100%; height: 100%; overflow: hidden; background: transparent; }
+    body {
+      min-width: 360px;
+      min-height: 190px;
+      color: var(--text);
+      user-select: none;
+      -webkit-user-select: none;
+      letter-spacing: 0;
+    }
+
+    button {
+      appearance: none;
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      flex: 0 0 auto;
+      border: 1px solid rgba(255, 255, 255, 0.11);
+      background: rgba(255, 255, 255, 0.055);
+      color: var(--text);
+      border-radius: 7px;
+      height: 28px;
+      min-width: 32px;
+      padding: 0 10px;
+      font: 800 10px/1 ui-monospace, "SFMono-Regular", monospace;
+      letter-spacing: 0.04em;
+      white-space: nowrap;
+      word-break: keep-all;
+      overflow: hidden;
+      text-overflow: clip;
+      box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.08);
+    }
+
+    button:hover { border-color: rgba(143, 216, 194, 0.42); color: var(--green); }
+    button:active { transform: translateY(1px); }
+    button.primary {
+      width: 46px;
+      min-width: 46px;
+      color: #092018;
+      border-color: rgba(143, 216, 194, 0.70);
+      background: linear-gradient(180deg, #a8ead8, #66cdb2);
+      box-shadow: 0 0 12px rgba(143, 216, 194, 0.14);
+    }
+    button.orange {
+      color: #eadbc2;
+      border-color: rgba(198, 164, 106, 0.34);
+      background: rgba(198, 164, 106, 0.10);
+    }
+    button.icon { padding: 0; width: 32px; min-width: 32px; font-size: 12px; letter-spacing: 0; }
+    button.slim { height: 24px; min-width: 24px; padding: 0 7px; border-radius: 6px; }
+
+    .deck {
+      position: absolute;
+      inset: 0;
+      display: grid;
+      grid-template-rows: 27px minmax(0, 1fr) 42px;
+      gap: 5px;
+      padding: 8px 9px 7px;
+      border: 1px solid rgba(255, 255, 255, 0.10);
+      border-radius: 8px;
+      overflow: hidden;
+      background:
+        linear-gradient(120deg, rgba(143, 216, 194, 0.055), transparent 38%),
+        rgba(11, 13, 16, 0.97);
+      box-shadow: var(--shadow);
+    }
+
+    .deck::before {
+      content: "";
+      position: absolute;
+      inset: 0;
+      background-image: var(--thumb);
+      background-size: cover;
+      background-position: center;
+      opacity: 0.08;
+      filter: saturate(1.04);
+      transform: scale(1.02);
+      pointer-events: none;
+    }
+
+    .deck::after {
+      content: "";
+      position: absolute;
+      inset: 0;
+      background: linear-gradient(180deg, rgba(0, 0, 0, 0.28), rgba(0, 0, 0, 0.62));
+      pointer-events: none;
+    }
+
+    .top, .face, .controls { position: relative; z-index: 1; }
+
+    .top {
+      display: grid;
+      grid-template-columns: max-content minmax(0, 1fr) max-content;
+      align-items: center;
+      gap: 9px;
+      min-width: 0;
+    }
+
+    .brand {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      min-width: 0;
+      font-weight: 850;
+      color: var(--green);
+      letter-spacing: 0.14em;
+      font-size: 11px;
+      white-space: nowrap;
+    }
+    .brand-dot {
+      width: 7px;
+      height: 7px;
+      border-radius: 999px;
+      background: var(--green);
+      box-shadow: 0 0 7px rgba(143, 216, 194, 0.34);
+    }
+    .brand .studio {
+      color: rgba(242, 240, 232, 0.42);
+      font-size: 9px;
+      letter-spacing: 0.14em;
+    }
+
+    .preset-strip {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      min-width: 0;
+      gap: 5px;
+      overflow: hidden;
+    }
+    .preset-name {
+      flex: 0 0 106px;
+      width: 106px;
+      min-width: 106px;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+      text-align: center;
+      border: 1px solid rgba(143, 216, 194, 0.20);
+      border-radius: 6px;
+      padding: 4px 8px;
+      color: var(--green);
+      background: rgba(143, 216, 194, 0.055);
+      font-size: 9px;
+      font-weight: 850;
+      letter-spacing: 0.07em;
+    }
+    .status {
+      display: flex;
+      align-items: center;
+      justify-content: flex-end;
+      gap: 7px;
+      min-width: 124px;
+      white-space: nowrap;
+      color: var(--muted);
+      font-size: 9px;
+      font-weight: 900;
+      letter-spacing: 0.11em;
+    }
+    .status strong { color: rgba(242, 240, 232, 0.48); }
+
+    .face {
+      min-height: 0;
+      overflow: hidden;
+      border: 1px solid rgba(255, 255, 255, 0.10);
+      border-radius: 7px;
+      background:
+        linear-gradient(180deg, rgba(18, 22, 24, 0.80), rgba(5, 7, 8, 0.86)),
+        rgba(0, 0, 0, 0.78);
+      box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.08);
+    }
+
+    .face canvas {
+      display: block;
+      width: 100%;
+      height: 100%;
+    }
+
+    .nowplaying {
+      position: relative;
+      display: block;
+      padding: 8px;
+    }
+    .np-main {
+      position: absolute;
+      inset: 8px;
+      min-width: 0;
+      overflow: hidden;
+      border-radius: 5px;
+      border: 1px solid rgba(121, 242, 173, 0.18);
+      background: rgba(0, 0, 0, 0.38);
+    }
+    .np-main .viz-main { position: absolute; inset: 0; opacity: 0.94; }
+    .np-copy {
+      position: absolute;
+      inset: 10px 126px 10px 10px;
+      display: flex;
+      flex-direction: column;
+      justify-content: space-between;
+      min-width: 0;
+      pointer-events: none;
+    }
+    .label-row {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 8px;
+      min-width: 0;
+      color: var(--green);
+      font-weight: 900;
+      font-size: 10px;
+      letter-spacing: 0.11em;
+    }
+    .label-row span:last-child { color: var(--amber); }
+    .title {
+      min-width: 0;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+      color: var(--text);
+      font: 900 18px/1.15 ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, sans-serif;
+      letter-spacing: 0;
+      text-shadow: 0 2px 12px rgba(0, 0, 0, 0.75);
+    }
+    .source {
+      color: rgba(242, 245, 238, 0.56);
+      font-size: 10px;
+      font-weight: 800;
+      letter-spacing: 0.05em;
+    }
+
+    .side-stack {
+      position: absolute;
+      top: 8px;
+      right: 8px;
+      bottom: 8px;
+      width: 110px;
+      z-index: 2;
+      display: grid;
+      grid-template-rows: 1fr 34px 34px;
+      gap: 6px;
+      min-width: 0;
+      min-height: 0;
+    }
+    .art {
+      min-height: 0;
+      overflow: hidden;
+      border-radius: 5px;
+      border: 1px solid rgba(255, 255, 255, 0.10);
+      background:
+        linear-gradient(135deg, rgba(121, 242, 173, 0.13), rgba(255, 155, 82, 0.10)),
+        #070807;
+    }
+    .art img {
+      width: 100%;
+      height: 100%;
+      object-fit: cover;
+      display: block;
+      opacity: 0.74;
+      filter: saturate(1.14) contrast(1.04);
+    }
+    .mini-meter {
+      position: relative;
+      overflow: hidden;
+      border-radius: 5px;
+      border: 1px solid rgba(255, 255, 255, 0.09);
+      background: rgba(0, 0, 0, 0.36);
+    }
+    .mini-meter .meter-label {
+      position: absolute;
+      top: 4px;
+      left: 6px;
+      z-index: 1;
+      color: rgba(242, 245, 238, 0.45);
+      font-size: 8px;
+      font-weight: 900;
+      letter-spacing: 0.16em;
+    }
+
+    .studio-face {
+      position: relative;
+      display: block;
+      padding: 0;
+    }
+    .module {
+      min-width: 0;
+      min-height: 0;
+      overflow: hidden;
+      border-radius: 5px;
+      border: 1px solid rgba(255, 255, 255, 0.10);
+      background: rgba(0, 0, 0, 0.42);
+      padding: 8px;
+    }
+    .module.tight { padding: 0; }
+    .studio-face .module.tight,
+    .modules-face .module.tight {
+      position: absolute;
+      inset: 0;
+      border: 0;
+      border-radius: 0;
+      background: transparent;
+    }
+    .studio-face > .module:not(.tight),
+    .modules-face > .module:not(.tight) {
+      position: absolute;
+      z-index: 2;
+      background: rgba(6, 9, 8, 0.58);
+      backdrop-filter: none;
+    }
+    .studio-face > .module:first-child {
+      left: 9px;
+      top: 9px;
+      width: 128px;
+      min-height: 66px;
+    }
+    .studio-face > .module:last-child {
+      right: 9px;
+      bottom: 9px;
+      width: 112px;
+      max-height: 64px;
+    }
+    .module h2 {
+      margin: 0 0 8px;
+      color: var(--green);
+      font-size: 10px;
+      line-height: 1;
+      letter-spacing: 0.14em;
+    }
+    .module .title { font-size: 15px; margin-top: 8px; }
+    .readout {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 3px 8px;
+      font-size: 8px;
+      color: var(--muted);
+      align-content: start;
+    }
+    .readout b { color: var(--green); font-weight: 900; }
+    .readout .hot b { color: var(--amber); }
+
+    .scope-face {
+      position: relative;
+      display: block;
+      padding: 0;
+    }
+    .scope-screen {
+      position: absolute;
+      inset: 0;
+      min-width: 0;
+      min-height: 0;
+      overflow: hidden;
+      border-radius: 0;
+      border: 0;
+      background:
+        linear-gradient(rgba(121, 242, 173, 0.08) 1px, transparent 1px),
+        linear-gradient(90deg, rgba(121, 242, 173, 0.07) 1px, transparent 1px),
+        rgba(0, 0, 0, 0.50);
+      background-size: 16px 16px;
+    }
+    .scope-screen .viz-main { position: absolute; inset: 0; }
+    .scope-meta {
+      position: absolute;
+      left: 9px;
+      right: 9px;
+      bottom: 8px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 8px;
+      color: rgba(242, 245, 238, 0.58);
+      font-size: 9px;
+      font-weight: 800;
+      pointer-events: none;
+    }
+
+    .modules-face {
+      position: relative;
+      display: block;
+      padding: 0;
+    }
+    .stacked {
+      display: grid;
+      grid-template-rows: 1fr 1fr;
+      gap: 6px;
+      min-width: 0;
+      min-height: 0;
+    }
+    .scope-face .stacked,
+    .modules-face .stacked {
+      position: absolute;
+      top: 9px;
+      right: 9px;
+      bottom: 9px;
+      width: 118px;
+      z-index: 2;
+    }
+    .modules-face > .module:first-child {
+      left: 9px;
+      top: 9px;
+      width: 106px;
+      min-height: 90px;
+    }
+    .knobs {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 8px;
+      align-content: center;
+    }
+    .knob {
+      aspect-ratio: 1;
+      border-radius: 999px;
+      border: 1px solid rgba(255, 255, 255, 0.12);
+      background:
+        radial-gradient(circle at 50% 50%, rgba(255, 155, 82, 0.82) 0 5%, rgba(255, 155, 82, 0.20) 6% 17%, transparent 18%),
+        conic-gradient(from 180deg, var(--green), var(--amber), rgba(255, 255, 255, 0.14), var(--green));
+      opacity: var(--v, 0.7);
+      box-shadow: inset 0 0 0 7px rgba(0, 0, 0, 0.72);
+    }
+    .knob-label {
+      margin-top: -4px;
+      color: rgba(242, 245, 238, 0.46);
+      font-size: 8px;
+      font-weight: 900;
+      letter-spacing: 0.13em;
+      text-align: center;
+    }
+
+    .ambient-face, .cinema-face {
+      position: relative;
+      padding: 0;
+      background: rgba(0, 0, 0, 0.68);
+    }
+    .ambient-face .art-bg, .cinema-face .art-bg {
+      position: absolute;
+      inset: 0;
+      width: 100%;
+      height: 100%;
+      object-fit: cover;
+      opacity: 0.42;
+      filter: saturate(0.86);
+      transform: scale(1.06);
+    }
+    .ambient-face .viz-main, .cinema-face .viz-main {
+      position: absolute;
+      inset: 0;
+      opacity: 0.92;
+    }
+    .glass-card {
+      position: absolute;
+      left: 10px;
+      right: 10px;
+      bottom: 9px;
+      min-width: 0;
+      display: grid;
+      grid-template-columns: minmax(0, 1fr) 110px;
+      gap: 8px;
+      padding: 9px;
+      border-radius: 6px;
+      border: 1px solid rgba(255, 255, 255, 0.13);
+      background: rgba(8, 10, 9, 0.58);
+      backdrop-filter: none;
+    }
+    .glass-card .title { font-size: 16px; }
+    .cinema-face .poster {
+      position: absolute;
+      top: 10px;
+      left: 10px;
+      bottom: 54px;
+      width: 100px;
+      overflow: hidden;
+      border-radius: 5px;
+      border: 1px solid rgba(255, 255, 255, 0.13);
+      background: rgba(0, 0, 0, 0.38);
+    }
+    .cinema-face .poster img { width: 100%; height: 100%; object-fit: cover; display: block; }
+    .cinema-face .glass-card { left: 120px; }
+
+    .signal-face, .deck-face, .minidisc-face {
+      position: relative;
+      padding: 0;
+      overflow: hidden;
+    }
+    .signal-face .viz-main,
+    .deck-face .viz-main,
+    .minidisc-face .viz-main {
+      position: absolute;
+      inset: 0;
+    }
+    .signal-face {
+      background:
+        linear-gradient(135deg, rgba(143, 216, 194, 0.08), transparent 42%),
+        linear-gradient(180deg, rgba(20, 22, 24, 0.94), rgba(9, 10, 12, 0.96));
+      border-color: rgba(242, 241, 236, 0.12);
+    }
+    .signal-copy {
+      position: absolute;
+      left: 13px;
+      right: 96px;
+      top: 12px;
+      bottom: 12px;
+      z-index: 2;
+      display: flex;
+      flex-direction: column;
+      justify-content: center;
+      gap: 8px;
+      min-width: 0;
+      pointer-events: none;
+    }
+    .signal-copy .title {
+      font-size: 23px;
+      font-weight: 820;
+      color: #f2f1ec;
+      text-shadow: 0 2px 12px rgba(0, 0, 0, 0.52);
+    }
+    .signal-meta {
+      display: flex;
+      align-items: center;
+      gap: 7px;
+      min-width: 0;
+      color: rgba(242, 241, 236, 0.52);
+      font: 800 9px/1 ui-monospace, "SFMono-Regular", monospace;
+      letter-spacing: 0.08em;
+    }
+    .signal-meta .js-video { color: rgba(242, 241, 236, 0.42); }
+    .signal-meter {
+      position: absolute;
+      right: 12px;
+      top: 12px;
+      bottom: 12px;
+      width: 72px;
+      z-index: 2;
+      border-radius: 6px;
+      border: 1px solid rgba(255, 255, 255, 0.09);
+      background: rgba(255, 255, 255, 0.035);
+      overflow: hidden;
+    }
+
+    .deck-face {
+      background:
+        linear-gradient(180deg, rgba(18, 20, 22, 0.96), rgba(8, 10, 12, 0.97));
+      border-color: rgba(255, 255, 255, 0.11);
+    }
+    .deck-display {
+      position: absolute;
+      left: 12px;
+      right: 12px;
+      top: 11px;
+      z-index: 2;
+      display: grid;
+      grid-template-columns: minmax(0, 1fr) 70px;
+      gap: 10px;
+      align-items: start;
+      pointer-events: none;
+    }
+    .deck-label {
+      margin-bottom: 7px;
+      color: rgba(143, 216, 194, 0.60);
+      font: 900 9px/1 ui-monospace, "SFMono-Regular", monospace;
+      letter-spacing: 0.16em;
+    }
+    .deck-display .title {
+      font-size: 19px;
+      color: #edf1e9;
+    }
+    .deck-source {
+      margin-top: 6px;
+      color: rgba(237, 241, 233, 0.48);
+      font: 800 9px/1 ui-monospace, "SFMono-Regular", monospace;
+      letter-spacing: 0.06em;
+    }
+    .deck-vu {
+      display: grid;
+      gap: 6px;
+    }
+    .deck-vu span {
+      height: 8px;
+      border-radius: 999px;
+      background: linear-gradient(90deg, rgba(143,216,194,0.68), rgba(198,164,106,0.54));
+      opacity: var(--v, 0.36);
+    }
+
+    .minidisc-face {
+      background:
+        linear-gradient(135deg, rgba(198, 164, 106, 0.075), transparent 43%),
+        rgba(15, 17, 20, 0.95);
+      border-color: rgba(255, 255, 255, 0.11);
+    }
+    .minidisc-face .art-bg {
+      position: absolute;
+      inset: 0;
+      width: 100%;
+      height: 100%;
+      object-fit: cover;
+      opacity: 0.10;
+      filter: saturate(0.84);
+      transform: scale(1.02);
+    }
+    .disc-window {
+      position: absolute;
+      left: 13px;
+      top: 11px;
+      bottom: 11px;
+      width: 78px;
+      z-index: 2;
+      display: grid;
+      place-items: center;
+      border-radius: 8px;
+      border: 1px solid rgba(255,255,255,0.12);
+      background: rgba(255,255,255,0.05);
+    }
+    .disc-window img {
+      width: 54px;
+      height: 54px;
+      object-fit: cover;
+      border-radius: 999px;
+      border: 1px solid rgba(255,255,255,0.22);
+      box-shadow: 0 6px 14px rgba(0,0,0,0.30);
+    }
+    .minidisc-copy {
+      position: absolute;
+      left: 104px;
+      right: 13px;
+      top: 13px;
+      bottom: 13px;
+      z-index: 2;
+      display: flex;
+      flex-direction: column;
+      justify-content: center;
+      gap: 7px;
+      min-width: 0;
+      pointer-events: none;
+    }
+    .minidisc-copy .title {
+      font-size: 21px;
+      color: #f4f7f5;
+    }
+    .minidisc-meta {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      color: rgba(244,247,245,0.62);
+      font: 800 9px/1 ui-monospace, "SFMono-Regular", monospace;
+      letter-spacing: 0.08em;
+    }
+    .minidisc-meta .js-video { color: rgba(244,247,245,0.46); }
+
+    .controls {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      min-width: 0;
+      overflow: hidden;
+      flex-wrap: nowrap;
+      white-space: nowrap;
+    }
+    .controls button:not(.icon):not(.primary) {
+      width: 44px;
+      min-width: 44px;
+      padding: 0 6px;
+    }
+    .controls #video { width: 62px; min-width: 62px; }
+    .controls #page { width: 52px; min-width: 52px; }
+    .spacer {
+      flex: 1 1 auto;
+      min-width: 8px;
+      height: 1px;
+      background: linear-gradient(90deg, rgba(143, 216, 194, 0.26), transparent);
+    }
+    .capture {
+      display: none;
+      width: 44px;
+      min-width: 44px;
+      color: #092018;
+      border-color: rgba(143, 216, 194, 0.70);
+      background: linear-gradient(180deg, #a8ead8, #66cdb2);
+    }
+    body.needs-capture .capture { display: inline-block; }
+    body.needs-capture .controls button[data-action="pasteURL"] { display: none; }
+
+    @media (max-width: 460px) {
+      .top { grid-template-columns: max-content minmax(0, 1fr); }
+      .status { display: none; }
+      .preset-name { flex-basis: 100px; width: 100px; min-width: 100px; }
+      .np-copy { right: 100px; }
+      .side-stack { width: 86px; grid-template-rows: 1fr 28px 28px; }
+      .studio-face > .module:first-child,
+      .modules-face > .module:first-child { width: 96px; }
+      .studio-face > .module:last-child { display: none; }
+      .scope-face .stacked,
+      .modules-face .stacked { width: 92px; }
+      .glass-card { grid-template-columns: minmax(0, 1fr); }
+      .glass-card .mini-meter { display: none; }
+      .cinema-face .poster { display: none; }
+      .cinema-face .glass-card { left: 10px; }
+      .signal-copy { right: 92px; }
+      .signal-meter { width: 72px; }
+      .deck-display { grid-template-columns: minmax(0, 1fr) 58px; }
+      .disc-window { width: 72px; }
+      .disc-window img { width: 48px; height: 48px; }
+      .minidisc-copy { left: 94px; }
+      button { padding: 0 7px; min-width: 30px; }
+      .controls { gap: 4px; }
+      .controls .spacer { min-width: 4px; }
+      .controls button.icon { width: 30px; min-width: 30px; }
+      .controls button.primary { width: 42px; min-width: 42px; }
+      .controls button:not(.icon):not(.primary) { width: 36px; min-width: 36px; padding: 0 4px; }
+      .controls #video { width: 56px; min-width: 56px; }
+      .controls #page { width: 42px; min-width: 42px; }
+      .capture { width: 36px; min-width: 36px; }
+    }
+  </style>
+</head>
+<body>
+  <main class="deck" id="deck">
+    <header class="top">
+      <div class="brand"><span class="brand-dot"></span><span>POMO AMP</span><span class="studio">STUDIO</span></div>
+      <div class="preset-strip">
+        <button class="icon slim" type="button" data-preset="-1" title="Previous face">&lt;</button>
+        <div class="preset-name" id="presetName">NOW PLAYING</div>
+        <button class="icon slim" type="button" data-preset="1" title="Next face">&gt;</button>
+      </div>
+      <div class="status"><span id="playState">IDLE</span><strong id="videoState">VIDEO OFF</strong></div>
+    </header>
+
+    <section class="face nowplaying" id="face" aria-label="Visualizer face"></section>
+
+    <footer class="controls">
+      <button class="icon" type="button" data-action="previousTrack" title="Previous track">&lt;</button>
+      <button class="primary" id="play" type="button" data-action="playPause">II</button>
+      <button class="icon" type="button" data-action="nextTrack" title="Next track">&gt;</button>
+      <div class="spacer"></div>
+      <button class="capture" type="button" data-action="enableAudioScope">VIZ</button>
+      <button type="button" data-action="pasteURL">URL</button>
+      <button class="orange" id="video" type="button" data-action="toggleVideo">VID</button>
+      <button id="page" type="button" data-action="showVideoPage">PAGE</button>
+      <button type="button" data-action="toggleBig">BIG</button>
+      <button class="icon" type="button" data-action="showShortcuts" title="Shortcuts">?</button>
+    </footer>
+  </main>
+
+  <script>
+    const presets = [
+      { name: "Signal Card", short: "SIGNAL", face: "signal", treatment: "signal" },
+      { name: "Studio Deck", short: "STUDIO", face: "deck", treatment: "deck" },
+      { name: "MiniDisc Frost", short: "MINIDISC", face: "minidisc", treatment: "minidisc" }
+    ];
+
+    const emptyViz = {
+      frame: 0, hostTime: 0, duration: 0, sampleRate: 48000,
+      bands: [], waveform: [], rms: 0, peak: 0, bpmEstimate: 0, beatPhase: 0,
+      centroidHz: 0, rolloff85Hz: 0, flux: 0, low: 0, mid: 0, high: 0,
+      sub: 0, presence: 0, brilliance: 0, transient: 0, drop: 0,
+      crest: 0, peakDb: -90, rmsDb: -90
+    };
+
+    var state = { isPlaying: false, title: "Pomo Amp", source: "youtube.com", videoOpen: false, videoExpanded: false };
+    var viz = emptyViz;
+    var profile = {
+      modeName: "balanced",
+      skinFPS: 15,
+      canvasLiveDelayMilliseconds: 67,
+      canvasSilentDelayMilliseconds: 250,
+      canvasIdleDelayMilliseconds: 1200,
+      canvasMaxDevicePixelRatio: 1.35
+    };
+    const skinBuild = "1.1.8";
+    if (localStorage.getItem("pomoAmp.defaultSkin.build") !== skinBuild) {
+      localStorage.setItem("pomoAmp.defaultSkin.build", skinBuild);
+      localStorage.setItem("pomoAmp.defaultSkin.preset", "0");
+    }
+    var presetIndex = Number(localStorage.getItem("pomoAmp.defaultSkin.preset") || 0);
+    if (!Number.isFinite(presetIndex) || presetIndex < 0 || presetIndex >= presets.length) presetIndex = 0;
+    var mountedFace = "";
+    var slots = {};
+    const spectroMemory = [];
+    const spectroColumns = 90;
+    const peakHistory = [];
+    const gain = { bandPeaks: [], wavePeak: 0.08, rmsPeak: 0.05, energy: 0 };
+    var drawTimer = 0;
+    var drawScheduled = false;
+    var vizSerial = 0;
+    const canvasCache = new WeakMap();
+    const vizMemo = {
+      bandsSerial: -1,
+      bands: null,
+      waveSerial: -1,
+      wave: null
+    };
+    const chromeCache = {
+      presetShort: "",
+      presetName: "",
+      title: "",
+      source: "",
+      videoText: "",
+      isPlaying: null,
+      videoOpen: null,
+      videoExpanded: null,
+      thumb: "",
+      needsPermission: null,
+      sourceError: ""
+    };
+    const motion = {
+      sine: Array.from({ length: 128 }, (_, i) => Math.sin(i / 128 * Math.PI * 2)),
+      pow075: Array.from({ length: 256 }, (_, i) => Math.pow(i / 255, 0.75)),
+      heat082: Array.from({ length: 256 }, (_, i) => Math.pow(i / 255, 0.82)),
+      radial: {}
+    };
+
+    const faceEl = document.getElementById("face");
+    const presetName = document.getElementById("presetName");
+    const deck = document.getElementById("deck");
+    const playStateEl = document.getElementById("playState");
+    const videoStateEl = document.getElementById("videoState");
+    const playButton = document.getElementById("play");
+    const videoButton = document.getElementById("video");
+    const pageButton = document.getElementById("page");
+
+    function clamp(v, lo = 0, hi = 1) {
+      return Math.max(lo, Math.min(hi, Number(v) || 0));
+    }
+
+    function curve075(value) {
+      return motion.pow075[Math.round(clamp(value) * 255)] || 0;
+    }
+
+    function heatCurve(value) {
+      return motion.heat082[Math.round(clamp(value) * 255)] || 0;
+    }
+
+    function fastSin(cycle) {
+      const unit = cycle - Math.floor(cycle);
+      return motion.sine[Math.floor(unit * motion.sine.length) % motion.sine.length] || 0;
+    }
+
+    function radialUnit(index, count) {
+      const key = String(count);
+      if (!motion.radial[key]) {
+        motion.radial[key] = Array.from({ length: count }, (_, i) => {
+          const angle = -Math.PI * 0.85 + i / Math.max(1, count - 1) * Math.PI * 1.7;
+          return { cos: Math.cos(angle), sin: Math.sin(angle) };
+        });
+      }
+      return motion.radial[key][index] || { cos: 1, sin: 0 };
+    }
+
+    function bands() {
+      return Array.isArray(viz.bands) && viz.bands.length ? viz.bands : new Array(24).fill(0);
+    }
+
+    function wave() {
+      return Array.isArray(viz.waveform) && viz.waveform.length ? viz.waveform : new Array(32).fill(0);
+    }
+
+    function normalizedBands() {
+      if (vizMemo.bandsSerial === vizSerial && vizMemo.bands) return vizMemo.bands;
+      const raw = bands();
+      const hasSignal = raw.some(value => (Number(value) || 0) > 0.0008)
+        || (Number(viz.rms) || 0) > 0.0008
+        || (Number(viz.peak) || 0) > 0.0008;
+      const normalized = raw.map((value, index) => {
+        const lifted = Math.max(0, Number(value) || 0);
+        const oldPeak = gain.bandPeaks[index] || 0.05;
+        const peak = Math.max(lifted, oldPeak * 0.965, 0.045);
+        gain.bandPeaks[index] = peak;
+        const adaptive = clamp(lifted / peak);
+        const spectralLift = hasSignal ? 0.06 + index / Math.max(1, raw.length - 1) * 0.10 : 0;
+        return clamp(curve075(adaptive) * 0.50 + lifted * 2.2 + spectralLift);
+      });
+      vizMemo.bandsSerial = vizSerial;
+      vizMemo.bands = normalized;
+      return normalized;
+    }
+
+    function normalizedWave() {
+      if (vizMemo.waveSerial === vizSerial && vizMemo.wave) return vizMemo.wave;
+      const raw = wave();
+      const maxAbs = raw.reduce((m, sample) => Math.max(m, Math.abs(Number(sample) || 0)), 0);
+      gain.wavePeak = Math.max(maxAbs, gain.wavePeak * 0.94, 0.035);
+      const scale = 0.78 / gain.wavePeak;
+      const normalized = raw.map(sample => clamp((Number(sample) || 0) * scale, -1, 1));
+      vizMemo.waveSerial = vizSerial;
+      vizMemo.wave = normalized;
+      return normalized;
+    }
+
+    function liveEnergy() {
+      const raw = Math.max(Number(viz.rms) || 0, (Number(viz.peak) || 0) * 0.55);
+      gain.rmsPeak = Math.max(raw, gain.rmsPeak * 0.955, 0.035);
+      const target = clamp(raw / gain.rmsPeak);
+      gain.energy += (target - gain.energy) * 0.22;
+      return clamp(gain.energy);
+    }
+
+    function mediaProgress() {
+      const duration = Number(viz.duration) || 0;
+      const time = Number(viz.mediaTime) || 0;
+      if (duration > 0) return clamp(time / duration);
+      return clamp(viz.beatPhase || 0);
+    }
+
+    function resetSpectroMemory(size = bands().length || 24) {
+      spectroMemory.length = 0;
+      for (let i = 0; i < spectroColumns; i += 1) {
+        spectroMemory.push(new Array(size).fill(0));
+      }
+    }
+
+    function resizeCanvas(canvas) {
+      if (!canvas) return null;
+      const rect = canvas.getBoundingClientRect();
+      const cssW = Math.max(1, Math.round(rect.width));
+      const cssH = Math.max(1, Math.round(rect.height));
+      const profileDPR = Number(profile.canvasMaxDevicePixelRatio) || 1.35;
+      const dpr = Math.min(profileDPR, window.devicePixelRatio || 1);
+      const w = Math.max(1, Math.round(cssW * dpr));
+      const h = Math.max(1, Math.round(cssH * dpr));
+      const cached = canvasCache.get(canvas);
+      if (cached && cached.w === w && cached.h === h && cached.cssW === cssW && cached.cssH === cssH && cached.dpr === dpr) {
+        return cached.pack;
+      }
+      if (canvas.width !== w || canvas.height !== h) {
+        canvas.width = w;
+        canvas.height = h;
+      }
+      const ctx = canvas.getContext("2d");
+      ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+      const pack = { ctx, w: cssW, h: cssH };
+      canvasCache.set(canvas, { w, h, cssW, cssH, dpr, pack });
+      return pack;
+    }
+
+    function paintBands(canvas, compact = false) {
+      const pack = resizeCanvas(canvas);
+      if (!pack) return;
+      const { ctx, w, h } = pack;
+      const xs = normalizedBands();
+      ctx.clearRect(0, 0, w, h);
+      const barGap = compact ? 1 : 2;
+      const barW = Math.max(1, (w - barGap * (xs.length - 1)) / xs.length);
+      xs.forEach((value, i) => {
+        const v = clamp(value);
+        const x = i * (barW + barGap);
+        const bh = Math.max(1, v * (h - 7));
+        const hue = i / Math.max(1, xs.length - 1);
+        ctx.fillStyle = hue > 0.72 ? "#c6a46a" : hue > 0.48 ? "#a9c7a6" : "#8fd8c2";
+        ctx.globalAlpha = 0.58 + v * 0.42;
+        ctx.fillRect(x, h - bh, barW, bh);
+      });
+      ctx.globalAlpha = 1;
+    }
+
+    function paintWave(canvas, compact = false) {
+      const pack = resizeCanvas(canvas);
+      if (!pack) return;
+      const { ctx, w, h } = pack;
+      const xs = normalizedWave();
+      ctx.clearRect(0, 0, w, h);
+      ctx.strokeStyle = "rgba(121,242,173,0.20)";
+      ctx.beginPath();
+      ctx.moveTo(0, h / 2);
+      ctx.lineTo(w, h / 2);
+      ctx.stroke();
+      ctx.lineWidth = compact ? 1.5 : 2;
+      ctx.strokeStyle = "rgba(121,242,173,0.94)";
+      ctx.beginPath();
+      xs.forEach((sample, i) => {
+        const x = i / Math.max(1, xs.length - 1) * w;
+        const y = h * (0.5 - clamp(sample, -1, 1) * (compact ? 0.32 : 0.42));
+        if (i === 0) ctx.moveTo(x, y); else ctx.lineTo(x, y);
+      });
+      ctx.stroke();
+    }
+
+    function drawWaveTrace(canvas) {
+      const pack = resizeCanvas(canvas);
+      if (!pack) return;
+      const { ctx, w, h } = pack;
+      const xs = normalizedWave();
+      const bs = normalizedBands();
+      const energy = liveEnergy();
+      const grad = ctx.createLinearGradient(0, 0, w, h);
+      grad.addColorStop(0, `rgba(121,242,173,${0.18 + energy * 0.12})`);
+      grad.addColorStop(1, `rgba(255,155,82,${0.14 + energy * 0.14})`);
+      ctx.fillStyle = grad;
+      ctx.fillRect(0, 0, w, h);
+
+      const barW = w / Math.max(1, bs.length);
+      bs.forEach((value, i) => {
+        const x = i * barW;
+        const bh = h * (0.08 + value * 0.58);
+        ctx.fillStyle = i > bs.length * 0.68 ? "rgba(255,155,82,0.24)" : "rgba(121,242,173,0.20)";
+        ctx.fillRect(x, h - bh, Math.max(1, barW - 1), bh);
+      });
+
+      ctx.lineWidth = 2.5 + energy * 2.4;
+      ctx.strokeStyle = "rgba(121,242,173,0.92)";
+      ctx.shadowColor = "rgba(121,242,173,0.35)";
+      ctx.shadowBlur = 10 + energy * 16;
+      ctx.beginPath();
+      xs.forEach((sample, i) => {
+        const x = i / Math.max(1, xs.length - 1) * w;
+        const y = h * (0.50 - clamp(sample, -1, 1) * (0.24 + energy * 0.30));
+        if (i === 0) ctx.moveTo(x, y); else ctx.lineTo(x, y);
+      });
+      ctx.stroke();
+      ctx.shadowBlur = 0;
+
+      const low = bs.slice(0, 8).reduce((a, b) => a + b, 0) / 8;
+      const mid = bs.slice(8, 16).reduce((a, b) => a + b, 0) / 8;
+      const high = bs.slice(16).reduce((a, b) => a + b, 0) / Math.max(1, bs.length - 16);
+      [
+        ["LOW", low, "#79f2ad"],
+        ["MID", mid, "#d5e98d"],
+        ["HIGH", high, "#ff9b52"]
+      ].forEach((item, i) => {
+        const x = 12 + i * 50;
+        ctx.fillStyle = "rgba(255,255,255,0.30)";
+        ctx.font = "800 8px ui-monospace";
+        ctx.fillText(item[0], x, h - 13);
+        ctx.fillStyle = item[2];
+        ctx.fillRect(x, h - 8, 36 * item[1], 3);
+      });
+    }
+
+    function drawSpectro(canvas) {
+      const pack = resizeCanvas(canvas);
+      if (!pack) return;
+      const { ctx, w, h } = pack;
+      const xs = normalizedBands();
+      if (spectroMemory.length !== spectroColumns || spectroMemory[0]?.length !== xs.length) {
+        resetSpectroMemory(xs.length);
+      }
+      spectroMemory.push(xs.slice());
+      while (spectroMemory.length > spectroColumns) spectroMemory.shift();
+      ctx.fillStyle = "rgba(0,0,0,0.58)";
+      ctx.fillRect(0, 0, w, h);
+      const colW = w / Math.max(1, spectroMemory.length);
+      const rowH = h / Math.max(1, xs.length);
+      spectroMemory.forEach((row, xIndex) => {
+        row.forEach((value, yIndex) => {
+          const heat = heatCurve(value);
+          const r = Math.round(22 + heat * 210);
+          const g = Math.round(58 + heat * 145);
+          const b = Math.round(46 + heat * 58);
+          ctx.fillStyle = `rgba(${r},${g},${b},${0.18 + heat * 0.76})`;
+          ctx.fillRect(xIndex * colW, h - (yIndex + 1) * rowH, Math.ceil(colW), Math.ceil(rowH));
+        });
+      });
+      const bandW = w / Math.max(1, xs.length);
+      xs.forEach((value, i) => {
+        const x = i * bandW;
+        const bh = 4 + value * h * 0.26;
+        ctx.fillStyle = i > xs.length * 0.66 ? "rgba(255,155,82,0.82)" : "rgba(121,242,173,0.78)";
+        ctx.fillRect(x, h - bh, Math.max(1, bandW - 1), bh);
+      });
+      ctx.fillStyle = "rgba(121,242,173,0.86)";
+      ctx.font = "900 9px ui-monospace";
+      ctx.fillText(`${Math.round(viz.centroidHz || 0)}HZ CENTER`, 10, 18);
+      ctx.fillStyle = "rgba(255,155,82,0.82)";
+      ctx.fillText(`${Math.round(viz.rolloff85Hz || 0)}HZ ROLL`, 10, 32);
+    }
+
+    function drawHeadroom(canvas) {
+      const pack = resizeCanvas(canvas);
+      if (!pack) return;
+      const { ctx, w, h } = pack;
+      ctx.clearRect(0, 0, w, h);
+      ctx.fillStyle = "rgba(0,0,0,0.44)";
+      ctx.fillRect(0, 0, w, h);
+      const energy = liveEnergy();
+      const rms = energy;
+      const peak = clamp((Number(viz.peak) || 0) / Math.max(0.04, gain.rmsPeak));
+      const crest = clamp((viz.crest || 0) / 16);
+      const margin = 18;
+      const meterH = Math.max(18, h * 0.16);
+      [["RMS", rms, "#79f2ad"], ["PEAK", peak, "#ff9b52"], ["CREST", crest, "#86b8ff"]].forEach((row, i) => {
+        const y = margin + i * Math.max(31, h * 0.24);
+        ctx.fillStyle = "rgba(255,255,255,0.24)";
+        ctx.font = "900 9px ui-monospace";
+        ctx.fillText(row[0], 12, y + 12);
+        ctx.fillStyle = "rgba(255,255,255,0.08)";
+        ctx.fillRect(60, y, w - 80, meterH);
+        ctx.fillStyle = row[2];
+        ctx.fillRect(60, y, (w - 80) * row[1], meterH);
+      });
+      ctx.strokeStyle = peak > 0.88 ? "rgba(255,105,105,0.9)" : "rgba(121,242,173,0.34)";
+      ctx.lineWidth = 2;
+      ctx.strokeRect(8, 8, w - 16, h - 16);
+    }
+
+    function drawBandprint(canvas) {
+      const pack = resizeCanvas(canvas);
+      if (!pack) return;
+      const { ctx, w, h } = pack;
+      const xs = normalizedBands();
+      const energy = liveEnergy();
+      ctx.fillStyle = "rgba(0,0,0,0.44)";
+      ctx.fillRect(0, 0, w, h);
+      const cx = w / 2;
+      const cy = h / 2;
+      const base = Math.min(w, h) * (0.15 + energy * 0.05);
+      xs.forEach((value, i) => {
+        const len = base + value * Math.min(w, h) * 0.42;
+        const unit = radialUnit(i, xs.length);
+        const x1 = cx + unit.cos * base;
+        const y1 = cy + unit.sin * base;
+        const x2 = cx + unit.cos * len;
+        const y2 = cy + unit.sin * len;
+        ctx.strokeStyle = i > xs.length * 0.68 ? "#ff9b52" : i > xs.length * 0.42 ? "#d5e98d" : "#79f2ad";
+        ctx.globalAlpha = 0.36 + value * 0.64;
+        ctx.lineWidth = 1.2 + value * 5.5;
+        ctx.beginPath();
+        ctx.moveTo(x1, y1);
+        ctx.lineTo(x2, y2);
+        ctx.stroke();
+      });
+      ctx.globalAlpha = 1;
+      ctx.fillStyle = `rgba(121,242,173,${0.18 + energy * 0.52})`;
+      ctx.beginPath();
+      ctx.arc(cx, cy, base * (0.72 + energy * 0.62), 0, Math.PI * 2);
+      ctx.fill();
+    }
+
+    function drawTimbre(canvas) {
+      const pack = resizeCanvas(canvas);
+      if (!pack) return;
+      const { ctx, w, h } = pack;
+      const bs = normalizedBands();
+      const energy = liveEnergy();
+      const highAvg = bs.slice(Math.floor(bs.length * 0.62)).reduce((a, b) => a + b, 0) / Math.max(1, bs.length - Math.floor(bs.length * 0.62));
+      ctx.fillStyle = "rgba(0,0,0,0.28)";
+      ctx.fillRect(0, 0, w, h);
+      const cx = w * (0.25 + clamp((viz.centroidHz || 0) / 8000) * 0.58);
+      const cy = h * (0.72 - highAvg * 0.44);
+      const radius = 20 + energy * Math.min(w, h) * 0.34;
+      const grad = ctx.createRadialGradient(cx, cy, 0, cx, cy, radius);
+      grad.addColorStop(0, `rgba(255,155,82,${0.58 + energy * 0.30})`);
+      grad.addColorStop(0.42, "rgba(121,242,173,0.28)");
+      grad.addColorStop(1, "rgba(121,242,173,0)");
+      ctx.fillStyle = grad;
+      ctx.beginPath();
+      ctx.arc(cx, cy, radius, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.strokeStyle = "rgba(121,242,173,0.44)";
+      ctx.lineWidth = 1.2;
+      for (let i = 1; i <= 4; i += 1) {
+        ctx.beginPath();
+        ctx.arc(cx, cy, radius * i * (0.27 + energy * 0.03), 0, Math.PI * 2);
+        ctx.stroke();
+      }
+    }
+
+    function drawGroove(canvas) {
+      const pack = resizeCanvas(canvas);
+      if (!pack) return;
+      const { ctx, w, h } = pack;
+      const bs = normalizedBands();
+      const energy = liveEnergy();
+      const phase = clamp(viz.beatPhase || 0);
+      ctx.fillStyle = "rgba(0,0,0,0.38)";
+      ctx.fillRect(0, 0, w, h);
+      const rails = 5;
+      for (let r = 0; r < rails; r += 1) {
+        const y = h * (0.18 + r * 0.16);
+        const start = Math.floor(r * bs.length / rails);
+        const end = Math.max(start + 1, Math.floor((r + 1) * bs.length / rails));
+        const railEnergy = bs.slice(start, end).reduce((a, b) => a + b, 0) / (end - start);
+        ctx.strokeStyle = r >= 3 ? "rgba(255,155,82,0.72)" : "rgba(121,242,173,0.72)";
+        ctx.lineWidth = 1.5 + railEnergy * 6;
+        ctx.shadowColor = r >= 3 ? "rgba(255,155,82,0.28)" : "rgba(121,242,173,0.26)";
+        ctx.shadowBlur = 7 + railEnergy * 9;
+        ctx.beginPath();
+        for (let x = 0; x <= w; x += 8) {
+          const y2 = y + fastSin(x / w + phase + r * 0.12) * (6 + railEnergy * 24);
+          if (x === 0) ctx.moveTo(x, y2); else ctx.lineTo(x, y2);
+        }
+        ctx.stroke();
+      }
+      ctx.shadowBlur = 0;
+      ctx.fillStyle = "rgba(255,155,82,0.86)";
+      ctx.fillRect(w * phase - 1, 0, 2 + energy * 3, h);
+    }
+
+    function drawFoundation(canvas) {
+      const pack = resizeCanvas(canvas);
+      if (!pack) return;
+      const { ctx, w, h } = pack;
+      const bs = normalizedBands();
+      const energy = liveEnergy();
+      ctx.fillStyle = "rgba(0,0,0,0.54)";
+      ctx.fillRect(0, 0, w, h);
+      const low = bs.slice(0, 8).reduce((a, b) => a + b, 0) / 8;
+      const mid = bs.slice(8, 16).reduce((a, b) => a + b, 0) / 8;
+      const high = bs.slice(16).reduce((a, b) => a + b, 0) / Math.max(1, bs.length - 16);
+      const vals = [["SUB", low, "#79f2ad"], ["BODY", mid, "#d5e98d"], ["AIR", high, "#ff9b52"]];
+      vals.forEach((item, i) => {
+        const x = w * (0.18 + i * 0.31);
+        const y = h * 0.54;
+        const r = 12 + item[1] * Math.min(w, h) * 0.34;
+        ctx.fillStyle = item[2];
+        ctx.globalAlpha = 0.18 + item[1] * 0.52 + energy * 0.08;
+        ctx.beginPath();
+        ctx.arc(x, y, r, 0, Math.PI * 2);
+        ctx.fill();
+        ctx.globalAlpha = 1;
+        ctx.fillStyle = "rgba(255,255,255,0.48)";
+        ctx.font = "900 9px ui-monospace";
+        ctx.textAlign = "center";
+        ctx.fillText(item[0], x, h - 15);
+      });
+      ctx.textAlign = "left";
+    }
+
+    function drawSignal(canvas) {
+      const pack = resizeCanvas(canvas);
+      if (!pack) return;
+      const { ctx, w, h } = pack;
+      const bs = normalizedBands();
+      const xs = normalizedWave();
+      const energy = liveEnergy();
+      ctx.clearRect(0, 0, w, h);
+
+      const bg = ctx.createLinearGradient(0, 0, w, h);
+      bg.addColorStop(0, `rgba(143,216,194,${0.055 + energy * 0.035})`);
+      bg.addColorStop(1, "rgba(255,255,255,0.018)");
+      ctx.fillStyle = bg;
+      ctx.fillRect(0, 0, w, h);
+
+      const railY = h - 15;
+      ctx.fillStyle = "rgba(242,241,236,0.10)";
+      ctx.fillRect(12, railY, w - 24, 2);
+      const p = mediaProgress();
+      ctx.fillStyle = "rgba(143,216,194,0.54)";
+      ctx.fillRect(12, railY, Math.max(12, (w - 24) * p), 2);
+
+      const barW = 3;
+      const right = w - 14;
+      bs.slice(-16).forEach((value, i) => {
+        const x = right - (15 - i) * 5;
+        const bh = 8 + value * (h - 38);
+        ctx.fillStyle = `rgba(143,216,194,${0.11 + value * 0.30})`;
+        ctx.fillRect(x, h - 20 - bh, barW, bh);
+      });
+
+      ctx.lineWidth = 1.5;
+      ctx.strokeStyle = "rgba(242,241,236,0.42)";
+      ctx.beginPath();
+      xs.forEach((sample, i) => {
+        const x = 12 + i / Math.max(1, xs.length - 1) * Math.max(1, w - 122);
+        const y = h * 0.58 - clamp(sample, -1, 1) * (7 + energy * 10);
+        if (i === 0) ctx.moveTo(x, y); else ctx.lineTo(x, y);
+      });
+      ctx.stroke();
+    }
+
+    function drawDeck(canvas) {
+      const pack = resizeCanvas(canvas);
+      if (!pack) return;
+      const { ctx, w, h } = pack;
+      const bs = normalizedBands();
+      const xs = normalizedWave();
+      const energy = liveEnergy();
+      ctx.fillStyle = "rgba(0,0,0,0.24)";
+      ctx.fillRect(0, 0, w, h);
+
+      const meterLeft = 18;
+      const meterTop = h - 46;
+      const meterW = w - 36;
+      [["LOW", viz.low || bs.slice(0, 8).reduce((a, b) => a + b, 0) / 8],
+       ["MID", viz.mid || bs.slice(8, 16).reduce((a, b) => a + b, 0) / 8],
+       ["AIR", viz.high || bs.slice(16).reduce((a, b) => a + b, 0) / 8]].forEach((row, i) => {
+        const y = meterTop + i * 13;
+        ctx.fillStyle = "rgba(242,241,236,0.075)";
+        ctx.fillRect(meterLeft, y, meterW, 7);
+        const grad = ctx.createLinearGradient(meterLeft, 0, meterLeft + meterW, 0);
+        grad.addColorStop(0, "rgba(143,216,194,0.56)");
+        grad.addColorStop(1, "rgba(198,164,106,0.46)");
+        ctx.fillStyle = grad;
+        ctx.fillRect(meterLeft, y, meterW * clamp(row[1]), 7);
+        ctx.fillStyle = "rgba(242,241,236,0.40)";
+        ctx.font = "900 8px ui-monospace";
+        ctx.fillText(row[0], meterLeft, y - 2);
+      });
+
+      ctx.strokeStyle = `rgba(143,216,194,${0.28 + energy * 0.14})`;
+      ctx.lineWidth = 1.4;
+      ctx.beginPath();
+      xs.forEach((sample, i) => {
+        const x = 16 + i / Math.max(1, xs.length - 1) * (w - 32);
+        const y = 52 - clamp(sample, -1, 1) * (7 + energy * 9);
+        if (i === 0) ctx.moveTo(x, y); else ctx.lineTo(x, y);
+      });
+      ctx.stroke();
+    }
+
+    function drawMiniDisc(canvas) {
+      const pack = resizeCanvas(canvas);
+      if (!pack) return;
+      const { ctx, w, h } = pack;
+      const energy = liveEnergy();
+      ctx.clearRect(0, 0, w, h);
+
+      const sheen = ctx.createLinearGradient(0, 0, w, h);
+      sheen.addColorStop(0, `rgba(198,164,106,${0.050 + energy * 0.032})`);
+      sheen.addColorStop(1, "rgba(255,255,255,0.020)");
+      ctx.fillStyle = sheen;
+      ctx.fillRect(0, 0, w, h);
+
+      const cx = 56;
+      const cy = h / 2;
+      const r = 36;
+      ctx.strokeStyle = "rgba(242,241,236,0.13)";
+      ctx.lineWidth = 4;
+      ctx.beginPath();
+      ctx.arc(cx, cy, r, -Math.PI / 2, Math.PI * 1.5);
+      ctx.stroke();
+      ctx.strokeStyle = "rgba(143,216,194,0.44)";
+      ctx.lineWidth = 4;
+      ctx.beginPath();
+      ctx.arc(cx, cy, r, -Math.PI / 2, -Math.PI / 2 + Math.PI * 2 * mediaProgress());
+      ctx.stroke();
+    }
+
+    const treatmentDraw = {
+      wave: drawWaveTrace,
+      spectro: drawSpectro,
+      headroom: drawHeadroom,
+      bandprint: drawBandprint,
+      timbre: drawTimbre,
+      groove: drawGroove,
+      foundation: drawFoundation,
+      signal: drawSignal,
+      deck: drawDeck,
+      minidisc: drawMiniDisc
+    };
+
+    function faceHTML(face) {
+      if (face === "signal") {
+        return `
+          <canvas class="viz-main js-main"></canvas>
+          <div class="signal-copy">
+            <div class="title js-title">Pomo Amp</div>
+            <div class="signal-meta"><span class="js-source">youtube.com</span><span>·</span><span class="js-video">VIDEO OFF</span></div>
+          </div>
+          <div class="signal-meter"><canvas class="js-bands"></canvas></div>
+        `;
+      }
+      if (face === "deck") {
+        return `
+          <canvas class="viz-main js-main"></canvas>
+          <div class="deck-display">
+            <div>
+              <div class="deck-label">NOW PLAYING</div>
+              <div class="title js-title">Pomo Amp</div>
+              <div class="deck-source"><span class="js-source">youtube.com</span> · <span class="js-video">VIDEO OFF</span></div>
+            </div>
+            <div class="deck-vu">
+              <span class="js-vu-low"></span>
+              <span class="js-vu-mid"></span>
+              <span class="js-vu-high"></span>
+            </div>
+          </div>
+        `;
+      }
+      if (face === "minidisc") {
+        return `
+          <img class="art-bg js-art" alt="">
+          <canvas class="viz-main js-main"></canvas>
+          <div class="disc-window"><img class="js-art" alt=""></div>
+          <div class="minidisc-copy">
+            <div class="title js-title">Pomo Amp</div>
+            <div class="minidisc-meta"><span class="js-source">youtube.com</span><span class="js-video">VIDEO OFF</span></div>
+          </div>
+        `;
+      }
+      if (face === "studio") {
+        return `
+          <div class="module">
+            <h2>NOW</h2>
+            <div class="source js-source">youtube.com</div>
+            <div class="title js-title">Pomo Amp</div>
+          </div>
+          <div class="module tight"><canvas class="viz-main js-main"></canvas></div>
+          <div class="module"><h2>DATA</h2><div class="readout js-readout"></div></div>
+        `;
+      }
+      if (face === "scope") {
+        return `
+          <div class="scope-screen">
+            <canvas class="viz-main js-main"></canvas>
+            <div class="scope-meta"><span class="js-title">Pomo Amp</span><span class="js-source">youtube.com</span></div>
+          </div>
+          <div class="stacked">
+            <div class="mini-meter"><div class="meter-label">BANDS</div><canvas class="js-bands"></canvas></div>
+            <div class="mini-meter"><div class="meter-label">WAVE</div><canvas class="js-wave"></canvas></div>
+          </div>
+        `;
+      }
+      if (face === "modules") {
+        return `
+          <div class="module">
+            <h2>TONE</h2>
+            <div class="knobs">
+              <div><div class="knob js-knob-low"></div><div class="knob-label">LOW</div></div>
+              <div><div class="knob js-knob-high"></div><div class="knob-label">AIR</div></div>
+            </div>
+          </div>
+          <div class="module tight"><canvas class="viz-main js-main"></canvas></div>
+          <div class="stacked">
+            <div class="mini-meter"><div class="meter-label">BANDS</div><canvas class="js-bands"></canvas></div>
+            <div class="mini-meter"><div class="meter-label">WAVE</div><canvas class="js-wave"></canvas></div>
+          </div>
+        `;
+      }
+      if (face === "ambient") {
+        return `
+          <img class="art-bg js-art" alt="">
+          <canvas class="viz-main js-main"></canvas>
+          <div class="glass-card">
+            <div>
+              <div class="label-row"><span>PLAYING</span><span class="js-video">VIDEO OFF</span></div>
+              <div class="title js-title">Pomo Amp</div>
+              <div class="source js-source">youtube.com</div>
+            </div>
+            <div class="mini-meter"><div class="meter-label">BANDS</div><canvas class="js-bands"></canvas></div>
+          </div>
+        `;
+      }
+      if (face === "cinema") {
+        return `
+          <img class="art-bg js-art" alt="">
+          <canvas class="viz-main js-main"></canvas>
+          <div class="poster"><img class="js-art" alt=""></div>
+          <div class="glass-card">
+            <div>
+              <div class="label-row"><span>PLAYING</span><span class="js-video">VIDEO OFF</span></div>
+              <div class="title js-title">Pomo Amp</div>
+              <div class="source js-source">youtube.com</div>
+            </div>
+            <div class="mini-meter"><div class="meter-label">WAVE</div><canvas class="js-wave"></canvas></div>
+          </div>
+        `;
+      }
+      return `
+        <div class="np-main">
+          <canvas class="viz-main js-main"></canvas>
+          <div class="np-copy">
+            <div class="label-row"><span>PLAYING <span class="source js-source">youtube.com</span></span><span class="js-video">VIDEO OFF</span></div>
+            <div>
+              <div class="title js-title">Pomo Amp</div>
+              <div class="source js-preset-detail"></div>
+            </div>
+          </div>
+        </div>
+        <div class="side-stack">
+          <div class="art"><img class="js-art" alt=""></div>
+          <div class="mini-meter"><div class="meter-label">BANDS</div><canvas class="js-bands"></canvas></div>
+          <div class="mini-meter"><div class="meter-label">WAVE</div><canvas class="js-wave"></canvas></div>
+        </div>
+      `;
+    }
+
+    function mountFace() {
+      const preset = presets[presetIndex];
+      if (mountedFace === preset.face) return;
+      mountedFace = preset.face;
+      faceEl.className = `face ${preset.face}-face`;
+      if (preset.face === "nowplaying") faceEl.className = "face nowplaying";
+      faceEl.innerHTML = faceHTML(preset.face);
+      slots = {
+        main: faceEl.querySelector(".js-main"),
+        bands: faceEl.querySelector(".js-bands"),
+        wave: faceEl.querySelector(".js-wave"),
+        readout: faceEl.querySelector(".js-readout"),
+        titles: Array.from(faceEl.querySelectorAll(".js-title")),
+        sources: Array.from(faceEl.querySelectorAll(".js-source")),
+        videos: Array.from(faceEl.querySelectorAll(".js-video")),
+        arts: Array.from(faceEl.querySelectorAll(".js-art")),
+        presetDetails: Array.from(faceEl.querySelectorAll(".js-preset-detail")),
+        knobLow: faceEl.querySelector(".js-knob-low"),
+        knobHigh: faceEl.querySelector(".js-knob-high"),
+        vuLow: faceEl.querySelector(".js-vu-low"),
+        vuMid: faceEl.querySelector(".js-vu-mid"),
+        vuHigh: faceEl.querySelector(".js-vu-high")
+      };
+      faceEl.getBoundingClientRect();
+      [slots.main, slots.bands, slots.wave].forEach(canvas => resizeCanvas(canvas));
+      updateChrome(true);
+    }
+
+    function cyclePreset(delta) {
+      presetIndex = (presetIndex + delta + presets.length) % presets.length;
+      localStorage.setItem("pomoAmp.defaultSkin.preset", String(presetIndex));
+      resetSpectroMemory();
+      mountedFace = "";
+      mountFace();
+    }
+
+    function updateReadout() {
+      if (!slots.readout) return;
+      const rows = [
+        ["rms", viz.rms], ["peak", viz.peak],
+        ["low", viz.low], ["mid", viz.mid],
+        ["high", viz.high], ["flux", viz.flux],
+        ["cent", Math.round(viz.centroidHz || 0)], ["roll", Math.round(viz.rolloff85Hz || 0)],
+        ["trans", viz.transient], ["drop", viz.drop]
+      ];
+      slots.readout.innerHTML = rows.map(([k, v]) => {
+        const hot = Number(v) > 0.62 ? " hot" : "";
+        const display = Number.isInteger(v) && v > 10 ? v : Number(v || 0).toFixed(2);
+        return `<span class="${hot}">${k} <b>${display}</b></span>`;
+      }).join("");
+    }
+
+    function setTextList(list, value) {
+      list?.forEach(el => {
+        if (el.textContent !== value) el.textContent = value;
+      });
+    }
+
+    function updateChrome(force = false) {
+      const preset = presets[presetIndex];
+      if (force || chromeCache.presetShort !== preset.short) {
+        presetName.textContent = preset.short;
+        chromeCache.presetShort = preset.short;
+      }
+      const title = state.title || "Pomo Amp";
+      const source = state.source || "youtube.com";
+      const videoText = state.videoOpen ? (state.videoExpanded ? "VIDEO BIG" : "VIDEO ON") : "VIDEO OFF";
+      if (force || chromeCache.isPlaying !== !!state.isPlaying) {
+        playStateEl.textContent = state.isPlaying ? "PLAYING" : "PAUSED";
+        playButton.textContent = state.isPlaying ? "II" : ">";
+        chromeCache.isPlaying = !!state.isPlaying;
+      }
+      if (force || chromeCache.videoText !== videoText) {
+        videoStateEl.textContent = videoText;
+        setTextList(slots.videos, videoText);
+        chromeCache.videoText = videoText;
+      }
+      if (force || chromeCache.videoOpen !== !!state.videoOpen) {
+        videoButton.textContent = state.videoOpen ? "HIDE" : "VID";
+        chromeCache.videoOpen = !!state.videoOpen;
+      }
+      if (force || chromeCache.videoExpanded !== !!state.videoExpanded) {
+        pageButton.textContent = state.videoExpanded ? "PLAYER" : "PAGE";
+        pageButton.dataset.action = state.videoExpanded ? "showVideoPlayer" : "showVideoPage";
+        chromeCache.videoExpanded = !!state.videoExpanded;
+      }
+      if (force || chromeCache.title !== title) {
+        setTextList(slots.titles, title);
+        chromeCache.title = title;
+      }
+      if (force || chromeCache.source !== source) {
+        setTextList(slots.sources, source);
+        chromeCache.source = source;
+      }
+      if (force || chromeCache.presetName !== preset.name) {
+        setTextList(slots.presetDetails, preset.name);
+        chromeCache.presetName = preset.name;
+      }
+      const thumb = state.thumbnailURL || "";
+      if (force || chromeCache.thumb !== thumb) {
+        if (thumb) {
+          deck.style.setProperty("--thumb", `url("${thumb.replaceAll('"', "%22")}")`);
+        } else {
+          deck.style.removeProperty("--thumb");
+        }
+        slots.arts?.forEach(img => {
+          if (thumb && img.getAttribute("src") !== thumb) img.setAttribute("src", thumb);
+          if (!thumb && img.hasAttribute("src")) img.removeAttribute("src");
+        });
+        chromeCache.thumb = thumb;
+      }
+      const sourceError = String(viz.sourceError || "");
+      const needsPermission = /optional visualizer audio capture|permission needed|needs macos|not authorized|not authorised|not permitted|not allowed|denied|declined|tcc/i.test(sourceError);
+      if (force || chromeCache.sourceError !== sourceError || chromeCache.needsPermission !== needsPermission) {
+        document.body.classList.toggle("needs-capture", needsPermission);
+        chromeCache.sourceError = sourceError;
+        chromeCache.needsPermission = needsPermission;
+      }
+    }
+
+    function hasLiveViz() {
+      return state.isPlaying && (
+        (Number(viz.rms) || 0) > 0.0008
+        || (Number(viz.peak) || 0) > 0.0008
+        || bands().some(value => (Number(value) || 0) > 0.0008)
+      );
+    }
+
+    function drawDelay() {
+      if (document.hidden) return 1000;
+      if (!state.isPlaying) return Number(profile.canvasIdleDelayMilliseconds) || 1200;
+      if (!hasLiveViz()) return Number(profile.canvasSilentDelayMilliseconds) || 250;
+      return Number(profile.canvasLiveDelayMilliseconds) || 67;
+    }
+
+    function scheduleDraw(delay = drawDelay()) {
+      const nextDelay = Math.max(0, Number(delay) || 0);
+      if (drawScheduled) {
+        if (!(nextDelay === 0 && drawTimer)) return;
+        clearTimeout(drawTimer);
+      }
+      drawScheduled = true;
+      drawTimer = setTimeout(() => {
+        drawTimer = 0;
+        requestAnimationFrame(() => {
+          drawScheduled = false;
+          drawFrame();
+        });
+      }, nextDelay);
+    }
+
+    function drawFrame() {
+      mountFace();
+      const preset = presets[presetIndex];
+      const draw = treatmentDraw[preset.treatment] || drawWaveTrace;
+      draw(slots.main);
+      paintBands(slots.bands, true);
+      paintWave(slots.wave, true);
+      updateReadout();
+      if (slots.knobLow) slots.knobLow.style.setProperty("--v", String(0.28 + clamp(viz.low) * 0.72));
+      if (slots.knobHigh) slots.knobHigh.style.setProperty("--v", String(0.28 + clamp(viz.high) * 0.72));
+      if (slots.vuLow) slots.vuLow.style.setProperty("--v", String(0.28 + clamp(viz.low) * 0.72));
+      if (slots.vuMid) slots.vuMid.style.setProperty("--v", String(0.28 + clamp(viz.mid) * 0.72));
+      if (slots.vuHigh) slots.vuHigh.style.setProperty("--v", String(0.28 + clamp(viz.high) * 0.72));
+      scheduleDraw();
+    }
+
+    document.addEventListener("click", (event) => {
+      const presetButton = event.target.closest("[data-preset]");
+      if (presetButton) {
+        event.preventDefault();
+        window.yamp?.log?.("skin-preset-click", {
+          delta: Number(presetButton.dataset.preset || 1),
+          text: (presetButton.textContent || "").trim(),
+          preset: presets[presetIndex]?.short || ""
+        });
+        cyclePreset(Number(presetButton.dataset.preset || 1));
+        return;
+      }
+      const actionButton = event.target.closest("[data-action]");
+      if (actionButton && window.yamp?.action) {
+        event.preventDefault();
+        window.yamp?.log?.("skin-action-click", {
+          id: actionButton.id || "",
+          action: actionButton.dataset.action || "",
+          text: (actionButton.textContent || "").trim(),
+          videoOpen: !!state.videoOpen,
+          videoExpanded: !!state.videoExpanded
+        });
+        window.yamp.action(actionButton.dataset.action);
+      }
+    });
+
+    document.addEventListener("keydown", (event) => {
+      if (event.key === "[" || event.key === "{") {
+        event.preventDefault();
+        cyclePreset(-1);
+      } else if (event.key === "]" || event.key === "}") {
+        event.preventDefault();
+        cyclePreset(1);
+      }
+    });
+
+    window.yamp?.onState?.((nextState) => {
+      const wasPlaying = !!state.isPlaying;
+      state = { ...state, ...nextState };
+      updateChrome();
+      if (wasPlaying !== !!state.isPlaying || state.isPlaying) scheduleDraw(0);
+    });
+
+    window.yamp?.onViz?.((nextViz) => {
+      const previousSourceError = chromeCache.sourceError;
+      viz = { ...emptyViz, ...nextViz };
+      vizSerial += 1;
+      if (String(viz.sourceError || "") !== previousSourceError) updateChrome();
+      if (hasLiveViz()) scheduleDraw(0);
+    });
+
+    window.yamp?.onProfile?.((nextProfile) => {
+      profile = { ...profile, ...nextProfile };
+      scheduleDraw(0);
+    });
+
+    mountFace();
+    scheduleDraw(0);
+    window.yamp?.ready?.();
+  </script>
+</body>
+</html>
+"""#
+}

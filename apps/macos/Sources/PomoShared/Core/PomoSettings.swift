@@ -21,6 +21,8 @@ final class PomoSettings {
 
     // Presentation
     var watchface: Watchface = .minimal
+    var pomoAmpFace: PomoAmpFace = .classic
+    var pomoAmpVisualizerMode: PomoAmpVisualizerMode = .auto
     // Light/dark override for adaptive app windows (Settings). `.system` follows
     // the macOS appearance; `.light`/`.dark` pin it regardless of the OS setting.
     var appearanceMode: AppearanceMode = .system
@@ -94,7 +96,11 @@ final class PomoSettings {
     @ObservationIgnored private var saveWorkItem: DispatchWorkItem?
 
     init() {
-        load()
+        let loaded = load()
+        if !loaded, AppIdentity.isPomoAmp {
+            hotkeyKeyCode = Int(CarbonKeyCode.y)
+            hotkeyDisplay = "⌃⌥⇧⌘Y"
+        }
     }
 
     /// Minutes configured for a given session type.
@@ -181,7 +187,7 @@ final class PomoSettings {
         let base = FileManager.default
             .urls(for: .applicationSupportDirectory, in: .userDomainMask)
             .first ?? FileManager.default.temporaryDirectory
-        let dir = base.appendingPathComponent("Pomo", isDirectory: true)
+        let dir = base.appendingPathComponent(AppIdentity.supportDirectoryName, isDirectory: true)
         try? FileManager.default.createDirectory(at: dir, withIntermediateDirectories: true)
         return dir.appendingPathComponent("settings.json")
     }()
@@ -193,6 +199,8 @@ final class PomoSettings {
         var longBreakInterval: Int
         var autoStartNext: Bool
         var watchface: Watchface
+        var pomoAmpFace: PomoAmpFace?
+        var pomoAmpVisualizerMode: PomoAmpVisualizerMode?
         var panelOpacity: Double
         var backgroundBlur: Double?
         var soundEnabled: Bool
@@ -219,6 +227,8 @@ final class PomoSettings {
             longBreakInterval: longBreakInterval,
             autoStartNext: autoStartNext,
             watchface: watchface,
+            pomoAmpFace: pomoAmpFace,
+            pomoAmpVisualizerMode: pomoAmpVisualizerMode,
             panelOpacity: panelOpacity,
             backgroundBlur: backgroundBlur,
             soundEnabled: soundEnabled,
@@ -244,6 +254,8 @@ final class PomoSettings {
         longBreakInterval = max(1, dto.longBreakInterval)
         autoStartNext = dto.autoStartNext
         watchface = dto.watchface
+        if let face = dto.pomoAmpFace { pomoAmpFace = face }
+        if let mode = dto.pomoAmpVisualizerMode { pomoAmpVisualizerMode = mode }
         if let mode = dto.appearanceMode { appearanceMode = mode }
         panelOpacity = min(1.0, max(0.3, dto.panelOpacity))
         if let blur = dto.backgroundBlur { backgroundBlur = min(1.0, max(0.0, blur)) }
@@ -263,11 +275,13 @@ final class PomoSettings {
         }
     }
 
-    private func load() {
+    @discardableResult
+    private func load() -> Bool {
         guard let data = try? Data(contentsOf: Self.fileURL),
               let dto = try? JSONDecoder().decode(DTO.self, from: data)
-        else { return }
+        else { return false }
         apply(dto)
+        return true
     }
 
     /// Debounced write so dragging a slider doesn't hammer the disk.
@@ -315,6 +329,122 @@ enum AppearanceMode: String, Codable, CaseIterable, Identifiable {
         case .system: return nil
         case .light:  return .light
         case .dark:   return .dark
+        }
+    }
+}
+
+struct PomoAmpVisualizerProfile: Codable, Equatable {
+    var modeName: String
+    var skinFPS: Double
+    var inspectorFPS: Double
+    var scopeFrameIntervalMilliseconds: Int
+    var canvasLiveDelayMilliseconds: Int
+    var canvasSilentDelayMilliseconds: Int
+    var canvasIdleDelayMilliseconds: Int
+    var canvasMaxDevicePixelRatio: Double
+
+    var skinFrameInterval: TimeInterval {
+        1.0 / max(1.0, skinFPS)
+    }
+
+    var inspectorFrameInterval: TimeInterval {
+        1.0 / max(1.0, inspectorFPS)
+    }
+}
+
+enum PomoAmpVisualizerMode: String, Codable, CaseIterable, Identifiable {
+    case auto, smooth, balanced, batterySaver
+
+    var id: String { rawValue }
+
+    var displayName: String {
+        switch self {
+        case .auto: return "Auto"
+        case .smooth: return "Smooth"
+        case .balanced: return "Balanced"
+        case .batterySaver: return "Battery Saver"
+        }
+    }
+
+    var detail: String {
+        switch self {
+        case .auto:
+            return "Follows macOS Low Power Mode and thermal pressure."
+        case .smooth:
+            return "Higher FPS for the live visualizer."
+        case .balanced:
+            return "A steady middle ground for desk use."
+        case .batterySaver:
+            return "Fewer analyser, bridge, and canvas updates."
+        }
+    }
+
+    var symbol: String {
+        switch self {
+        case .auto: return "wand.and.stars"
+        case .smooth: return "sparkles"
+        case .balanced: return "gauge.with.dots.needle.50percent"
+        case .batterySaver: return "battery.75percent"
+        }
+    }
+
+    var effectiveMode: PomoAmpVisualizerMode {
+        guard self == .auto else { return self }
+        let process = ProcessInfo.processInfo
+        if process.isLowPowerModeEnabled || Self.isThermallyConstrained(process.thermalState) {
+            return .batterySaver
+        }
+        return .balanced
+    }
+
+    var profile: PomoAmpVisualizerProfile {
+        switch effectiveMode {
+        case .auto:
+            return PomoAmpVisualizerMode.balanced.profile
+        case .smooth:
+            return PomoAmpVisualizerProfile(
+                modeName: "smooth",
+                skinFPS: 24,
+                inspectorFPS: 8,
+                scopeFrameIntervalMilliseconds: 66,
+                canvasLiveDelayMilliseconds: 42,
+                canvasSilentDelayMilliseconds: 180,
+                canvasIdleDelayMilliseconds: 900,
+                canvasMaxDevicePixelRatio: 1.7
+            )
+        case .balanced:
+            return PomoAmpVisualizerProfile(
+                modeName: "balanced",
+                skinFPS: 15,
+                inspectorFPS: 6,
+                scopeFrameIntervalMilliseconds: 100,
+                canvasLiveDelayMilliseconds: 67,
+                canvasSilentDelayMilliseconds: 250,
+                canvasIdleDelayMilliseconds: 1200,
+                canvasMaxDevicePixelRatio: 1.35
+            )
+        case .batterySaver:
+            return PomoAmpVisualizerProfile(
+                modeName: "batterySaver",
+                skinFPS: 8,
+                inspectorFPS: 3,
+                scopeFrameIntervalMilliseconds: 180,
+                canvasLiveDelayMilliseconds: 125,
+                canvasSilentDelayMilliseconds: 650,
+                canvasIdleDelayMilliseconds: 1800,
+                canvasMaxDevicePixelRatio: 1.0
+            )
+        }
+    }
+
+    private static func isThermallyConstrained(_ state: ProcessInfo.ThermalState) -> Bool {
+        switch state {
+        case .serious, .critical:
+            return true
+        case .nominal, .fair:
+            return false
+        @unknown default:
+            return false
         }
     }
 }

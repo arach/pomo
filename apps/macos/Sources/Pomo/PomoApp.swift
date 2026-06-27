@@ -1,4 +1,5 @@
 import SwiftUI
+import PomoShared
 
 /// Pomo — a native macOS HUD Pomodoro timer.
 ///

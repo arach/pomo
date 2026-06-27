@@ -6,7 +6,7 @@ import Carbon
 /// (accessory) app: no dock icon, no main window — just the status item and the
 /// hotkey-summoned HUD panel.
 @MainActor
-final class AppDelegate: NSObject, NSApplicationDelegate {
+public final class AppDelegate: NSObject, NSApplicationDelegate {
     private let settings = PomoSettings()
     private lazy var model = TimerModel(settings: settings)
     private let chime = CompletionChime()
@@ -18,7 +18,11 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     private var settingsWindow: NSWindow?
     private var statsWindow: NSWindow?
 
-    func applicationDidFinishLaunching(_ notification: Notification) {
+    public override init() {
+        super.init()
+    }
+
+    public func applicationDidFinishLaunching(_ notification: Notification) {
         NSApp.setActivationPolicy(.accessory)
 
         // Timer → menu-bar countdown + completion behaviour.
@@ -93,6 +97,9 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         menuBar.onPlayFavorite = { [weak self] favorite in self?.playFavorite(favorite) }
 
         hud.onOpenSettings = { [weak self] in self?.showSettings() }
+        hud.onVideoCommand = { [weak self] command in
+            self?.deferVideoCommandToPomoAmp(command) ?? false
+        }
         // While the HUD is on screen, run as a regular Dock app so it shows an
         // icon and is reachable via ⌘-Tab; drop back to a menu-bar accessory
         // when it's hidden. Also keeps state.json's hudVisible fresh.
@@ -156,7 +163,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     }
 
     /// Clicking the Dock icon (present only while the HUD is up) re-summons the HUD.
-    func applicationShouldHandleReopen(_ sender: NSApplication, hasVisibleWindows flag: Bool) -> Bool {
+    public func applicationShouldHandleReopen(_ sender: NSApplication, hasVisibleWindows flag: Bool) -> Bool {
         hud.show()
         return true
     }
@@ -193,7 +200,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         if let command = PomoCommand(url: url) { apply(command) }
     }
 
-    func application(_ application: NSApplication, open urls: [URL]) {
+    public func application(_ application: NSApplication, open urls: [URL]) {
         for url in urls {
             if let command = PomoCommand(url: url) { apply(command) }
         }
@@ -238,13 +245,21 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         case .importCookies(let browser, let profile): audio.importCookies(browser: browser, profile: profile)
         case .logout: audio.clearLogin()
         case .selectAccount(let index): audio.setAccount(index)
-        case .videoShow:   audio.setVideoVisible(true)
-        case .videoHide:   audio.setVideoVisible(false)
-        case .videoToggle: audio.toggleVideo()
+        case .videoShow:
+            if deferVideoCommandToPomoAmp(command) { break }
+            audio.setVideoVisible(true)
+        case .videoHide:
+            if deferVideoCommandToPomoAmp(command) { break }
+            audio.setVideoVisible(false)
+        case .videoToggle:
+            if deferVideoCommandToPomoAmp(command) { break }
+            audio.toggleVideo()
         case .videoPage:
+            if deferVideoCommandToPomoAmp(command) { break }
             hud.show()
             audio.setOriginalPageVisible(true)
         case .videoPlayer:
+            if deferVideoCommandToPomoAmp(command) { break }
             audio.setOriginalPageVisible(false)
         case .videoBrowser: audio.openInBrowser()
         case .favoriteAdd(let url, let title):
@@ -273,6 +288,49 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         case .quit:        NSApp.terminate(nil)
         }
         writeState()
+    }
+
+    private func deferVideoCommandToPomoAmp(_ command: PomoCommand) -> Bool {
+        guard let url = pomoAmpURL(for: command),
+              let app = runningPomoAmpApplication(),
+              let bundleURL = app.bundleURL
+        else { return false }
+
+        let configuration = NSWorkspace.OpenConfiguration()
+        NSWorkspace.shared.open([url], withApplicationAt: bundleURL, configuration: configuration) { _, error in
+            if let error {
+                NSLog("Pomo could not defer \(url.absoluteString) to Pomo Amp: \(error.localizedDescription)")
+            }
+        }
+        return true
+    }
+
+    private func pomoAmpURL(for command: PomoCommand) -> URL? {
+        switch command {
+        case .videoShow:   return URL(string: "pomo-amp://video/show")
+        case .videoHide:   return URL(string: "pomo-amp://video/hide")
+        case .videoToggle: return URL(string: "pomo-amp://video/toggle")
+        case .videoPage:   return URL(string: "pomo-amp://video/page")
+        case .videoPlayer: return URL(string: "pomo-amp://video/player")
+        default:           return nil
+        }
+    }
+
+    private func runningPomoAmpApplication() -> NSRunningApplication? {
+        for bundleID in ["dev.pomo.amp.dev", "dev.pomo.amp"] {
+            if let app = NSRunningApplication
+                .runningApplications(withBundleIdentifier: bundleID)
+                .first(where: { !$0.isTerminated }) {
+                return app
+            }
+        }
+
+        return NSWorkspace.shared.runningApplications.first { app in
+            guard !app.isTerminated else { return false }
+            let names = [app.localizedName, app.bundleURL?.deletingPathExtension().lastPathComponent]
+                .compactMap { $0?.lowercased() }
+            return names.contains("pomo amp") || names.contains("pomo amp dev")
+        }
     }
 
     private func writeState() {
@@ -400,7 +458,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
 }
 
 extension AppDelegate: NSWindowDelegate {
-    func windowWillClose(_ notification: Notification) {
+    public func windowWillClose(_ notification: Notification) {
         guard let closing = notification.object as? NSWindow,
               closing === settingsWindow || closing === statsWindow else { return }
         // Re-evaluate Dock presence as this window closes: stay regular while the

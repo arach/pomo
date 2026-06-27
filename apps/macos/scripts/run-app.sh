@@ -9,20 +9,23 @@ set -euo pipefail
 
 repo_root="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 app_name="Pomo"
+product_name="Pomo"
 # Local dev builds get a `.dev` bundle id + label so they don't collide with an
 # installed Pomo — LaunchServices would otherwise dedupe launches (and `pomo://`
 # routing) to the wrong copy. DMG/release builds (build-dmg.sh) override these
 # back to the canonical id, so signing / notarization / installs are unaffected.
 bundle_id="${POMO_BUNDLE_ID:-dev.pomo.hud.dev}"
 display_name="${POMO_DISPLAY_NAME:-Pomo Dev}"
-app_path="${POMO_APP_PATH:-$repo_root/dist/$app_name.app}"
+app_path="${POMO_APP_PATH:-}"
+support_dir="${POMO_SUPPORT_DIR:-Pomo}"
+url_scheme="${POMO_URL_SCHEME:-pomo}"
 version="${POMO_VERSION:-0.1.0}"
 configuration=release
 restart=false
 sign_identity=""
 
 pomo_process_lines() {
-  ps -axo pid=,command= | awk '/\/Pomo\.app\/Contents\/MacOS\/Pomo$/'
+  ps -axo pid=,command= | awk -v app="$app_name" '$0 ~ "/" app "\\.app/Contents/MacOS/" app "$"'
 }
 
 parse_process_line() {
@@ -64,7 +67,7 @@ stop_other_pomo_processes() {
     pid="${parsed%%$'\t'*}"
     command="${parsed#*$'\t'}"
     [[ -n "$pid" && "$command" != "$expected_executable" ]] || continue
-    echo "  Stopping duplicate Pomo at $command"
+    echo "  Stopping duplicate $app_name at $command"
     kill "$pid" 2>/dev/null || true
   done < <(pomo_process_lines)
 }
@@ -123,10 +126,12 @@ bundle_swiftpm_frameworks() {
 
 usage() {
   cat <<EOF
-Usage: run-app.sh [--debug] [--restart] [--no-open] [--sign IDENTITY]
+Usage: run-app.sh [--amp] [--debug] [--restart] [--no-open] [--sign IDENTITY]
 
   --debug     Build the debug configuration (faster iteration)
-  --restart   Quit a running Pomo before launching
+  --amp       Build and launch the Pomo Amp music-player variant
+  --yamp      Legacy alias for --amp
+  --restart   Quit a running copy of this app before launching
   --no-open   Build + bundle only; don't launch
   --sign IDENTITY  Code-sign the app bundle; use "-" for local ad-hoc signing
 EOF
@@ -135,6 +140,15 @@ EOF
 open_app=true
 while [[ $# -gt 0 ]]; do
   case "$1" in
+    --amp|--yamp)
+      app_name="Pomo Amp"
+      product_name="PomoAmp"
+      bundle_id="${POMO_BUNDLE_ID:-dev.pomo.amp.dev}"
+      display_name="${POMO_DISPLAY_NAME:-Pomo Amp Dev}"
+      support_dir="${POMO_SUPPORT_DIR:-Pomo Amp}"
+      url_scheme="${POMO_URL_SCHEME:-pomo-amp}"
+      shift
+      ;;
     --debug) configuration=debug; shift ;;
     --restart) restart=true; shift ;;
     --no-open) open_app=false; shift ;;
@@ -151,6 +165,10 @@ while [[ $# -gt 0 ]]; do
     *) echo "Unknown option: $1" >&2; usage; exit 64 ;;
   esac
 done
+
+if [[ -z "$app_path" ]]; then
+  app_path="$repo_root/dist/$app_name.app"
+fi
 
 cd "$repo_root"
 export HUDSONKIT_WITH_VOICE=0
@@ -169,14 +187,14 @@ if command -v cargo >/dev/null 2>&1; then
     || echo "  (cookie helper build failed; 'login import' will be unavailable)"
 fi
 
-echo "▸ Building Pomo ($configuration)…"
+echo "▸ Building $app_name ($configuration)…"
 build_args=()
 if [[ "$configuration" == "release" ]]; then
   build_args+=(-c release)
 fi
-swift build ${build_args[@]+"${build_args[@]}"} --product Pomo
+swift build ${build_args[@]+"${build_args[@]}"} --product "$product_name"
 build_bin_dir="$(swift build ${build_args[@]+"${build_args[@]}"} --show-bin-path)"
-bin_path="$build_bin_dir/Pomo"
+bin_path="$build_bin_dir/$product_name"
 
 echo "▸ Assembling $app_name.app…"
 rm -rf "$app_path"
@@ -222,6 +240,10 @@ cat > "$app_path/Contents/Info.plist" <<PLIST
   <string>$display_name</string>
   <key>CFBundleDisplayName</key>
   <string>$display_name</string>
+  <key>PomoProductName</key>
+  <string>$app_name</string>
+  <key>PomoSupportDirectory</key>
+  <string>$support_dir</string>
   <key>CFBundlePackageType</key>
   <string>APPL</string>
   <key>CFBundleShortVersionString</key>
@@ -234,6 +256,8 @@ cat > "$app_path/Contents/Info.plist" <<PLIST
   <true/>
   <key>NSHighResolutionCapable</key>
   <true/>
+  <key>NSAudioCaptureUsageDescription</key>
+  <string>Pomo Amp can optionally analyze playback audio to animate the visualizer. Audio is not saved.</string>
   <key>NSPrincipalClass</key>
   <string>NSApplication</string>
   <key>CFBundleURLTypes</key>
@@ -243,7 +267,7 @@ cat > "$app_path/Contents/Info.plist" <<PLIST
       <string>$bundle_id</string>
       <key>CFBundleURLSchemes</key>
       <array>
-        <string>pomo</string>
+        <string>$url_scheme</string>
       </array>
     </dict>
   </array>
@@ -277,7 +301,7 @@ if [[ -n "$sign_identity" ]]; then
 else
   echo "  Unsigned build. If macOS blocks it after moving or copying, run:"
   printf '  scripts/dequarantine-app.sh %q\n' "$app_path"
-  echo "  Use the path to the copy you actually open, such as /Applications/Pomo.app."
+  echo "  Use the path to the copy you actually open, such as /Applications/$app_name.app."
 fi
 
 if [[ "$restart" == true ]]; then

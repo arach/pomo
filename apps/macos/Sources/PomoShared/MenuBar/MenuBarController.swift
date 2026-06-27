@@ -43,17 +43,20 @@ final class MenuBarController: NSObject, NSPopoverDelegate {
         button.font = NSFont.monospacedDigitSystemFont(ofSize: NSFont.systemFontSize - 1, weight: .medium)
         button.target = self
         button.action = #selector(handleClick)
-        button.sendAction(on: [.leftMouseUp])     // left = popover; right handled below
+        button.sendAction(on: [.leftMouseUp])
 
-        // Status-item right-clicks aren't reliably delivered as the button's
-        // action, so catch the right mouse-down ourselves and show the menu.
-        rightClickMonitor = NSEvent.addLocalMonitorForEvents(matching: [.rightMouseDown]) { [weak self] event in
-            MainActor.assumeIsolated {
-                guard let self, let button = self.statusItem.button, event.window === button.window else { return event }
-                self.menuLog("right-mouse-down → showMenu")
-                self.showMenu()
-                return nil
+        // Status-item right-clicks are not consistently delivered as button
+        // actions in this app. Keep the event monitor, but do not pass the
+        // NSEvent itself across actor isolation.
+        rightClickMonitor = NSEvent.addLocalMonitorForEvents(matching: [.rightMouseDown]) { [weak self, weak button] event in
+            guard let button,
+                  event.window === button.window
+            else { return event }
+            Task { @MainActor [weak self] in
+                self?.menuLog("right-mouse-down monitor → showMenu")
+                self?.showMenu()
             }
+            return nil
         }
     }
 
@@ -133,8 +136,10 @@ final class MenuBarController: NSObject, NSPopoverDelegate {
     }
 
     @objc private func handleClick() {
-        menuLog("left-click action; control=\(NSApp.currentEvent?.modifierFlags.contains(.control) == true)")
-        if NSApp.currentEvent?.modifierFlags.contains(.control) == true {
+        let event = NSApp.currentEvent
+        let isContextClick = event?.type == .rightMouseUp || event?.modifierFlags.contains(.control) == true
+        menuLog("status-item action; context=\(isContextClick)")
+        if isContextClick {
             showMenu()             // control-click → menu, like a right-click
         } else {
             togglePopover()

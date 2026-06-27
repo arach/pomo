@@ -17,13 +17,16 @@ implementation today), native **iOS** and **watchOS** apps, and the original
 
 Menu-bar HUD timer: a hotkey-summoned frosted panel, swappable **watchfaces**
 (including the engineering-drawing **Blueprint** face), tunable **backdrop blur**,
-background audio, and a `pomo://` URL scheme for agent control.
+background audio, and a `pomo://` URL scheme for agent control. The same package
+also builds **Pomo Amp**, a small YouTube music-player sibling with custom HTML
+skins.
 
 ```sh
 cd apps/macos
 scripts/run-app.sh            # build dist/Pomo.app and launch
 scripts/run-app.sh --no-open  # build only
 scripts/run-app.sh --debug    # faster local build
+scripts/run-app.sh --amp --debug  # build and launch Pomo Amp
 scripts/build-dmg.sh --local  # build a local smoke-test dist/Pomo.dmg
 ```
 

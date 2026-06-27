@@ -87,4 +87,5 @@ enum CarbonModifier {
 /// Virtual key codes from HIToolbox/Events.h that we reference by name.
 enum CarbonKeyCode {
     static let p: UInt32 = 35 // kVK_ANSI_P
+    static let y: UInt32 = 16 // kVK_ANSI_Y
 }

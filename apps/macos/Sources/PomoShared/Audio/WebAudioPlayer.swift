@@ -1,5 +1,6 @@
 import WebKit
 import AppKit
+import CryptoKit
 import SwiftUI
 
 /// Plays YouTube / YouTube Music audio by driving the **real watch page's
@@ -16,6 +17,17 @@ enum DrawerEdge { case right, left, below, above }
 @MainActor
 final class WebAudioPlayer: NSObject {
     private static let desktopUA = "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/17.0 Safari/605.1.15"
+    private static let blankPageURL = URL(string: "about:blank")!
+    private static let idleBrowserMemoryPurgeDelay: TimeInterval = 30
+    private static let defaultAudioScopeFrameIntervalMilliseconds = 100
+    private static let webAudioScopeFreshnessSeconds = 0.9
+    private static let nativeAudioScopeFreshnessSeconds = 2.5
+    private static let audioScopeFreshnessCheckInterval = 0.5
+    private static let nativeAudioScopePermissionMessage = "optional visualizer audio capture is off"
+    private static let nativeAudioScopeExecutableFingerprintKey = "pomo.audio.coreAudioTap.executableFingerprint"
+    private static let nativeAudioScopeUserEnabledKey = "pomo.audio.coreAudioTap.userEnabled"
+    private static let playbackSnapshotKey = "pomo.amp.playbackSnapshot"
+    private static let playbackAutoResumeMaxAge: TimeInterval = 30 * 60
 
     private var webView: WKWebView?
     private var hostWindow: NSWindow?
@@ -26,7 +38,47 @@ final class WebAudioPlayer: NSObject {
 
     private(set) var isPlaying = false
     private(set) var currentURL: String = ""
+    private(set) var currentTitle: String = ""
     private var volume: Int = 60
+    private(set) var mediaTime: Double = 0
+    private(set) var mediaDuration: Double = 0
+    private(set) var mediaPlaybackRate: Double = 1
+    private(set) var mediaPaused: Bool = true
+    private var mediaClockHostTime: Double = ProcessInfo.processInfo.systemUptime
+    private var pendingSeekTime: Double?
+    private var lastPlaybackSnapshotHostTime = 0.0
+    private(set) var audioScope: AudioScopeFrame?
+    private(set) var audioScopeError: String?
+    private var silentScopeFrames = 0
+    private var nonSilentScopeFrames = 0
+    private var audioScopeFreshnessTimer: Timer?
+    private var audioScopeFrameIntervalMilliseconds = WebAudioPlayer.defaultAudioScopeFrameIntervalMilliseconds
+    private var visualizerActive = false
+    private var nativeAudioScopeRestartWork: DispatchWorkItem?
+    private var lastNativeAudioScopeRestartHostTime = 0.0
+    private var nativeAudioScopeSuppressedUntil = 0.0
+    private var nativeAudioScopeEnabledForSession = WebAudioPlayer.shouldAutoStartNativeAudioScope()
+    private var nativeAudioScopeRecordedSuccessfulAccess = WebAudioPlayer.hasSuccessfulNativeAudioScopeAccessForCurrentExecutable()
+    private lazy var nativeAudioScope = CoreAudioTapAudioScope(
+        onFrame: { [weak self] frame in
+            Task { @MainActor in self?.handleNativeAudioScopeFrame(frame) }
+        },
+        onError: { [weak self] error in
+            Task { @MainActor in self?.handleNativeAudioScopeError(error) }
+        },
+        onLog: { [weak self] message in
+            Task { @MainActor in self?.log(message) }
+        }
+    )
+
+    private struct PlaybackSnapshot: Codable {
+        var url: String
+        var title: String
+        var time: Double
+        var duration: Double
+        var wasPlaying: Bool
+        var updatedAt: TimeInterval
+    }
 
     /// User intent: whether the video drawer is open. Toggleable at runtime; kept
     /// across HUD hide/show so the drawer returns alongside the panel.
@@ -46,8 +98,10 @@ final class WebAudioPlayer: NSObject {
     /// Rounded container hosting the web view + the expand button overlay.
     private var drawerContainer: NSView?
     private var expandButton: NSButton?
+    private var skipAdButton: NSButton?
     private var loadingView: PomoLoadingView?
     private var loadingHideWork: DispatchWorkItem?
+    private var videoQualityWork: DispatchWorkItem?
     private var avatarView: NSImageView?
     private var idleMemoryPurgeWork: DispatchWorkItem?
     private var boundaryMemoryPurgeWork: DispatchWorkItem?
@@ -71,6 +125,7 @@ final class WebAudioPlayer: NSObject {
         let messageProxy: MessageProxy
         let drawerContainer: NSView
         let expandButton: NSButton
+        let skipAdButton: NSButton
         let loadingView: PomoLoadingView
         let avatarView: NSImageView
     }
@@ -90,6 +145,7 @@ final class WebAudioPlayer: NSObject {
         // even a switch between the dev build and the installed release.
         restoreSavedLogin()
         startCookiePersistence()
+        startAudioScopeFreshnessWatchdog()
     }
 
     // MARK: - Playback
@@ -101,7 +157,7 @@ final class WebAudioPlayer: NSObject {
         set { UserDefaults.standard.set(max(0, newValue), forKey: "pomo.audio.authUser") }
     }
 
-    func play(urlString raw: String) {
+    func play(urlString raw: String, startAt: Double? = nil, knownTitle: String? = nil) {
         let urlString = raw.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !urlString.isEmpty, let base = Self.watchURL(from: urlString) else { return }
         let url = Self.withAuthUser(base, authUser)
@@ -109,10 +165,20 @@ final class WebAudioPlayer: NSObject {
         cancelBoundaryMemoryPurge()
         cancelPreparedBrowserSwap()
         currentURL = urlString
+        currentTitle = knownTitle?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
+        pendingSeekTime = (startAt ?? 0) > 1 ? startAt : nil
+        mediaTime = 0
+        mediaDuration = 0
+        mediaPlaybackRate = 1
+        mediaPaused = false
+        mediaClockHostTime = ProcessInfo.processInfo.systemUptime
+        resetAudioScope()
+        stopNativeAudioScope()
         ensureWebView()
         log("play \(url.absoluteString)")
         webView?.load(URLRequest(url: url))
         isPlaying = true
+        persistPlaybackSnapshot(force: true, wasPlaying: true)
     }
 
     /// Pick which signed-in Google account to use, and reload.
@@ -128,30 +194,110 @@ final class WebAudioPlayer: NSObject {
         cancelPreparedBrowserSwap()
         let url = currentURL.isEmpty ? stored : currentURL
         if currentURL.isEmpty || webView == nil {
+            if restoreRecentPlayback(preferredURL: url, requireWasPlaying: false) {
+                return
+            }
             play(urlString: url)
             return
         }
         eval("document.querySelector('video,audio')&&document.querySelector('video,audio').play();")
         isPlaying = true
+        persistPlaybackSnapshot(force: true, wasPlaying: true)
     }
 
     func pause() {
-        eval("document.querySelector('video,audio')&&document.querySelector('video,audio').pause();")
+        eval(Self.pauseAndSuspendScopeJS)
+        mediaTime = estimatedMediaTime()
         isPlaying = false
+        mediaPaused = true
+        mediaClockHostTime = ProcessInfo.processInfo.systemUptime
+        stopNativeAudioScope()
+        persistPlaybackSnapshot(force: true, wasPlaying: false)
         scheduleIdleMemoryPurge(reason: "paused audio")
     }
 
     func stop() {
-        webView?.load(URLRequest(url: URL(string: "about:blank")!))
+        if let webView {
+            quietWebViewForRelease(webView, reason: "stopped audio")
+        }
         currentURL = ""
+        currentTitle = ""
         isPlaying = false
+        mediaTime = 0
+        mediaDuration = 0
+        mediaPlaybackRate = 1
+        mediaPaused = true
+        mediaClockHostTime = ProcessInfo.processInfo.systemUptime
+        resetAudioScope()
+        stopNativeAudioScope()
         setWindowVisible(false)
+        Self.clearPlaybackSnapshot()
         scheduleIdleMemoryPurge(reason: "stopped audio")
+        scheduleMediaCachePurge(reason: "stopped audio")
     }
 
     func setVolume(_ value: Double) {
         volume = max(0, min(100, Int((value * 100).rounded())))
         eval("var v=document.querySelector('video,audio'); if(v){v.volume=\(volume)/100.0;}")
+    }
+
+    func requestAudioScopePermission() {
+        audioScopeError = nil
+        nativeAudioScopeSuppressedUntil = 0
+        guard Self.canStartNativeAudioScopeWithoutPrompt() else {
+            nativeAudioScopeEnabledForSession = false
+            audioScopeError = Self.nativeAudioScopePermissionMessage
+            ScreenCaptureAudioPermission.showAssistant(startRequest: false)
+            onStateChange?()
+            return
+        }
+        Self.recordNativeAudioScopeUserIntent()
+        nativeAudioScopeEnabledForSession = true
+        if isPlaying {
+            startNativeAudioScope(reason: "visualizer requested", userInitiated: true)
+        }
+        onStateChange?()
+    }
+
+    func setVisualizerActive(_ active: Bool) {
+        guard visualizerActive != active else { return }
+        visualizerActive = active
+
+        if active {
+            eval(Self.setVisualizerActiveJS(true))
+            eval(Self.setAudioScopeFrameIntervalJS(audioScopeFrameIntervalMilliseconds))
+            if isPlaying {
+                eval("window.__pomoSetupScope && window.__pomoSetupScope();")
+            }
+        } else {
+            eval(Self.setVisualizerActiveJS(false))
+            eval(Self.suspendAudioScopeJS)
+            resetAudioScope()
+            stopNativeAudioScope()
+        }
+        onStateChange?()
+    }
+
+    func setVisualizerScopeFrameInterval(milliseconds: Int) {
+        let clamped = max(50, min(500, milliseconds))
+        guard audioScopeFrameIntervalMilliseconds != clamped else { return }
+        audioScopeFrameIntervalMilliseconds = clamped
+        nativeAudioScope.setFrameInterval(milliseconds: clamped)
+        eval(Self.setAudioScopeFrameIntervalJS(clamped))
+        if visualizerActive, isPlaying {
+            eval("window.__pomoSetupScope && window.__pomoSetupScope();")
+        }
+    }
+
+    func estimatedMediaTime(at hostTime: Double = ProcessInfo.processInfo.systemUptime) -> Double {
+        var time = mediaTime
+        if isPlaying, !mediaPaused {
+            time += max(0, hostTime - mediaClockHostTime) * max(0, mediaPlaybackRate)
+        }
+        if mediaDuration > 0 {
+            time = min(time, mediaDuration)
+        }
+        return max(0, time)
     }
 
     /// Skip to the next track — works on YouTube playlists/radio and YT Music.
@@ -180,34 +326,62 @@ final class WebAudioPlayer: NSObject {
         seekTimestampSection(direction: -1)
     }
 
+    @discardableResult
+    func restoreRecentPlayback(preferredURL: String, requireWasPlaying: Bool = true) -> Bool {
+        let snapshot = Self.loadPlaybackSnapshot()
+        let fallbackURL = preferredURL.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard let snapshot else { return false }
+        guard !requireWasPlaying || snapshot.wasPlaying else { return false }
+        guard Date().timeIntervalSince1970 - snapshot.updatedAt <= Self.playbackAutoResumeMaxAge else { return false }
+
+        let url = snapshot.url.trimmingCharacters(in: .whitespacesAndNewlines)
+        let restoreURL = url.isEmpty ? fallbackURL : url
+        guard !restoreURL.isEmpty else { return false }
+        play(urlString: restoreURL, startAt: snapshot.time, knownTitle: snapshot.title)
+        return true
+    }
+
+    func persistPlaybackSnapshotNow() {
+        persistPlaybackSnapshot(force: true)
+    }
+
     // MARK: - Attached video drawer
 
     /// Reflects user intent (not raw window visibility) so the on-face toggle
     /// stays correct even mid-animation.
     var isWindowVisible: Bool { drawerOpen }
 
-    /// Show/hide the drawer with a slide animation. Opening lazily builds the
-    /// web view if it doesn't exist yet.
+    /// Show/hide the drawer. Opening lazily builds the web view if it doesn't
+    /// exist yet, then docks it directly to the current HUD panel.
     func setWindowVisible(_ visible: Bool) {
+        let changed = drawerOpen != visible
         drawerOpen = visible
         if visible {
             cancelIdleMemoryPurge()
             cancelPreparedBrowserSwap()
+            let restoreURL = webView == nil ? currentURL : ""
             ensureWebView()
+            if !restoreURL.isEmpty {
+                play(urlString: restoreURL)
+            }
             openDrawer()
         } else {
             closeDrawer()
             scheduleIdleMemoryPurge(reason: "hidden video drawer")
         }
+        if changed {
+            onStateChange?()
+        }
     }
 
     func toggleWindow() { setWindowVisible(!drawerOpen) }
 
-    /// The HUD appeared: anchor to it and, if the drawer was open, slide it back
-    /// out alongside the (possibly repositioned) panel.
+    /// The HUD appeared: anchor to it and, if the drawer was open, dock it back
+    /// alongside the (possibly repositioned) panel.
     func hudDidAppear(anchor: NSWindow?) {
         anchorWindow = anchor
         if drawerOpen { openDrawer() }
+        onStateChange?()
     }
 
     /// The HUD is hiding: tuck the drawer away with it, keeping the open intent
@@ -217,6 +391,7 @@ final class WebAudioPlayer: NSObject {
         if let anchor = anchorWindow, host.parent === anchor { anchor.removeChildWindow(host) }
         host.orderOut(nil)
         host.alphaValue = 1
+        onStateChange?()
     }
 
     /// Switch between the original YouTube page (comments/details/account UI)
@@ -224,25 +399,22 @@ final class WebAudioPlayer: NSObject {
     func setExpanded(_ on: Bool) {
         guard drawerOpen, let host = hostWindow, let anchor = anchorWindow else { return }
         drawerExpanded = on
-        applyBare(!on)                      // bare (chrome hidden) only when collapsed
+        let a = anchor.frame
+        let shade = isShadeAnchor(a)
+        applyBare(shade || !on)             // shade mode always uses the compact player sheet
         applyDrawerCorners()
         updateExpandButton()
-        let a = anchor.frame
+        onStateChange?()
         let screen = (anchor.screen ?? NSScreen.main)?.visibleFrame ?? a
         let open = openFrame(size: size(for: drawerEdge, in: a), edge: drawerEdge, anchor: a, screen: screen)
         if host.parent === anchor { anchor.removeChildWindow(host) }
+        host.alphaValue = 1
+        host.setFrame(open, display: true)
         host.order(.below, relativeTo: anchor.windowNumber)
-        NSAnimationContext.runAnimationGroup({ ctx in
-            ctx.duration = 0.26
-            ctx.timingFunction = CAMediaTimingFunction(name: .easeInEaseOut)
-            host.animator().setFrame(open, display: true)
-        }, completionHandler: { [weak self] in
-            MainActor.assumeIsolated {
-                guard let self, let host = self.hostWindow, let anchor = self.anchorWindow,
-                      self.drawerOpen, host.parent !== anchor else { return }
-                anchor.addChildWindow(host, ordered: .below)
-            }
-        })
+        if host.parent !== anchor {
+            anchor.addChildWindow(host, ordered: .below)
+        }
+        scheduleVideoQualityRefresh(delay: 0.45)
     }
 
     func setOriginalPageVisible(_ visible: Bool) {
@@ -259,6 +431,11 @@ final class WebAudioPlayer: NSObject {
     @objc private func didTapExpand() { setExpanded(!drawerExpanded) }
 
     @objc private func didTapOpenInBrowser() { openInBrowser() }
+
+    @objc private func didTapSkipAd() {
+        eval(Self.skipAdClickJS)
+        setSkipAdAvailable(false)
+    }
 
     /// Pop the *currently playing* page (playlist/index intact) out to the
     /// default browser, where playlists, autoplay and the user's extensions work.
@@ -281,11 +458,35 @@ final class WebAudioPlayer: NSObject {
         return b
     }
 
-    // MARK: - Drawer geometry + slide animation
+    private static func skipAdOverlayButton(target: Any?, action: Selector) -> NSButton {
+        let b = NSButton(title: "Skip Ad", target: target, action: action)
+        b.isBordered = false
+        b.bezelStyle = .regularSquare
+        b.wantsLayer = true
+        b.layer?.backgroundColor = NSColor.black.withAlphaComponent(0.74).cgColor
+        b.layer?.cornerRadius = 8
+        b.layer?.borderWidth = 1
+        b.layer?.borderColor = NSColor.white.withAlphaComponent(0.28).cgColor
+        b.contentTintColor = .white
+        b.font = .systemFont(ofSize: 12, weight: .semibold)
+        b.toolTip = "Skip YouTube ad"
+        return b
+    }
+
+    // MARK: - Drawer geometry
 
     /// First edge (right → left → below → above) with room for the collapsed
     /// drawer beside the HUD.
     private func chooseEdge(_ a: NSRect, _ screen: NSRect) -> DrawerEdge {
+        if isShadeAnchor(a) {
+            let sheetHeight = collapsedSize(.below, hud: a).height
+            let roomBelow = a.minY - screen.minY + seam
+            let roomAbove = screen.maxY - a.maxY + seam
+            if roomBelow >= sheetHeight { return .below }
+            if roomAbove >= sheetHeight { return .above }
+            return roomBelow >= roomAbove ? .below : .above
+        }
+
         let sideW = collapsedSize(.right).width, vertH = collapsedSize(.below).height
         if a.maxX - seam + sideW <= screen.maxX { return .right }
         if a.minX + seam - sideW >= screen.minX { return .left }
@@ -296,6 +497,10 @@ final class WebAudioPlayer: NSObject {
 
     private static let seamOverlap: CGFloat = 2     // hairline tuck so no desktop shows through
     private var seam: CGFloat { Self.seamOverlap }
+
+    private func isShadeAnchor(_ anchor: NSRect) -> Bool {
+        anchor.height <= 44
+    }
 
     /// Collapsed matches the HUD across the shared edge; height/width filled in
     /// from the anchor at call sites that have it.
@@ -314,7 +519,10 @@ final class WebAudioPlayer: NSObject {
     }
 
     private func size(for edge: DrawerEdge, in hud: NSRect) -> NSSize {
-        drawerExpanded ? expandedSize(edge, hud: hud) : collapsedSize(edge, hud: hud)
+        if isShadeAnchor(hud) {
+            return collapsedSize(edge, hud: hud)
+        }
+        return drawerExpanded ? expandedSize(edge, hud: hud) : collapsedSize(edge, hud: hud)
     }
 
     /// Place a drawer of `size` flush against `edge` of the HUD, centred on the
@@ -330,6 +538,9 @@ final class WebAudioPlayer: NSObject {
 
     private func openFrame(size s: NSSize, edge: DrawerEdge, anchor a: NSRect, screen: NSRect) -> NSRect {
         let frame = drawerFrame(size: s, edge: edge, anchor: a)
+        if isShadeAnchor(a) {
+            return constrained(frame, to: screen.insetBy(dx: 8, dy: 8))
+        }
         return drawerExpanded ? constrained(frame, to: screen.insetBy(dx: 16, dy: 16)) : frame
     }
 
@@ -344,50 +555,31 @@ final class WebAudioPlayer: NSObject {
         return frame
     }
 
-    /// The collapsed open frame shifted fully behind the HUD along the slide axis.
-    private func tuckedFrame(_ open: NSRect, edge: DrawerEdge) -> NSRect {
-        switch edge {
-        case .right: return open.offsetBy(dx: -open.width, dy: 0)
-        case .left:  return open.offsetBy(dx:  open.width, dy: 0)
-        case .below: return open.offsetBy(dx: 0, dy:  open.height)
-        case .above: return open.offsetBy(dx: 0, dy: -open.height)
-        }
-    }
-
-    /// Slide the drawer out from behind the HUD, then adopt it as a child window
-    /// so it tracks the panel when dragged.
+    /// Dock the drawer to the HUD, then adopt it as a child window so it tracks
+    /// the panel when dragged.
     private func openDrawer() {
         guard let host = hostWindow else { return }
         guard let anchor = anchorWindow else { host.orderFrontRegardless(); return }
         let a = anchor.frame
         let screen = (anchor.screen ?? NSScreen.main)?.visibleFrame ?? a
+        let shade = isShadeAnchor(a)
         drawerEdge = chooseEdge(a, screen)
         applyDrawerCorners()
-        applyBare(!drawerExpanded)
-        applyVideoQuality()              // bump if it was playing audio-only at low res
+        applyBare(shade || !drawerExpanded)
 
-        let collapsedOpen = drawerFrame(size: collapsedSize(drawerEdge, hud: a), edge: drawerEdge, anchor: a)
         let open = openFrame(size: size(for: drawerEdge, in: a), edge: drawerEdge, anchor: a, screen: screen)
-        host.setFrame(tuckedFrame(collapsedOpen, edge: drawerEdge), display: false)
-        host.alphaValue = 0
-        host.order(.below, relativeTo: anchor.windowNumber)        // emerge from behind
-        NSAnimationContext.runAnimationGroup({ ctx in
-            ctx.duration = 0.32
-            ctx.timingFunction = CAMediaTimingFunction(name: .easeOut)
-            host.animator().setFrame(open, display: true)
-            host.animator().alphaValue = 1
-        }, completionHandler: { [weak self] in
-            MainActor.assumeIsolated {       // NSAnimationContext fires on the main thread
-                guard let self, let host = self.hostWindow, let anchor = self.anchorWindow,
-                      self.drawerOpen, host.parent !== anchor else { return }
-                anchor.addChildWindow(host, ordered: .below)
-            }
-        })
+        if host.parent === anchor { anchor.removeChildWindow(host) }
+        host.alphaValue = 1
+        host.setFrame(open, display: true)
+        host.order(.below, relativeTo: anchor.windowNumber)
+        if host.parent !== anchor {
+            anchor.addChildWindow(host, ordered: .below)
+        }
+        scheduleVideoQualityRefresh(delay: 0.65)
     }
 
-    /// Slide the drawer back behind the HUD and order it out. Preserve the
-    /// current page/player mode so reopening feels like returning to the same
-    /// surface, not starting over.
+    /// Hide the drawer. Preserve the current page/player mode so reopening feels
+    /// like returning to the same surface, not starting over.
     private func closeDrawer() {
         showLoading(false)
         guard let host = hostWindow, host.isVisible else {
@@ -396,31 +588,15 @@ final class WebAudioPlayer: NSObject {
             completePendingThresholdPurge(at: "hidden video drawer", delay: 0)
             return
         }
-        let target: NSRect
         if let anchor = anchorWindow {
-            let a = anchor.frame
-            let collapsedOpen = drawerFrame(size: collapsedSize(drawerEdge, hud: a), edge: drawerEdge, anchor: a)
-            target = tuckedFrame(collapsedOpen, edge: drawerEdge)
             if host.parent === anchor { anchor.removeChildWindow(host) }
-            host.order(.below, relativeTo: anchor.windowNumber)
-        } else {
-            target = host.frame
         }
-        NSAnimationContext.runAnimationGroup({ ctx in
-            ctx.duration = 0.24
-            ctx.timingFunction = CAMediaTimingFunction(name: .easeIn)
-            host.animator().setFrame(target, display: true)
-            host.animator().alphaValue = 0
-        }, completionHandler: { [weak self] in
-            MainActor.assumeIsolated {       // NSAnimationContext fires on the main thread
-                guard let self, let host = self.hostWindow, !self.drawerOpen else { return }
-                host.orderOut(nil)
-                host.alphaValue = 1
-                self.updateExpandButton()
-                self.scheduleIdleMemoryPurge(reason: "hidden video drawer")
-                self.completePendingThresholdPurge(at: "hidden video drawer", delay: 0)
-            }
-        })
+        host.orderOut(nil)
+        host.alphaValue = 1
+        updateExpandButton()
+        scheduleVideoQualityRefresh(delay: 1.0)
+        scheduleIdleMemoryPurge(reason: "hidden video drawer")
+        completePendingThresholdPurge(at: "hidden video drawer", delay: 0)
     }
 
     // MARK: - Browser/video memory reclamation
@@ -435,11 +611,12 @@ final class WebAudioPlayer: NSObject {
         if aggressive { discardPreparedBrowser(reason: reason) }
 
         if isPlaying || drawerOpen {
-            if aggressive { applyVideoQuality() }
-            else { prepareReplacementBrowser(reason: reason) }
+            discardPreparedBrowser(reason: reason)
+            applyVideoQuality()
             return
         }
 
+        purgeWebKitMediaCacheFiles(reason: reason)
         if aggressive {
             releaseWebView(reason: reason)
         } else {
@@ -477,7 +654,7 @@ final class WebAudioPlayer: NSObject {
             }
         }
         idleMemoryPurgeWork = work
-        DispatchQueue.main.asyncAfter(deadline: .now() + 180, execute: work)
+        DispatchQueue.main.asyncAfter(deadline: .now() + Self.idleBrowserMemoryPurgeDelay, execute: work)
     }
 
     private func cancelIdleMemoryPurge() {
@@ -498,6 +675,7 @@ final class WebAudioPlayer: NSObject {
                 guard !self.drawerOpen else {
                     self.log("deferred memory purge still waiting; drawer visible at \(boundary)")
                     self.purgeWebsiteCaches(reason: "\(boundary) after \(reason)")
+                    self.purgeWebKitMediaCacheFiles(reason: "\(boundary) after \(reason)")
                     return
                 }
                 self.pendingThresholdPurgeReason = nil
@@ -546,6 +724,45 @@ final class WebAudioPlayer: NSObject {
         ]
         WKWebsiteDataStore.default().removeData(ofTypes: types, modifiedSince: .distantPast) { [weak self] in
             Task { @MainActor in self?.log("purged browser caches (\(reason))") }
+        }
+    }
+
+    private func scheduleMediaCachePurge(reason: String) {
+        DispatchQueue.main.asyncAfter(deadline: .now() + 1.0) { [weak self] in
+            MainActor.assumeIsolated {
+                self?.purgeWebKitMediaCacheFiles(reason: reason)
+            }
+        }
+    }
+
+    private func purgeWebKitMediaCacheFiles(reason: String) {
+        guard !isPlaying else { return }
+        let manager = FileManager.default
+        guard let bundleID = Bundle.main.bundleIdentifier, !bundleID.isEmpty else { return }
+        let mediaCache = manager.temporaryDirectory
+            .appendingPathComponent(bundleID, isDirectory: true)
+            .appendingPathComponent("WebKit", isDirectory: true)
+            .appendingPathComponent("MediaCache", isDirectory: true)
+
+        guard let files = try? manager.contentsOfDirectory(
+            at: mediaCache,
+            includingPropertiesForKeys: [.isRegularFileKey],
+            options: [.skipsHiddenFiles]
+        ) else { return }
+
+        var removed = 0
+        for file in files where file.lastPathComponent.hasPrefix("CachedMedia-") {
+            let isRegularFile = (try? file.resourceValues(forKeys: [.isRegularFileKey]).isRegularFile) ?? true
+            guard isRegularFile else { continue }
+            do {
+                try manager.removeItem(at: file)
+                removed += 1
+            } catch {
+                log("media cache prune skipped \(file.lastPathComponent): \(error.localizedDescription)")
+            }
+        }
+        if removed > 0 {
+            log("purged \(removed) WebKit media cache file(s) (\(reason))")
         }
     }
 
@@ -615,10 +832,11 @@ final class WebAudioPlayer: NSObject {
             if let drawer = webView as? DrawerWebView {
                 drawer.owner = nil
             }
-            webView?.stopLoading()
+            if let webView {
+                quietWebViewForRelease(webView, reason: reason)
+            }
             webView?.navigationDelegate = nil
             webView?.configuration.userContentController.removeScriptMessageHandler(forName: "pomo")
-            webView?.loadHTMLString("", baseURL: nil)
             hostWindow?.contentView = nil
             hostWindow?.orderOut(nil)
         }
@@ -629,8 +847,10 @@ final class WebAudioPlayer: NSObject {
         messageProxy = nil
         drawerContainer = nil
         expandButton = nil
+        skipAdButton = nil
         loadingView = nil
         avatarView = nil
+        scheduleMediaCachePurge(reason: reason)
     }
 
     /// Round only the *outer* corners when collapsed (so the inner edge butts the
@@ -638,7 +858,8 @@ final class WebAudioPlayer: NSObject {
     private func applyDrawerCorners() {
         guard let layer = drawerContainer?.layer else { return }
         layer.cornerRadius = Self.drawerRadius
-        if drawerExpanded {
+        let shade = anchorWindow.map { isShadeAnchor($0.frame) } ?? false
+        if drawerExpanded && !shade {
             layer.maskedCorners = [.layerMinXMinYCorner, .layerMaxXMinYCorner,
                                    .layerMinXMaxYCorner, .layerMaxXMaxYCorner]
             return
@@ -958,6 +1179,13 @@ final class WebAudioPlayer: NSObject {
 
     private func eval(_ js: String) { webView?.evaluateJavaScript(js, completionHandler: nil) }
 
+    private func quietWebViewForRelease(_ webView: WKWebView, reason: String) {
+        log("quieting web player (\(reason))")
+        webView.evaluateJavaScript(Self.shutdownMediaJS, completionHandler: nil)
+        webView.stopLoading()
+        webView.load(URLRequest(url: Self.blankPageURL))
+    }
+
     private func currentBrowserInstance() -> BrowserInstance? {
         guard let webView = webView as? DrawerWebView,
               let hostWindow,
@@ -965,6 +1193,7 @@ final class WebAudioPlayer: NSObject {
               let messageProxy,
               let drawerContainer,
               let expandButton,
+              let skipAdButton,
               let loadingView,
               let avatarView
         else { return nil }
@@ -975,6 +1204,7 @@ final class WebAudioPlayer: NSObject {
             messageProxy: messageProxy,
             drawerContainer: drawerContainer,
             expandButton: expandButton,
+            skipAdButton: skipAdButton,
             loadingView: loadingView,
             avatarView: avatarView
         )
@@ -987,6 +1217,7 @@ final class WebAudioPlayer: NSObject {
         messageProxy = instance.messageProxy
         drawerContainer = instance.drawerContainer
         expandButton = instance.expandButton
+        skipAdButton = instance.skipAdButton
         loadingView = instance.loadingView
         avatarView = instance.avatarView
         avatarView?.image = account.avatar
@@ -1001,13 +1232,89 @@ final class WebAudioPlayer: NSObject {
         }
         instance.loadingView.stop()
         instance.webView.owner = nil
-        instance.webView.stopLoading()
+        quietWebViewForRelease(instance.webView, reason: "tearing down web player")
         instance.webView.navigationDelegate = nil
         instance.webView.configuration.userContentController.removeScriptMessageHandler(forName: "pomo")
-        instance.webView.loadHTMLString("", baseURL: nil)
         instance.hostWindow.contentView = nil
         instance.hostWindow.orderOut(nil)
     }
+
+    private static func setVisualizerActiveJS(_ active: Bool) -> String {
+        "window.__pomoVisualizerActive=\(active ? "true" : "false");"
+    }
+
+    private static func setAudioScopeFrameIntervalJS(_ milliseconds: Int) -> String {
+        "window.__pomoScopeIntervalMs=\(max(50, min(500, milliseconds)));"
+    }
+
+    private static let suspendAudioScopeJS = """
+    (function(){
+      try {
+        if (window.__pomoStopScope) {
+          window.__pomoStopScope(false);
+          return;
+        }
+        var hasPlayingMedia = false;
+        Array.prototype.forEach.call(document.querySelectorAll('video,audio'), function(v){
+          if (!v.paused && !v.ended) hasPlayingMedia = true;
+          if (v.__pomoScopeTimer) {
+            clearInterval(v.__pomoScopeTimer);
+            v.__pomoScopeTimer = null;
+          }
+        });
+        if (hasPlayingMedia) return;
+        Array.prototype.forEach.call(document.querySelectorAll('video,audio'), function(v){
+          try { if (v.__pomoScopeAnalyser) v.__pomoScopeAnalyser.disconnect(); } catch(e) {}
+        });
+        var ctx = window.__pomoAudioContext;
+        if (ctx && ctx.state === 'running' && ctx.suspend) {
+          var p = ctx.suspend();
+          if (p && p.catch) p.catch(function(){});
+        }
+      } catch(e) {}
+    })();
+    """
+
+    private static let pauseAndSuspendScopeJS = """
+    (function(){
+      var media = document.querySelector('video,audio');
+      try { if (media) media.pause(); } catch(e) {}
+      \(suspendAudioScopeJS)
+    })();
+    """
+
+    private static let shutdownMediaJS = """
+    (function(){
+      window.__pomoVisualizerActive = false;
+      try {
+        if (window.__pomoStopScope) window.__pomoStopScope(true);
+      } catch(e) {}
+      Array.prototype.forEach.call(document.querySelectorAll('video,audio'), function(v){
+        try { v.pause(); } catch(e) {}
+        if (v.__pomoClockTimer) {
+          clearInterval(v.__pomoClockTimer);
+          v.__pomoClockTimer = null;
+        }
+        if (v.__pomoScopeTimer) {
+          clearInterval(v.__pomoScopeTimer);
+          v.__pomoScopeTimer = null;
+        }
+        try { v.removeAttribute('src'); } catch(e) {}
+        try { v.src = ''; } catch(e) {}
+        try { v.load(); } catch(e) {}
+      });
+      try {
+        var ctx = window.__pomoAudioContext;
+        window.__pomoAudioContext = null;
+        if (ctx && ctx.state !== 'closed' && ctx.close) {
+          var p = ctx.close();
+          if (p && p.catch) p.catch(function(){});
+        }
+      } catch(e) {}
+      window.__pomoSetupScope = null;
+      window.__pomoStopScope = null;
+    })();
+    """
 
     /// Injected as a "content script": a user stylesheet that, while the
     /// `pomo-bare` class is on `<html>`, strips YouTube down to just the player +
@@ -1047,13 +1354,27 @@ final class WebAudioPlayer: NSObject {
     })();
     """
 
-    /// Crisp while the drawer is visible; lowest (audio-only) while hidden to
-    /// save bandwidth.
-    private var videoQuality: String { drawerOpen ? "hd720" : "tiny" }
+    /// Prefer modest quality for the compact drawer to avoid media rebuffering
+    /// when the user reveals the player from audio-only mode.
+    private var videoQuality: String {
+        if drawerExpanded { return "hd720" }
+        return drawerOpen ? "medium" : "tiny"
+    }
+
+    private func scheduleVideoQualityRefresh(delay: TimeInterval) {
+        videoQualityWork?.cancel()
+        let work = DispatchWorkItem { [weak self] in
+            MainActor.assumeIsolated {
+                self?.applyVideoQuality()
+            }
+        }
+        videoQualityWork = work
+        DispatchQueue.main.asyncAfter(deadline: .now() + delay, execute: work)
+    }
 
     private func applyVideoQuality() {
         let q = videoQuality
-        eval("(function(){var mp=document.getElementById('movie_player');if(mp){try{mp.setPlaybackQualityRange&&mp.setPlaybackQualityRange('\(q)','\(q)');}catch(e){}try{mp.setPlaybackQuality&&mp.setPlaybackQuality('\(q)');}catch(e){}}})();")
+        eval("(function(){var mp=document.getElementById('movie_player');if(mp){try{mp.setPlaybackQuality&&mp.setPlaybackQuality('\(q)');}catch(e){}}})();")
     }
 
     private func seekTimestampSection(direction: Int) {
@@ -1229,6 +1550,7 @@ final class WebAudioPlayer: NSObject {
         let wv = DrawerWebView(frame: frame, configuration: config)
         wv.owner = self
         wv.customUserAgent = Self.desktopUA
+        WebKitInspectorMenu.enableInspection(on: wv)
         let navProxy = NavProxy(self)
         wv.navigationDelegate = navProxy
 
@@ -1264,6 +1586,12 @@ final class WebAudioPlayer: NSObject {
         browser.autoresizingMask = [.minXMargin, .minYMargin]
         container.addSubview(browser)
 
+        let skipAd = Self.skipAdOverlayButton(target: self, action: #selector(didTapSkipAd))
+        skipAd.frame = NSRect(x: frame.width - 92 - 12, y: 38, width: 92, height: 30)
+        skipAd.autoresizingMask = [.minXMargin, .maxYMargin]
+        skipAd.isHidden = true
+        container.addSubview(skipAd)
+
         // Signed-in avatar, pinned top-left (the top-right corner is taken by the
         // open-in-browser / expand controls). Hidden until we know the identity.
         let avatarSize: CGFloat = 22
@@ -1281,12 +1609,15 @@ final class WebAudioPlayer: NSObject {
         container.addSubview(avatar)
 
         let window = NSWindow(contentRect: frame, styleMask: [.borderless], backing: .buffered, defer: false)
+        window.title = "Pomo Amp Video Player"
         window.isReleasedWhenClosed = false
         window.isOpaque = false
         window.backgroundColor = .clear
         window.hasShadow = true
         window.level = .floating
-        window.collectionBehavior = [.canJoinAllSpaces, .fullScreenAuxiliary]
+        window.sharingType = .readOnly
+        window.isExcludedFromWindowsMenu = false
+        window.collectionBehavior = [.canJoinAllSpaces, .fullScreenAuxiliary, .participatesInCycle]
         window.contentView = container
         positionBottomRight(window)
 
@@ -1297,6 +1628,7 @@ final class WebAudioPlayer: NSObject {
             messageProxy: messageProxy,
             drawerContainer: container,
             expandButton: expand,
+            skipAdButton: skipAd,
             loadingView: loading,
             avatarView: avatar
         )
@@ -1312,19 +1644,188 @@ final class WebAudioPlayer: NSObject {
     /// report state. Retries because the element appears asynchronously.
     fileprivate func didFinishNavigation(for candidate: WKWebView) {
         guard candidate === webView else { return }
+        let restoreSeekTime = pendingSeekTime ?? 0
+        pendingSeekTime = nil
         log("navigation finished")
         let js = """
         (function(){
           function post(m){ try{ window.webkit.messageHandlers.pomo.postMessage(m); }catch(e){} }
+          var __pomoRestoreSeek = \(restoreSeekTime);
+          var __pomoLastTitle = '';
+          var __pomoTitleTick = 0;
+          function cleanTitle(text){
+            text = (text || '').toString().replace(/\\s+/g, ' ').trim();
+            text = text.replace(/\\s+-\\s+YouTube(?:\\s+Music)?$/i, '');
+            text = text.replace(/\\s+\\|\\s+YouTube(?:\\s+Music)?$/i, '');
+            return text.trim();
+          }
+          function playerTitle(){
+            var mp = document.getElementById('movie_player'), response, title = '';
+            try { response = mp && mp.getPlayerResponse && mp.getPlayerResponse(); } catch(e){}
+            try { title = response && response.videoDetails && response.videoDetails.title || ''; } catch(e){}
+            if (!title) {
+              var meta = document.querySelector('meta[property="og:title"],meta[name="title"]');
+              title = meta && meta.getAttribute('content') || '';
+            }
+            if (!title) {
+              var heading = document.querySelector('ytd-watch-metadata h1 yt-formatted-string, ytd-watch-metadata h1, h1.title, h1');
+              title = heading && heading.textContent || '';
+            }
+            if (!title) title = document.title || '';
+            return cleanTitle(title);
+          }
+          function reportTitle(){
+            var title = playerTitle();
+            if (!title || title === __pomoLastTitle) return;
+            __pomoLastTitle = title;
+            post('title:' + encodeURIComponent(title));
+          }
+          window.__pomoVisualizerActive = \(visualizerActive ? "true" : "false");
+          window.__pomoScopeIntervalMs = \(audioScopeFrameIntervalMilliseconds);
+          function restoreSeek(v, attempts){
+            var target = Number(__pomoRestoreSeek) || 0;
+            if (target <= 1 || !v) return;
+            try {
+              var duration = Number(v.duration) || 0;
+              var clamped = duration > 2 ? Math.min(target, Math.max(0, duration - 1)) : target;
+              if (Math.abs((Number(v.currentTime) || 0) - clamped) > 1.5) {
+                v.currentTime = clamped;
+              }
+              if (duration > 0) {
+                __pomoRestoreSeek = 0;
+                post('seekrestore:' + Math.round(clamped));
+                return;
+              }
+            } catch(e) {}
+            if (attempts > 0) setTimeout(function(){ restoreSeek(v, attempts - 1); }, 450);
+          }
           function go(n){
             var v = document.querySelector('video,audio');
             if (v) {
               try { v.volume = \(volume)/100.0; } catch(e){}
+              restoreSeek(v, 12);
+              function clock(){
+                var duration = Number(v.duration);
+                var payload = {
+                  time: Number(v.currentTime) || 0,
+                  duration: isFinite(duration) ? duration : 0,
+                  paused: !!v.paused,
+                  rate: Number(v.playbackRate) || 1,
+                  ended: !!v.ended
+                };
+                post('clock:' + JSON.stringify(payload));
+                __pomoTitleTick += 1;
+                if (__pomoTitleTick % 4 === 0) reportTitle();
+              }
+              function setupScope(){
+                if (!window.__pomoVisualizerActive) return;
+                try {
+                  var AudioContext = window.AudioContext || window.webkitAudioContext;
+                  if (!AudioContext) { post('scopeerr:AudioContext unavailable'); return; }
+                  var ctx = window.__pomoAudioContext;
+                  if (!ctx) ctx = window.__pomoAudioContext = new AudioContext();
+                  if (ctx.state === 'suspended') {
+                    try {
+                      var resume = ctx.resume && ctx.resume();
+                      if (resume && resume.catch) resume.catch(function(e){ post('scopeerr:resume: ' + e); });
+                    } catch(e) {}
+                  }
+                  if (!v.__pomoScopeAnalyser) {
+                    var analyser = ctx.createAnalyser();
+                    analyser.fftSize = 1024;
+                    analyser.smoothingTimeConstant = 0.72;
+                    var source = v.__pomoScopeSource;
+                    if (!source) source = v.__pomoScopeSource = ctx.createMediaElementSource(v);
+                    source.connect(analyser);
+                    analyser.connect(ctx.destination);
+                    v.__pomoScopeAnalyser = analyser;
+                  } else {
+                    try { v.__pomoScopeAnalyser.disconnect(); } catch(e) {}
+                    try { v.__pomoScopeAnalyser.connect(ctx.destination); } catch(e) {}
+                  }
+                  var node = v.__pomoScopeAnalyser;
+                  var freq = new Uint8Array(node.frequencyBinCount);
+                  var wave = new Uint8Array(node.fftSize);
+                  function compactFreq(values, count){
+                    var out = [];
+                    var max = Math.max(1, values.length - 1);
+                    for (var i = 0; i < count; i++) {
+                      var start = Math.floor(Math.pow(i / count, 1.65) * max);
+                      var end = Math.max(start + 1, Math.floor(Math.pow((i + 1) / count, 1.65) * max));
+                      var total = 0, n = 0;
+                      for (var j = start; j <= end && j < values.length; j++) { total += values[j]; n++; }
+                      out.push(n ? Math.round(total / n) : 0);
+                    }
+                    return out;
+                  }
+                  function compactWave(values, count){
+                    var out = [];
+                    var step = values.length / count;
+                    for (var i = 0; i < count; i++) {
+                      out.push(values[Math.min(values.length - 1, Math.floor(i * step))] || 128);
+                    }
+                    return out;
+                  }
+                  function tick(){
+                    try {
+                      node.getByteFrequencyData(freq);
+                      node.getByteTimeDomainData(wave);
+                      var duration = Number(v.duration);
+                      post('scopeframe:' + JSON.stringify({
+                        time: Number(v.currentTime) || 0,
+                        duration: isFinite(duration) ? duration : 0,
+                        paused: !!v.paused,
+                        rate: Number(v.playbackRate) || 1,
+                        ctxState: ctx.state || '',
+                        bands: compactFreq(freq, 24),
+                        waveform: compactWave(wave, 32)
+                      }));
+                    } catch(e) {
+                      post('scopeerr:tick: ' + e);
+                    }
+                  }
+                  if (v.__pomoScopeTimer) clearInterval(v.__pomoScopeTimer);
+                  v.__pomoScopeTimer = setInterval(tick, Math.max(50, Math.min(500, Number(window.__pomoScopeIntervalMs) || 100)));
+                  tick();
+                  post('scope:started');
+                } catch(e) {
+                  post('scopeerr:' + ((e && e.name ? e.name + ': ' : '') + (e && e.message ? e.message : String(e))));
+                }
+              }
+              function teardownScope(closeContext){
+                if (v.__pomoScopeTimer) {
+                  clearInterval(v.__pomoScopeTimer);
+                  v.__pomoScopeTimer = null;
+                }
+                if (closeContext) {
+                  try {
+                    if (v.__pomoScopeSource) v.__pomoScopeSource.disconnect();
+                  } catch(e) {}
+                  try { if (v.__pomoScopeAnalyser) v.__pomoScopeAnalyser.disconnect(); } catch(e) {}
+                  v.__pomoScopeAnalyser = null;
+                  v.__pomoScopeSource = null;
+                  var ctx = window.__pomoAudioContext;
+                  window.__pomoAudioContext = null;
+                  if (ctx && ctx.state !== 'closed' && ctx.close) {
+                    var close = ctx.close();
+                    if (close && close.catch) close.catch(function(){});
+                  }
+                } else {
+                  if (!v.paused && !v.ended) return;
+                  try { if (v.__pomoScopeAnalyser) v.__pomoScopeAnalyser.disconnect(); } catch(e) {}
+                  var ctx = window.__pomoAudioContext;
+                  if (ctx && ctx.state === 'running' && ctx.suspend) {
+                    var suspend = ctx.suspend();
+                    if (suspend && suspend.catch) suspend.catch(function(){});
+                  }
+                }
+              }
+              window.__pomoSetupScope = setupScope;
+              window.__pomoStopScope = teardownScope;
               // Crisp while the drawer is on screen; lowest (audio-only) when
               // hidden. Audio is served independently, so it stays full quality.
               var mp = document.getElementById('movie_player');
               if (mp) {
-                try { mp.setPlaybackQualityRange && mp.setPlaybackQualityRange('\(videoQuality)','\(videoQuality)'); } catch(e){}
                 try { mp.setPlaybackQuality && mp.setPlaybackQuality('\(videoQuality)'); } catch(e){}
               }
               v.play().then(function(){ post('playing'); }).catch(function(e){ post('playfail:'+e); });
@@ -1333,11 +1834,25 @@ final class WebAudioPlayer: NSObject {
                 v.addEventListener('playing', function(){ post('state:1'); });
                 v.addEventListener('pause', function(){ post('state:2'); });
                 v.addEventListener('ended', function(){ post('state:0'); });
+                v.addEventListener('seeked', clock);
+                v.addEventListener('ratechange', clock);
+                v.addEventListener('durationchange', clock);
+                v.addEventListener('timeupdate', clock);
+                v.addEventListener('play', function(){ if (window.__pomoVisualizerActive) setupScope(); });
+                v.addEventListener('playing', function(){ if (window.__pomoVisualizerActive) setupScope(); });
+                v.__pomoClockTimer = setInterval(clock, 500);
               }
+              clock();
+              reportTitle();
+              if (window.__pomoVisualizerActive) setupScope();
+              else teardownScope(false);
               post('attached');
             } else if (n > 0) { setTimeout(function(){ go(n-1); }, 700); }
             else { post('no-video'); }
           }
+          reportTitle();
+          setTimeout(reportTitle, 500);
+          setTimeout(reportTitle, 1500);
           go(10);
         })();
         """
@@ -1345,6 +1860,7 @@ final class WebAudioPlayer: NSObject {
         applyBare(!drawerExpanded)        // a fresh navigation re-asserts the bare default
         eval(Self.accountJS)              // read the signed-in identity off the masthead
         eval(Self.timestampKeyJS)
+        eval(Self.adSkipMonitorJS)
     }
 
     /// Reads the signed-in avatar (and best-effort name) from the YouTube /
@@ -1416,8 +1932,118 @@ final class WebAudioPlayer: NSObject {
     })();
     """
 
+    private static let adSkipButtonSelectors = [
+        ".ytp-ad-skip-button",
+        ".ytp-ad-skip-button-modern",
+        ".ytp-skip-ad-button",
+        ".ytp-ad-skip-button-container button",
+        "button[aria-label^='Skip']",
+        "button[title^='Skip']"
+    ]
+
+    private static var adSkipButtonSelectorListJS: String {
+        "[" + adSkipButtonSelectors.map { "\"\($0)\"" }.joined(separator: ",") + "]"
+    }
+
+    private static let skipAdClickJS = """
+    (function(){
+      function post(m){ try{ window.webkit.messageHandlers.pomo.postMessage(m); }catch(e){} }
+      function visible(el){
+        if (!el || el.disabled || el.getAttribute('aria-disabled') === 'true') return false;
+        var style = window.getComputedStyle(el);
+        if (!style || style.display === 'none' || style.visibility === 'hidden' || Number(style.opacity) === 0) return false;
+        var rect = el.getBoundingClientRect();
+        return rect.width > 2 && rect.height > 2;
+      }
+      var selectors = \(WebAudioPlayer.adSkipButtonSelectorListJS);
+      for (var i = 0; i < selectors.length; i++) {
+        var nodes = document.querySelectorAll(selectors[i]);
+        for (var j = 0; j < nodes.length; j++) {
+          if (visible(nodes[j])) {
+            nodes[j].click();
+            post('adskip:clicked');
+            return true;
+          }
+        }
+      }
+      post('adskip:0');
+      return false;
+    })();
+    """
+
+    private static let adSkipMonitorJS = """
+    (function(){
+      if (window.__pomoAdSkipMonitorInstalled) return;
+      window.__pomoAdSkipMonitorInstalled = true;
+      function post(m){ try{ window.webkit.messageHandlers.pomo.postMessage(m); }catch(e){} }
+      var selectors = \(WebAudioPlayer.adSkipButtonSelectorListJS);
+      var last = null;
+      function visible(el){
+        if (!el || el.disabled || el.getAttribute('aria-disabled') === 'true') return false;
+        var style = window.getComputedStyle(el);
+        if (!style || style.display === 'none' || style.visibility === 'hidden' || Number(style.opacity) === 0) return false;
+        var rect = el.getBoundingClientRect();
+        return rect.width > 2 && rect.height > 2;
+      }
+      function hasSkipButton(){
+        for (var i = 0; i < selectors.length; i++) {
+          var nodes = document.querySelectorAll(selectors[i]);
+          for (var j = 0; j < nodes.length; j++) {
+            if (visible(nodes[j])) return true;
+          }
+        }
+        return false;
+      }
+      function check(){
+        var next = hasSkipButton();
+        if (next !== last) {
+          last = next;
+          post(next ? 'adskip:1' : 'adskip:0');
+        }
+      }
+      check();
+      setInterval(check, 300);
+      try {
+        new MutationObserver(check).observe(document.documentElement || document.body, {
+          childList: true,
+          subtree: true,
+          attributes: true,
+          attributeFilter: ['class', 'style', 'hidden', 'disabled', 'aria-disabled', 'aria-label', 'title']
+        });
+      } catch(e) {}
+    })();
+    """
+
     fileprivate func handlePlayerEvent(_ body: Any) {
         let message = "\(body)"
+        if message.hasPrefix("clock:") {
+            handleMediaClock(String(message.dropFirst("clock:".count)))
+            return
+        }
+        if message.hasPrefix("scopeframe:") {
+            handleAudioScopeFrame(String(message.dropFirst("scopeframe:".count)))
+            return
+        }
+        if message.hasPrefix("scopeerr:") {
+            handleAudioScopeError(String(message.dropFirst("scopeerr:".count)))
+            return
+        }
+        if message.hasPrefix("title:") {
+            handleMediaTitle(String(message.dropFirst("title:".count)))
+            return
+        }
+        if message == "scope:started" {
+            log("scope started")
+            return
+        }
+        if message.hasPrefix("adskip:") {
+            setSkipAdAvailable(message == "adskip:1")
+            return
+        }
+        if message == "adskip:clicked" {
+            setSkipAdAvailable(false)
+            return
+        }
         log("event: \(message)")
         if message.hasPrefix("account:") {
             handleAccount(String(message.dropFirst("account:".count)))
@@ -1445,6 +2071,410 @@ final class WebAudioPlayer: NSObject {
             }
         }
         onStateChange?()
+    }
+
+    private func setSkipAdAvailable(_ available: Bool) {
+        guard let skipAdButton else { return }
+        skipAdButton.isHidden = !available
+    }
+
+    private func handleMediaTitle(_ encodedTitle: String) {
+        let decoded = encodedTitle.removingPercentEncoding ?? encodedTitle
+        let clean = Self.cleanMediaTitle(decoded)
+        guard !clean.isEmpty, clean != currentTitle else { return }
+        currentTitle = clean
+        persistPlaybackSnapshot(force: true)
+        onStateChange?()
+    }
+
+    private static func cleanMediaTitle(_ raw: String) -> String {
+        var title = raw
+            .replacingOccurrences(of: "\n", with: " ")
+            .replacingOccurrences(of: "\t", with: " ")
+            .trimmingCharacters(in: .whitespacesAndNewlines)
+        while title.contains("  ") {
+            title = title.replacingOccurrences(of: "  ", with: " ")
+        }
+        for suffix in [" - YouTube Music", " - YouTube", " | YouTube Music", " | YouTube"] {
+            if title.lowercased().hasSuffix(suffix.lowercased()) {
+                title = String(title.dropLast(suffix.count)).trimmingCharacters(in: .whitespacesAndNewlines)
+            }
+        }
+        return title
+    }
+
+    private func persistPlaybackSnapshot(force: Bool = false, wasPlaying override: Bool? = nil) {
+        guard !currentURL.isEmpty else { return }
+        let hostTime = ProcessInfo.processInfo.systemUptime
+        if !force, hostTime - lastPlaybackSnapshotHostTime < 2.0 { return }
+        lastPlaybackSnapshotHostTime = hostTime
+
+        let snapshot = PlaybackSnapshot(
+            url: currentURL,
+            title: currentTitle,
+            time: estimatedMediaTime(at: hostTime),
+            duration: mediaDuration,
+            wasPlaying: override ?? isPlaying,
+            updatedAt: Date().timeIntervalSince1970
+        )
+        guard let data = try? JSONEncoder().encode(snapshot) else { return }
+        UserDefaults.standard.set(data, forKey: Self.playbackSnapshotKey)
+    }
+
+    private static func loadPlaybackSnapshot() -> PlaybackSnapshot? {
+        guard let data = UserDefaults.standard.data(forKey: playbackSnapshotKey) else { return nil }
+        return try? JSONDecoder().decode(PlaybackSnapshot.self, from: data)
+    }
+
+    private static func clearPlaybackSnapshot() {
+        UserDefaults.standard.removeObject(forKey: playbackSnapshotKey)
+    }
+
+    private func handleMediaClock(_ json: String) {
+        guard let data = json.data(using: .utf8),
+              let payload = try? JSONSerialization.jsonObject(with: data) as? [String: Any]
+        else { return }
+
+        mediaTime = max(0, payload["time"] as? Double ?? mediaTime)
+        mediaDuration = max(0, payload["duration"] as? Double ?? mediaDuration)
+        mediaPlaybackRate = max(0, payload["rate"] as? Double ?? mediaPlaybackRate)
+        mediaPaused = payload["paused"] as? Bool ?? mediaPaused
+        mediaClockHostTime = ProcessInfo.processInfo.systemUptime
+        persistPlaybackSnapshot(wasPlaying: !mediaPaused && isPlaying)
+    }
+
+    private func handleAudioScopeFrame(_ json: String) {
+        guard visualizerActive else { return }
+        guard let data = json.data(using: .utf8),
+              let payload = try? JSONSerialization.jsonObject(with: data) as? [String: Any]
+        else { return }
+
+        let hostTime = ProcessInfo.processInfo.systemUptime
+        let rawBands = Self.numberArray(payload["bands"])
+        let rawWaveform = Self.numberArray(payload["waveform"])
+        let bands = rawBands.map { Self.clamp($0 / 255, 0, 1) }
+        let waveform = rawWaveform.map { Self.clamp(($0 - 128) / 128, -1, 1) }
+        let rms = sqrt(Self.average(waveform.map { $0 * $0 }))
+        let peak = waveform.map { abs($0) }.max() ?? 0
+
+        let frame = AudioScopeFrame(
+            source: "webAudio",
+            hostTime: hostTime,
+            mediaTime: max(0, Self.double(payload["time"], fallback: estimatedMediaTime(at: hostTime))),
+            duration: max(0, Self.double(payload["duration"], fallback: mediaDuration)),
+            playbackRate: max(0, Self.double(payload["rate"], fallback: mediaPlaybackRate)),
+            bands: bands,
+            waveform: waveform,
+            rms: Self.clamp(rms, 0, 1),
+            peak: Self.clamp(peak, 0, 1),
+            low: Self.average(bands.prefix(6)),
+            mid: Self.average(bands.dropFirst(6).prefix(9)),
+            high: Self.average(bands.dropFirst(15))
+        )
+
+        let silent = frame.peak < 0.003 && frame.rms < 0.002 && frame.bands.allSatisfy { $0 < 0.002 }
+        if isPlaying, !mediaPaused, frame.mediaTime > 1.0, silent {
+            silentScopeFrames += 1
+            nonSilentScopeFrames = 0
+            if silentScopeFrames > 30 {
+                startNativeAudioScope(reason: "web audio analyser silent")
+                if hasFreshNativeAudioScope(at: hostTime) {
+                    return
+                }
+                audioScope = frame
+                if audioScopeError != Self.nativeAudioScopePermissionMessage {
+                    audioScopeError = "analyser is silent, using Core Audio tap fallback"
+                }
+            } else {
+                audioScope = frame
+            }
+        } else {
+            let hasNativeFallback = nativeAudioScope.isActive || hasFreshNativeAudioScope(at: hostTime)
+            if hasNativeFallback {
+                nonSilentScopeFrames += 1
+                if nonSilentScopeFrames <= 12, hasFreshNativeAudioScope(at: hostTime) {
+                    return
+                }
+            } else {
+                nonSilentScopeFrames = 0
+            }
+            audioScope = frame
+            silentScopeFrames = 0
+            audioScopeError = nil
+            if nonSilentScopeFrames > 12 || !hasNativeFallback {
+                stopNativeAudioScope()
+            }
+        }
+    }
+
+    private func handleAudioScopeError(_ error: String) {
+        guard visualizerActive else { return }
+        let cleaned = error.trimmingCharacters(in: .whitespacesAndNewlines)
+        let message = cleaned.isEmpty ? "audio analyser unavailable" : cleaned
+        if audioScopeError != message {
+            log("scope error: \(message)")
+        }
+        audioScopeError = message
+        audioScope = nil
+        silentScopeFrames = 0
+        nonSilentScopeFrames = 0
+        startNativeAudioScope(reason: message)
+    }
+
+    private func resetAudioScope(error: String? = nil) {
+        audioScope = nil
+        audioScopeError = error
+        silentScopeFrames = 0
+        nonSilentScopeFrames = 0
+    }
+
+    private func startAudioScopeFreshnessWatchdog() {
+        let timer = Timer(timeInterval: Self.audioScopeFreshnessCheckInterval, repeats: true) { [weak self] _ in
+            Task { @MainActor in self?.audioScopeFreshnessTick() }
+        }
+        RunLoop.main.add(timer, forMode: .common)
+        audioScopeFreshnessTimer = timer
+    }
+
+    private func audioScopeFreshnessTick() {
+        guard visualizerActive, isPlaying, !mediaPaused else { return }
+        let hostTime = ProcessInfo.processInfo.systemUptime
+
+        guard let scope = audioScope else {
+            if audioScopeError == nil, mediaTime > 1.0 {
+                startNativeAudioScope(reason: "missing audio scope")
+            }
+            return
+        }
+
+        let maxAge = scope.source == CoreAudioTapAudioScope.sourceName
+            ? Self.nativeAudioScopeFreshnessSeconds
+            : Self.webAudioScopeFreshnessSeconds
+        let age = hostTime - scope.hostTime
+        guard age > maxAge else { return }
+
+        if scope.source == CoreAudioTapAudioScope.sourceName {
+            restartNativeAudioScope(reason: "stale Core Audio tap scope (\(Int(age * 1000))ms)")
+        } else {
+            log("audio scope stale from \(scope.source); starting Core Audio tap fallback (\(Int(age * 1000))ms)")
+            audioScope = nil
+            startNativeAudioScope(reason: "stale \(scope.source) audio scope")
+        }
+    }
+
+    private func startNativeAudioScope(reason: String, userInitiated: Bool = false) {
+        guard visualizerActive || userInitiated else { return }
+        guard isPlaying else { return }
+        guard !nativeAudioScope.isActive else { return }
+        if userInitiated {
+            guard Self.canStartNativeAudioScopeWithoutPrompt() else {
+                noteNativeAudioScopePermissionNeeded(reason: reason)
+                ScreenCaptureAudioPermission.showAssistant(startRequest: false)
+                return
+            }
+            Self.recordNativeAudioScopeUserIntent()
+            nativeAudioScopeEnabledForSession = true
+        } else if !nativeAudioScopeEnabledForSession {
+            if Self.shouldAutoStartNativeAudioScope() {
+                nativeAudioScopeEnabledForSession = true
+            } else {
+                noteNativeAudioScopePermissionNeeded(reason: reason)
+                return
+            }
+        }
+        if !nativeAudioScopeEnabledForSession {
+            noteNativeAudioScopePermissionNeeded(reason: reason)
+            return
+        }
+        let hostTime = ProcessInfo.processInfo.systemUptime
+        guard hostTime >= nativeAudioScopeSuppressedUntil else { return }
+        log("starting Core Audio tap scope (\(reason))")
+        nativeAudioScope.start()
+    }
+
+    private func noteNativeAudioScopePermissionNeeded(reason: String) {
+        let changed = audioScopeError != Self.nativeAudioScopePermissionMessage
+        audioScopeError = Self.nativeAudioScopePermissionMessage
+        if changed {
+            log("Core Audio tap permission needed (\(reason)); waiting for explicit visualizer enable")
+            onStateChange?()
+        }
+    }
+
+    private func stopNativeAudioScope() {
+        nativeAudioScopeRestartWork?.cancel()
+        nativeAudioScopeRestartWork = nil
+        guard nativeAudioScope.isActive else { return }
+        log("stopping Core Audio tap scope")
+        nativeAudioScope.stop()
+    }
+
+    private func restartNativeAudioScope(reason: String) {
+        guard nativeAudioScopeRestartWork == nil else { return }
+        guard isPlaying else { return }
+        let hostTime = ProcessInfo.processInfo.systemUptime
+        guard hostTime - lastNativeAudioScopeRestartHostTime > 1.5 else { return }
+        lastNativeAudioScopeRestartHostTime = hostTime
+
+        log("restarting Core Audio tap scope (\(reason))")
+        audioScope = nil
+        audioScopeError = nil
+        nativeAudioScope.stop()
+
+        let work = DispatchWorkItem { [weak self] in
+            guard let self else { return }
+            self.nativeAudioScopeRestartWork = nil
+            self.startNativeAudioScope(reason: reason)
+        }
+        nativeAudioScopeRestartWork = work
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.2, execute: work)
+    }
+
+    private func hasFreshNativeAudioScope(at hostTime: Double) -> Bool {
+        guard let audioScope,
+              audioScope.source == CoreAudioTapAudioScope.sourceName
+        else { return false }
+        return hostTime - audioScope.hostTime <= Self.nativeAudioScopeFreshnessSeconds
+    }
+
+    private func handleNativeAudioScopeFrame(_ frame: AudioScopeFrame) {
+        guard visualizerActive else {
+            stopNativeAudioScope()
+            return
+        }
+        let hostTime = ProcessInfo.processInfo.systemUptime
+        var frame = frame
+        frame.hostTime = hostTime
+        frame.mediaTime = estimatedMediaTime(at: hostTime)
+        frame.duration = mediaDuration
+        frame.playbackRate = mediaPlaybackRate
+        audioScope = frame
+        audioScopeError = nil
+        nativeAudioScopeSuppressedUntil = 0
+        nativeAudioScopeEnabledForSession = true
+        if !nativeAudioScopeRecordedSuccessfulAccess {
+            Self.recordSuccessfulNativeAudioScopeAccessForCurrentExecutable()
+            nativeAudioScopeRecordedSuccessfulAccess = true
+            ScreenCaptureAudioPermission.recordSuccessfulAccess()
+        }
+        nonSilentScopeFrames = 0
+    }
+
+    private func handleNativeAudioScopeError(_ error: String?) {
+        guard let error, !error.isEmpty else { return }
+        if audioScopeError != error {
+            log("scope error: \(error)")
+        }
+        if !hasFreshNativeAudioScope(at: ProcessInfo.processInfo.systemUptime) {
+            audioScopeError = error
+        }
+        if Self.isAudioCapturePermissionError(error) {
+            let alreadyAllowed = nativeAudioScopeEnabledForSession || Self.hasSuccessfulNativeAudioScopeAccessForCurrentExecutable()
+            nativeAudioScopeEnabledForSession = false
+            nativeAudioScopeRecordedSuccessfulAccess = false
+            Self.clearSuccessfulNativeAudioScopeAccess()
+            nativeAudioScopeSuppressedUntil = ProcessInfo.processInfo.systemUptime + (alreadyAllowed ? 180 : 30)
+            audioScopeError = alreadyAllowed ? "system audio capture unavailable" : Self.nativeAudioScopePermissionMessage
+            audioScope = nil
+            silentScopeFrames = 0
+            nonSilentScopeFrames = 0
+            return
+        }
+        let lowercased = error.lowercased()
+        let isRecoverableCaptureStop = lowercased.contains("stopped")
+            || lowercased.contains("stalled")
+            || lowercased.contains("no samples")
+        if isPlaying,
+           lowercased.contains("core audio tap"),
+           isRecoverableCaptureStop {
+           restartNativeAudioScope(reason: error)
+        }
+    }
+
+    private static func isAudioCapturePermissionError(_ message: String) -> Bool {
+        let lowercased = message.lowercased()
+        return lowercased.contains("permission")
+            || lowercased.contains("not authorized")
+            || lowercased.contains("not authorised")
+            || lowercased.contains("not permitted")
+            || lowercased.contains("not allowed")
+            || lowercased.contains("denied")
+            || lowercased.contains("declined")
+            || lowercased.contains("tcc")
+    }
+
+    private static func shouldAutoStartNativeAudioScope() -> Bool {
+        canStartNativeAudioScopeWithoutPrompt()
+            && (hasSuccessfulNativeAudioScopeAccessForCurrentExecutable() || hasNativeAudioScopeUserIntent())
+    }
+
+    private static func canStartNativeAudioScopeWithoutPrompt() -> Bool {
+        ScreenCaptureAudioPermission.systemReportsAccess
+    }
+
+    private static func hasNativeAudioScopeUserIntent() -> Bool {
+        UserDefaults.standard.bool(forKey: nativeAudioScopeUserEnabledKey)
+    }
+
+    private static func recordNativeAudioScopeUserIntent() {
+        UserDefaults.standard.set(true, forKey: nativeAudioScopeUserEnabledKey)
+    }
+
+    private static func hasSuccessfulNativeAudioScopeAccessForCurrentExecutable() -> Bool {
+        guard let stored = UserDefaults.standard.string(forKey: nativeAudioScopeExecutableFingerprintKey),
+              let current = currentExecutableFingerprint()
+        else { return false }
+        return stored == current
+    }
+
+    private static func recordSuccessfulNativeAudioScopeAccessForCurrentExecutable() {
+        guard let fingerprint = currentExecutableFingerprint() else { return }
+        UserDefaults.standard.set(fingerprint, forKey: nativeAudioScopeExecutableFingerprintKey)
+        recordNativeAudioScopeUserIntent()
+    }
+
+    private static func clearSuccessfulNativeAudioScopeAccess() {
+        UserDefaults.standard.removeObject(forKey: nativeAudioScopeExecutableFingerprintKey)
+        UserDefaults.standard.removeObject(forKey: nativeAudioScopeUserEnabledKey)
+    }
+
+    private static func currentExecutableFingerprint() -> String? {
+        guard let executableURL = Bundle.main.executableURL,
+              let data = try? Data(contentsOf: executableURL, options: .mappedIfSafe)
+        else { return nil }
+        return SHA256.hash(data: data).map { String(format: "%02x", $0) }.joined()
+    }
+
+    private static func numberArray(_ value: Any?) -> [Double] {
+        guard let values = value as? [Any] else { return [] }
+        return values.compactMap { double($0, fallback: .nan) }.filter { $0.isFinite }
+    }
+
+    private static func double(_ value: Any?, fallback: Double) -> Double {
+        if let number = value as? NSNumber {
+            return number.doubleValue
+        }
+        if let value = value as? Double {
+            return value
+        }
+        if let value = value as? String, let number = Double(value) {
+            return number
+        }
+        return fallback
+    }
+
+    private static func average<S: Sequence>(_ values: S) -> Double where S.Element == Double {
+        var total = 0.0
+        var count = 0.0
+        for value in values {
+            total += value
+            count += 1
+        }
+        return count > 0 ? total / count : 0
+    }
+
+    private static func clamp(_ value: Double, _ minValue: Double, _ maxValue: Double) -> Double {
+        min(max(value, minValue), maxValue)
     }
 
     fileprivate func handleDrawerKeyDown(_ event: NSEvent) -> Bool {
@@ -1542,11 +2572,30 @@ final class WebAudioPlayer: NSObject {
 
     /// Normalise to a playable URL. YouTube Music links load as-is (the YT Music
     /// app, which has radio/next); plain YouTube/youtu.be/bare-id → watch URL.
+    static func isPlayableSource(_ raw: String) -> Bool {
+        watchURL(from: raw) != nil
+    }
+
     private static func watchURL(from raw: String) -> URL? {
-        let host = URLComponents(string: raw)?.host ?? ""
-        if host.contains("music.youtube.com") { return URL(string: raw) }
-        if let id = youTubeID(from: raw) { return URL(string: "https://www.youtube.com/watch?v=\(id)") }
-        return URL(string: raw)
+        let normalized = normalizedSource(raw)
+        let host = URLComponents(string: normalized)?.host ?? ""
+        if host.contains("music.youtube.com") { return URL(string: normalized) }
+        if let id = youTubeID(from: normalized) { return URL(string: "https://www.youtube.com/watch?v=\(id)") }
+        guard let url = URL(string: normalized), url.scheme != nil else { return nil }
+        return url
+    }
+
+    private static func normalizedSource(_ raw: String) -> String {
+        let trimmed = raw.trimmingCharacters(in: .whitespacesAndNewlines)
+        let lower = trimmed.lowercased()
+        if lower.hasPrefix("youtube.com/")
+            || lower.hasPrefix("www.youtube.com/")
+            || lower.hasPrefix("m.youtube.com/")
+            || lower.hasPrefix("music.youtube.com/")
+            || lower.hasPrefix("youtu.be/") {
+            return "https://\(trimmed)"
+        }
+        return trimmed
     }
 
     /// Append Google's `authuser=N` so multi-login picks the right account.
@@ -1560,7 +2609,8 @@ final class WebAudioPlayer: NSObject {
     }
 
     static func youTubeID(from string: String) -> String? {
-        if let comps = URLComponents(string: string) {
+        let normalized = normalizedSource(string)
+        if let comps = URLComponents(string: normalized) {
             let host = comps.host ?? ""
             if host.contains("youtu.be") {
                 let id = comps.path.split(separator: "/").first.map(String.init)
@@ -1573,7 +2623,7 @@ final class WebAudioPlayer: NSObject {
                    idx + 1 < parts.count, isID(parts[idx + 1]) { return parts[idx + 1] }
             }
         }
-        return isID(string) ? string : nil
+        return isID(normalized) ? normalized : nil
     }
 
     private static func isID(_ s: String) -> Bool {
@@ -1640,5 +2690,6 @@ final class DrawerWebView: WKWebView {
         MainActor.assumeIsolated {
             owner?.augmentVideoMenu(menu)
         }
+        WebKitInspectorMenu.addOpenInspectorItem(to: menu, webView: self)
     }
 }

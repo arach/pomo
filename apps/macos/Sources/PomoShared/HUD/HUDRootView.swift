@@ -34,7 +34,7 @@ struct HUDRootView: View {
             toggleDrawer: {
                 // Opening with nothing loaded yet? Kick off the saved station so
                 // the drawer has something to show.
-                if !audio.videoOpen, !audio.isPlaying, audio.currentURL.isEmpty,
+                if !audio.videoVisible, !audio.isPlaying, audio.currentURL.isEmpty,
                    !settings.audioURL.isEmpty {
                     audio.play(urlString: settings.audioURL)
                 }

@@ -17,13 +17,23 @@ let package = Package(
         .package(url: "https://github.com/arach/hudsonkit-xcframework.git", exact: "0.3.2")
     ],
     targets: [
-        .executableTarget(
-            name: "Pomo",
+        .target(
+            name: "PomoShared",
             dependencies: [
                 .product(name: "HudsonUI", package: "hudsonkit-xcframework"),
                 .product(name: "HudsonShell", package: "hudsonkit-xcframework"),
             ],
+            path: "Sources/PomoShared"
+        ),
+        .executableTarget(
+            name: "Pomo",
+            dependencies: ["PomoShared"],
             path: "Sources/Pomo"
+        ),
+        .executableTarget(
+            name: "PomoAmp",
+            dependencies: ["PomoShared"],
+            path: "Sources/PomoAmp"
         )
     ]
 )

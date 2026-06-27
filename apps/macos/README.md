@@ -37,12 +37,13 @@ That builds a release binary, assembles `dist/Pomo.app`, and launches it.
 Useful variants:
 
 ```sh
-scripts/run-app.sh --debug    # faster local build
-scripts/run-app.sh --restart  # quit a running copy before launching
-scripts/run-app.sh --no-open  # build dist/Pomo.app without launching
+scripts/run-app.sh --debug          # faster local build
+scripts/run-app.sh --restart        # quit a running copy before launching
+scripts/run-app.sh --no-open        # build dist/Pomo.app without launching
+scripts/run-app.sh --amp --debug    # build and launch the Pomo Amp music-player app
 scripts/run-app.sh --no-open --sign -  # local ad-hoc signature
-scripts/build-dmg.sh --local  # build a local smoke-test dist/Pomo.dmg
-open dist/Pomo.app            # launch the built app later
+scripts/build-dmg.sh --local        # build a local smoke-test dist/Pomo.dmg
+open dist/Pomo.app                  # launch the built app later
 ```
 
 Build to a custom app path:
@@ -222,12 +223,38 @@ clean clone builds standalone. The first build downloads the release XCFramework
 | `Esc` / `Q` | Hide the HUD |
 | `⌘,` | Open Settings |
 
+## Pomo Amp
+
+`Pomo Amp` is a sibling macOS product built from the same shared native code. It uses
+the YouTube/audio engine and timestamp navigation as a compact music player, with
+`⌃⌥⇧⌘Y` as its default summon hotkey on a fresh profile. Drag the top strip
+to move it, press `B` or the top-right big button to switch sizes, and use the
+small Pomo icon to show or hide Pomo from Amp.
+
+```sh
+cd apps/macos
+scripts/run-app.sh --amp --debug --restart --sign -
+```
+
+Pomo Amp supports HTML/CSS/JavaScript skins through a small host API. Skins live in:
+
+```text
+~/Library/Application Support/Pomo Amp/Skins/
+```
+
+See [`POMO_AMP_SKINS.md`](POMO_AMP_SKINS.md) for the manifest format, state payload, and
+allowed actions.
+
 ## Architecture
 
 ```
 Sources/Pomo/
-  PomoApp.swift            @main — accessory app, empty Settings scene
-  AppDelegate.swift        wires models, menu bar, HUD, hotkey, audio, URL scheme
+  PomoApp.swift            @main for the Pomo app
+Sources/PomoAmp/
+  PomoAmpApp.swift         @main for the Pomo Amp app
+Sources/PomoShared/
+  AppDelegate.swift        Pomo app delegate and wiring
+  PomoAmp/                 Pomo Amp app delegate, menu bar, HUD, and skin bridge
   Core/                    TimerModel, PomoSettings, SessionType, Favorite, TimeFormat
   Hotkey/                  Carbon global-hotkey wrapper
   HUD/                     HUDPanel, HUDController, HUDRootView, BackdropBlurView

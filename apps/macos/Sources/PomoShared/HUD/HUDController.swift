@@ -243,7 +243,7 @@ final class HUDController {
     /// Show / hide the docked video drawer. Mirrors the on-face button: if nothing
     /// is loaded yet, kick off the saved station so the drawer has something to show.
     private func toggleVideoDrawer() {
-        if !audio.videoOpen, !audio.isPlaying, audio.currentURL.isEmpty, !settings.audioURL.isEmpty {
+        if !audio.videoVisible, !audio.isPlaying, audio.currentURL.isEmpty, !settings.audioURL.isEmpty {
             audio.play(urlString: settings.audioURL)
         }
         audio.toggleVideo()

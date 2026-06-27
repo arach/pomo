@@ -6,7 +6,7 @@ import Carbon
 /// (accessory) app: no dock icon, no main window — just the status item and the
 /// hotkey-summoned HUD panel.
 @MainActor
-final class AppDelegate: NSObject, NSApplicationDelegate {
+public final class AppDelegate: NSObject, NSApplicationDelegate {
     private let settings = PomoSettings()
     private lazy var model = TimerModel(settings: settings)
     private let chime = CompletionChime()
@@ -18,7 +18,11 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     private var settingsWindow: NSWindow?
     private var statsWindow: NSWindow?
 
-    func applicationDidFinishLaunching(_ notification: Notification) {
+    public override init() {
+        super.init()
+    }
+
+    public func applicationDidFinishLaunching(_ notification: Notification) {
         NSApp.setActivationPolicy(.accessory)
 
         // Timer → menu-bar countdown + completion behaviour.
@@ -156,7 +160,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     }
 
     /// Clicking the Dock icon (present only while the HUD is up) re-summons the HUD.
-    func applicationShouldHandleReopen(_ sender: NSApplication, hasVisibleWindows flag: Bool) -> Bool {
+    public func applicationShouldHandleReopen(_ sender: NSApplication, hasVisibleWindows flag: Bool) -> Bool {
         hud.show()
         return true
     }
@@ -193,7 +197,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         if let command = PomoCommand(url: url) { apply(command) }
     }
 
-    func application(_ application: NSApplication, open urls: [URL]) {
+    public func application(_ application: NSApplication, open urls: [URL]) {
         for url in urls {
             if let command = PomoCommand(url: url) { apply(command) }
         }
@@ -400,7 +404,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
 }
 
 extension AppDelegate: NSWindowDelegate {
-    func windowWillClose(_ notification: Notification) {
+    public func windowWillClose(_ notification: Notification) {
         guard let closing = notification.object as? NSWindow,
               closing === settingsWindow || closing === statsWindow else { return }
         // Re-evaluate Dock presence as this window closes: stay regular while the

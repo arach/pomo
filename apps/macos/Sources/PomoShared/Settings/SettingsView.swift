@@ -253,6 +253,19 @@ struct SettingsView: View {
                 .padding(HudSpacing.lg)
             }
 
+            group("VISUALIZER") {
+                row("FPS profile", subtitle: settings.pomoAmpVisualizerMode.detail) {
+                    Picker("", selection: settings.binding(\.pomoAmpVisualizerMode)) {
+                        ForEach(PomoAmpVisualizerMode.allCases) { mode in
+                            Label(mode.displayName, systemImage: mode.symbol).tag(mode)
+                        }
+                    }
+                    .pickerStyle(.menu)
+                    .labelsHidden()
+                    .frame(width: 170)
+                }
+            }
+
             group("PLAYLIST", accessory: {
                 if !favorites.items.isEmpty { countBadge(favorites.items.count) }
             }) {

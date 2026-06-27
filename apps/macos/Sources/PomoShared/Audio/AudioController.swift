@@ -23,10 +23,12 @@ final class AudioController {
     private(set) var isPlaying = false
     private(set) var engineName = "none"   // "web" | "none" (kept in state.json)
     private(set) var currentURL = ""
+    private(set) var currentTitle = ""
 
     /// Whether the video drawer is open. Stored (not computed) so the on-face
     /// buttons observe it and re-render when it toggles.
     private(set) var videoOpen = false
+    private(set) var videoExpanded = false
 
     /// Edge the drawer is docked to — the HUD reads this to square the matching
     /// corners so the two read as one block.
@@ -54,35 +56,70 @@ final class AudioController {
     func previous() { web.previous() }
     func nextTimestampSection() { web.nextTimestampSection() }
     func previousTimestampSection() { web.previousTimestampSection() }
+    @discardableResult
+    func restoreRecentPlayback(preferredURL: String) -> Bool {
+        let restored = web.restoreRecentPlayback(preferredURL: preferredURL)
+        if restored { notify() }
+        return restored
+    }
+    func persistPlaybackSnapshot() { web.persistPlaybackSnapshotNow() }
     func signIn() { web.signIn() }
     func showImportLogin() { web.showImportLogin() }
     func importCookies(browser: String?, profile: String?) { web.importCookies(fromBrowser: browser, profile: profile) }
     func clearLogin() { web.clearLogin() }
     func setAccount(_ index: Int) { web.setAccount(index) }
+    func requestAudioScopePermission() { web.requestAudioScopePermission(); notify() }
+    func setVisualizerActive(_ active: Bool) { web.setVisualizerActive(active); notify() }
+    func setVisualizerScopeFrameInterval(milliseconds: Int) { web.setVisualizerScopeFrameInterval(milliseconds: milliseconds) }
 
     /// Signed-in YouTube identity, observed by Settings + the drawer avatar.
     var account: AccountStatus { web.account }
-    func setVideoVisible(_ visible: Bool) { web.setWindowVisible(visible); syncVideo(); notify() }
-    func toggleVideo() { web.toggleWindow(); syncVideo(); notify() }
-    func setOriginalPageVisible(_ visible: Bool) { web.setOriginalPageVisible(visible); syncVideo(); notify() }
+    var mediaDuration: Double { web.mediaDuration }
+    var mediaPlaybackRate: Double { web.mediaPlaybackRate }
+    var audioScope: AudioScopeFrame? { web.audioScope }
+    var audioScopeError: String? { web.audioScopeError }
+    func estimatedMediaTime(at hostTime: Double = ProcessInfo.processInfo.systemUptime) -> Double {
+        web.estimatedMediaTime(at: hostTime)
+    }
+    func setVideoVisible(_ visible: Bool) {
+        PomoAmpDebugLog.write("audio setVideoVisible begin target=\(visible) current=\(web.isWindowVisible)")
+        web.setWindowVisible(visible)
+        PomoAmpDebugLog.write("audio setVideoVisible end target=\(visible) current=\(web.isWindowVisible)")
+        notify()
+    }
+    func toggleVideo() {
+        PomoAmpDebugLog.write("audio toggleVideo begin current=\(web.isWindowVisible)")
+        web.toggleWindow()
+        PomoAmpDebugLog.write("audio toggleVideo end current=\(web.isWindowVisible)")
+        notify()
+    }
+    func setOriginalPageVisible(_ visible: Bool) {
+        PomoAmpDebugLog.write("audio setOriginalPageVisible begin target=\(visible) videoVisible=\(web.isWindowVisible)")
+        web.setOriginalPageVisible(visible)
+        PomoAmpDebugLog.write("audio setOriginalPageVisible end target=\(visible) videoVisible=\(web.isWindowVisible)")
+        notify()
+    }
 
     /// Pop the currently-playing video out to the default browser (where
     /// playlists, autoplay, queue and the user's extensions all work).
     func openInBrowser() { web.openInBrowser() }
 
     /// Wire the drawer to the HUD panel when it appears / detach when it hides.
-    func attachDrawer(to anchor: NSWindow?) { web.hudDidAppear(anchor: anchor); syncVideo() }
-    func detachDrawer() { web.hudWillDisappear() }
+    func attachDrawer(to anchor: NSWindow?) { web.hudDidAppear(anchor: anchor); notify() }
+    func detachDrawer() { web.hudWillDisappear(); notify() }
     func purgeBrowserMemoryAtSessionBoundary() { web.purgeBrowserMemoryAtSessionBoundary() }
 
     private func syncVideo() {
         videoOpen = web.isWindowVisible
+        videoExpanded = web.drawerExpanded
         videoEdge = web.drawerEdge
     }
 
     private func notify() {
+        syncVideo()
         isPlaying = web.isPlaying
         currentURL = web.currentURL
+        currentTitle = web.currentTitle
         engineName = web.isPlaying ? "web" : "none"
         onStateChange?()
     }

@@ -1,0 +1,143 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Pomo Amp Viz Lab</title>
+  <link rel="stylesheet" href="css/lab.css" />
+</head>
+<body>
+  <div class="app">
+    <header class="topbar">
+      <div class="brand">
+        <span class="dot"></span>
+        <span class="title">POMO AMP&nbsp;<b>VIZ&nbsp;LAB</b></span>
+        <span class="sub">audio-visualizer study lane · simulated PomoAmpVizData</span>
+      </div>
+      <div class="topbar-right">
+        <span class="fps" id="fps">– fps</span>
+        <span class="src-pill" id="srcPill">SIM</span>
+      </div>
+    </header>
+
+    <main class="stage-wrap">
+      <!-- Faux HUD chrome so styles are judged at true Pomo Amp deck dimensions -->
+      <section class="hud" id="hud" data-size="compact">
+        <div class="hud-titlebar">
+          <span class="traffic"><i></i><i></i><i></i></span>
+          <span class="hud-name">Pomo Amp</span>
+          <span class="hud-style" id="hudStyleName">—</span>
+        </div>
+        <div class="hud-deck">
+          <canvas id="viz"></canvas>
+          <div class="face-stage" id="faceStage"></div>
+          <div class="hud-progress"><div class="hud-progress-fill" id="progressFill"></div></div>
+        </div>
+      </section>
+
+      <aside class="inspector" id="inspector">
+        <div class="insp-head">
+          <span class="insp-led" id="inspLed"></span>
+          <span>VIZ DATA</span>
+          <span class="insp-frame" id="inspFrame">#0</span>
+        </div>
+        <div class="insp-metrics" id="inspMetrics"></div>
+        <div class="insp-label">BANDS&nbsp;<small>24 · 0..1</small></div>
+        <div class="insp-bars" id="inspBands"></div>
+        <div class="insp-label">WAVE&nbsp;<small>32 · -1..1</small></div>
+        <div class="insp-wave" id="inspWave"></div>
+      </aside>
+    </main>
+
+    <section class="controls">
+      <div class="ctl-group preset-group">
+        <div class="ctl-title">PRESET&nbsp;<small>face + treatment</small></div>
+        <div class="preset-cycle">
+          <button id="presetPrev" class="preset-nav" title="Previous preset ( [ )">◂</button>
+          <div class="preset-now">
+            <div class="preset-name" id="presetName">—</div>
+            <div class="preset-count" id="presetCount">—</div>
+          </div>
+          <button id="presetNext" class="preset-nav" title="Next preset ( ] )">▸</button>
+        </div>
+        <select id="presetPick"></select>
+        <div class="preset-note" id="presetNote"></div>
+      </div>
+
+      <div class="ctl-group">
+        <div class="ctl-title">FACE&nbsp;<small>composition</small></div>
+        <div class="style-grid" id="faceGrid"></div>
+        <div class="ctl-row" style="margin-top:10px">
+          <label class="check"><input type="checkbox" id="composeToggle" checked /> Compose in face</label>
+          <label>Motion</label>
+          <select id="motion">
+            <option value="calm" selected>Calm</option>
+            <option value="lively">Lively</option>
+          </select>
+        </div>
+        <div class="ctl-row">
+          <label>Now playing</label>
+          <select id="track"></select>
+        </div>
+        <div class="ctl-row buttons wrap">
+          <button data-vid="audio" class="vid active">Audio</button>
+          <button data-vid="player" class="vid">Player</button>
+          <button data-vid="page" class="vid">Page</button>
+        </div>
+        <div class="style-blurb" id="faceBlurb"></div>
+      </div>
+
+      <div class="ctl-group styles">
+        <div class="ctl-title">TREATMENT&nbsp;<small>inner visual</small></div>
+        <div class="style-grid" id="styleGrid"></div>
+        <div class="style-blurb" id="styleBlurb"></div>
+      </div>
+
+      <div class="ctl-group">
+        <div class="ctl-title">SIGNAL</div>
+        <div class="ctl-row">
+          <label>Scenario</label>
+          <select id="scenario"></select>
+        </div>
+        <div class="ctl-row">
+          <label>BPM <b id="bpmVal">124</b></label>
+          <input type="range" id="bpm" min="70" max="175" value="124" />
+        </div>
+        <div class="ctl-row">
+          <label>Intensity <b id="gainVal">0.8</b></label>
+          <input type="range" id="gain" min="0" max="150" value="80" />
+        </div>
+        <div class="ctl-row buttons">
+          <button id="playBtn" class="primary">⏸ Pause</button>
+          <button id="freezeBtn">❄ Freeze</button>
+        </div>
+      </div>
+
+      <div class="ctl-group">
+        <div class="ctl-title">VIEW</div>
+        <div class="ctl-row buttons wrap">
+          <button data-size="compact" class="size active">386×198</button>
+          <button data-size="big" class="size">640×360</button>
+          <button data-size="compact2x" class="size">386×198 @2×</button>
+        </div>
+        <div class="ctl-row">
+          <label class="check"><input type="checkbox" id="toggleInsp" checked /> Inspector</label>
+          <label class="check"><input type="checkbox" id="toggleGrid" /> Safe grid</label>
+        </div>
+        <div class="ctl-row">
+          <label class="check"><input type="checkbox" id="liveBtn" /> Live input</label>
+          <span class="hint" id="liveHint">mic / drop an audio file on the HUD</span>
+        </div>
+      </div>
+    </section>
+
+    <footer class="footnote" id="footnote"></footer>
+  </div>
+
+  <script src="js/sim.js"></script>
+  <script src="js/styles.js"></script>
+  <script src="js/faces.js"></script>
+  <script src="js/presets.js"></script>
+  <script src="js/lab.js"></script>
+</body>
+</html>

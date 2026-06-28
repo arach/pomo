@@ -26,6 +26,9 @@ struct MenuPopoverView: View {
     var onToggleAudio: () -> Void
     var onStopAudio: () -> Void
     var onPlayFavorite: (Favorite) -> Void
+    var onOpenPomoAmp: () -> Void
+    var isPomoAmpRunning: () -> Bool
+    var hasPomoAmpCompanion: () -> Bool
 
     @Environment(\.colorScheme) private var scheme
     @State private var editingIntent = false
@@ -771,6 +774,14 @@ struct MenuPopoverView: View {
             Divider().overlay(dividerColor)
             HStack(spacing: HudSpacing.md) {
                 iconButton("macwindow", help: "Show HUD", action: onShowHUD)
+                if hasPomoAmpCompanion() || isPomoAmpRunning() {
+                    iconButton(
+                        "waveform",
+                        help: isPomoAmpRunning() ? "Show Pomo Amp" : "Open Pomo Amp",
+                        active: isPomoAmpRunning(),
+                        action: onOpenPomoAmp
+                    )
+                }
                 Spacer()
                 iconButton(
                     settings.soundEnabled ? "speaker.wave.2.fill" : "speaker.slash.fill",

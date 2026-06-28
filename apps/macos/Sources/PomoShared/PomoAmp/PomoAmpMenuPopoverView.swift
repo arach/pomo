@@ -341,20 +341,12 @@ struct PomoAmpMenuPopoverView: View {
 
     private var pomoButton: some View {
         Button(action: onTogglePomo) {
-            Group {
-                if let icon = Self.pomoIcon {
-                    Image(nsImage: icon)
-                        .resizable()
-                        .interpolation(.high)
-                        .aspectRatio(contentMode: .fit)
-                        .clipShape(RoundedRectangle(cornerRadius: 4, style: .continuous))
-                } else {
-                    Image(systemName: "timer")
-                        .font(.system(size: 11, weight: .bold))
-                        .foregroundStyle(PomoBrand.accent)
-                }
-            }
-            .frame(width: 16, height: 16)
+            Image(nsImage: PomoStatusIcon.timerRing(size: 16))
+                .renderingMode(.template)
+                .resizable()
+                .aspectRatio(contentMode: .fit)
+                .foregroundStyle(PomoBrand.accent)
+                .frame(width: 16, height: 16)
             .frame(width: 30, height: 26)
             .background(
                 RoundedRectangle(cornerRadius: 7, style: .continuous)
@@ -428,16 +420,6 @@ struct PomoAmpMenuPopoverView: View {
         guard let host = URL(string: currentURL)?.host else { return "youtube deck" }
         return host.replacingOccurrences(of: "www.", with: "")
     }
-
-    private static let pomoIcon: NSImage? = {
-        if let image = NSImage(named: "AppIcon") {
-            return image
-        }
-        guard let url = Bundle.main.url(forResource: "AppIcon", withExtension: "icns") else {
-            return nil
-        }
-        return NSImage(contentsOf: url)
-    }()
 
     private static func shortURL(_ raw: String) -> String {
         guard let url = URL(string: raw), let host = url.host else { return raw }

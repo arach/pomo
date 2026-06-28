@@ -28,14 +28,16 @@ enum CookieJar {
         let path: String
         let expires: Double?   // seconds since 1970; nil = session cookie
         let secure: Bool
+        let httpOnly: Bool
     }
 
     /// Persist the given cookies (caller filters to the auth domains). Written
     /// owner-only since these are login credentials.
     static func save(_ cookies: [HTTPCookie]) {
-        let stored = cookies.map {
+        let stored = cookies.filter { isAllowedDomain($0.domain) }.map {
             Stored(name: $0.name, value: $0.value, domain: $0.domain, path: $0.path,
-                   expires: $0.expiresDate?.timeIntervalSince1970, secure: $0.isSecure)
+                   expires: $0.expiresDate?.timeIntervalSince1970, secure: $0.isSecure,
+                   httpOnly: $0.isHTTPOnly)
         }
         let encoder = JSONEncoder()
         encoder.outputFormatting = [.prettyPrinted]
@@ -57,8 +59,17 @@ enum CookieJar {
             ]
             if let e = s.expires { props[.expires] = Date(timeIntervalSince1970: e) }
             if s.secure { props[.secure] = "TRUE" }
+            if s.httpOnly { props[HTTPCookiePropertyKey("HttpOnly")] = "TRUE" }
             return HTTPCookie(properties: props)
         }
+    }
+
+    private static func isAllowedDomain(_ domain: String) -> Bool {
+        let d = domain
+            .trimmingCharacters(in: CharacterSet(charactersIn: "."))
+            .lowercased()
+        return d == "youtube.com" || d.hasSuffix(".youtube.com")
+            || d == "google.com" || d.hasSuffix(".google.com")
     }
 }
 

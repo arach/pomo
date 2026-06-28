@@ -170,8 +170,8 @@ public final class PomoAmpAppDelegate: NSObject, NSApplicationDelegate {
             }
         case .login:
             audio.signIn()
-        case .importCookies(let browser, let profile):
-            audio.importCookies(browser: browser, profile: profile)
+        case .importCookies(let browser, let profile, let accountIndex):
+            audio.importCookies(browser: browser, profile: profile, accountIndex: accountIndex)
         case .logout:
             audio.clearLogin()
         case .selectAccount(let index):
@@ -211,9 +211,9 @@ public final class PomoAmpAppDelegate: NSObject, NSApplicationDelegate {
 
     private func openPomo() {
         guard let url = URL(string: "pomo://toggle-hud") else { return }
-        if let siblingPomoApp = siblingPomoAppURL() {
+        if let pomoApp = pomoAppURL() {
             let configuration = NSWorkspace.OpenConfiguration()
-            NSWorkspace.shared.open([url], withApplicationAt: siblingPomoApp, configuration: configuration) { _, error in
+            NSWorkspace.shared.open([url], withApplicationAt: pomoApp, configuration: configuration) { _, error in
                 if error != nil {
                     NSWorkspace.shared.open(url)
                 }
@@ -224,11 +224,29 @@ public final class PomoAmpAppDelegate: NSObject, NSApplicationDelegate {
         NSWorkspace.shared.open(url)
     }
 
-    private func siblingPomoAppURL() -> URL? {
+    private func pomoAppURL() -> URL? {
+        let bundleURL = Bundle.main.bundleURL
+        let nestedHost = bundleURL
+            .deletingLastPathComponent()
+            .deletingLastPathComponent()
+            .deletingLastPathComponent()
+        if nestedHost.lastPathComponent == "Pomo.app",
+           appBundleExists(at: nestedHost) {
+            return nestedHost
+        }
+
         let sibling = Bundle.main.bundleURL
             .deletingLastPathComponent()
             .appendingPathComponent("Pomo.app", isDirectory: true)
-        return FileManager.default.fileExists(atPath: sibling.path) ? sibling : nil
+        if appBundleExists(at: sibling) {
+            return sibling
+        }
+
+        return nil
+    }
+
+    private func appBundleExists(at url: URL) -> Bool {
+        FileManager.default.fileExists(atPath: url.appendingPathComponent("Contents/Info.plist").path)
     }
 
     private func preferredAudioURL() -> String {

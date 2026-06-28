@@ -9,7 +9,7 @@ struct CookieImportPanel: View {
     var account: AccountStatus
     var profiles: [CookieImporter.BrowserProfile]
     /// Imports auth cookies from the given browser/profile; returns how many it found.
-    var onImport: (String, String?) async -> Int
+    var onImport: (String, String?, Int) async -> Int
     var onClose: () -> Void
 
     private struct Browser: Identifiable {
@@ -72,9 +72,11 @@ struct CookieImportPanel: View {
     @State private var importedCount = 0
     @State private var confirmed = false
     @State private var hovered: String?
+    @State private var selectedAccountIndex = 0
 
     @Environment(\.colorScheme) private var scheme
     private var pal: AppPalette { .resolve(scheme) }
+    private let accountSlots = Array(0...3)
 
     var body: some View {
         VStack(alignment: .leading, spacing: HudSpacing.xl) {
@@ -115,6 +117,8 @@ struct CookieImportPanel: View {
                 .foregroundStyle(pal.muted)
                 .fixedSize(horizontal: false, vertical: true)
 
+            accountPicker
+
             ScrollView {
                 VStack(alignment: .leading, spacing: HudSpacing.md) {
                     if !profileTargets.isEmpty {
@@ -138,13 +142,30 @@ struct CookieImportPanel: View {
                 }
                 .padding(.vertical, 1)
             }
-            .frame(maxHeight: 292)
+            .frame(height: 292)
 
             HStack {
                 Spacer()
                 button("Cancel", action: onClose)
             }
         }
+    }
+
+    private var accountPicker: some View {
+        VStack(alignment: .leading, spacing: HudSpacing.sm) {
+            sectionLabel("Google Account")
+            Picker("", selection: $selectedAccountIndex) {
+                ForEach(accountSlots, id: \.self) { index in
+                    Text(accountLabel(index)).tag(index)
+                }
+            }
+            .labelsHidden()
+            .pickerStyle(.segmented)
+        }
+    }
+
+    private func accountLabel(_ index: Int) -> String {
+        index == 0 ? "Default" : "\(index + 1)"
     }
 
     private func sectionLabel(_ title: String) -> some View {
@@ -314,7 +335,7 @@ struct CookieImportPanel: View {
         importedCount = 0
         phase = .working
         Task {
-            let count = await onImport(target.browser, target.profile)
+            let count = await onImport(target.browser, target.profile, selectedAccountIndex)
             importedCount = count
             // The reload + masthead read is async; give it a moment to confirm.
             if count > 0 {

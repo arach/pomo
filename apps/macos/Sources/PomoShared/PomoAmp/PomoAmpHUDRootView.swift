@@ -169,6 +169,10 @@ struct PomoAmpHUDRootView: View {
                     onHide?()
                 }
                 Spacer(minLength: 0)
+                chromeButton("doc.on.clipboard", help: "Paste YouTube URL") {
+                    onPasteURL()
+                }
+                openPomoButton()
             }
         }
         .frame(height: 22)
@@ -177,14 +181,6 @@ struct PomoAmpHUDRootView: View {
 
     private var shadeControlRow: some View {
         ZStack {
-            HStack(spacing: 5) {
-                chromeButton("link", help: "Paste YouTube URL") {
-                    onPasteURL()
-                }
-                openPomoButton()
-                Spacer(minLength: 0)
-            }
-
             HStack(spacing: 5) {
                 chromeButton("backward.end.fill", help: "Previous timestamp section") {
                     onPreviousSection()
@@ -249,8 +245,6 @@ struct PomoAmpHUDRootView: View {
                 onHide?()
             }
 
-            openPomoButton()
-
             dragTitle
 
             chromeButton(audio.videoOpen ? "rectangle.fill" : "play.rectangle", help: audio.videoOpen ? "Hide video" : "Show video") {
@@ -284,6 +278,8 @@ struct PomoAmpHUDRootView: View {
             ) {
                 onToggleBig()
             }
+
+            openPomoButton()
         }
         .padding(.horizontal, 7)
         .frame(height: PomoAmpChrome.titleBarHeight)
@@ -370,20 +366,12 @@ struct PomoAmpHUDRootView: View {
 
     private func openPomoButton() -> some View {
         Button(action: onOpenPomo) {
-            Group {
-                if let icon = Self.pomoIcon {
-                    Image(nsImage: icon)
-                        .resizable()
-                        .interpolation(.high)
-                        .aspectRatio(contentMode: .fit)
-                        .clipShape(RoundedRectangle(cornerRadius: 3, style: .continuous))
-                } else {
-                    Image(systemName: "hourglass")
-                        .font(.system(size: 10, weight: .bold))
-                        .foregroundStyle(chromeButtonForeground(.normal))
-                }
-            }
-            .frame(width: 14, height: 14)
+            Image(nsImage: PomoStatusIcon.timerRing(size: 16))
+                .renderingMode(.template)
+                .resizable()
+                .aspectRatio(contentMode: .fit)
+                .foregroundStyle(chromeButtonForeground(.normal))
+                .frame(width: 16, height: 16)
             .frame(width: 24, height: 22)
             .background(
                 RoundedRectangle(cornerRadius: 6, style: .continuous)
@@ -399,16 +387,6 @@ struct PomoAmpHUDRootView: View {
         .buttonStyle(.plain)
         .help("Show / Hide Pomo")
     }
-
-    private static let pomoIcon: NSImage? = {
-        if let image = NSImage(named: "AppIcon") {
-            return image
-        }
-        guard let url = Bundle.main.url(forResource: "AppIcon", withExtension: "icns") else {
-            return nil
-        }
-        return NSImage(contentsOf: url)
-    }()
 
     private func chromeButtonFill(_ tone: ChromeButtonTone) -> AnyShapeStyle {
         switch tone {

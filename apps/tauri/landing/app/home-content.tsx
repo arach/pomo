@@ -144,7 +144,7 @@ function Nav() {
           <a href="#stats" style={link}><span style={{ color: "#6b6055" }}>:</span>stats</a>
         </nav>
         <div style={{ display: "flex", alignItems: "center", gap: 18 }}>
-          <span style={{ fontFamily: mono, fontSize: 11, color: "#6b6055", letterSpacing: "0.06em" }}>v0.2.7 · macOS</span>
+          <span style={{ fontFamily: mono, fontSize: 11, color: "#6b6055", letterSpacing: "0.06em" }}>v0.2.8 · macOS</span>
           <a
             href={DOWNLOAD_URL}
             style={{
@@ -903,7 +903,7 @@ function DownloadCTA() {
             >
               View source
             </a>
-            <span style={{ fontFamily: mono, fontSize: 11, letterSpacing: "0.06em", color: "#6b6055" }}>v0.2.7 · macOS 14+</span>
+            <span style={{ fontFamily: mono, fontSize: 11, letterSpacing: "0.06em", color: "#6b6055" }}>v0.2.8 · macOS 14+</span>
           </div>
         </div>
       </div>

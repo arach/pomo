@@ -37,14 +37,16 @@ final class PomoAmpMenuBarController: NSObject, NSPopoverDelegate {
 
     func refresh() {
         guard let button = statusItem.button else { return }
-        button.title = audio.isPlaying ? " Pomo Amp ▶" : " Pomo Amp"
-        button.image = Self.icon(active: audio.isPlaying)
+        button.title = ""
+        button.image = PomoStatusIcon.ampPlayClock(active: audio.isPlaying, size: 18)
+        button.toolTip = audio.isPlaying ? "Playing" : "Music"
     }
 
     private func configureButton() {
         guard let button = statusItem.button else { return }
-        button.imagePosition = .imageLeading
-        button.font = NSFont.monospacedSystemFont(ofSize: NSFont.systemFontSize - 1, weight: .semibold)
+        statusItem.length = NSStatusItem.squareLength
+        button.imagePosition = .imageOnly
+        button.imageScaling = .scaleProportionallyDown
         button.target = self
         button.action = #selector(handleClick)
         button.sendAction(on: [.leftMouseUp])
@@ -58,26 +60,6 @@ final class PomoAmpMenuBarController: NSObject, NSPopoverDelegate {
             }
             return nil
         }
-    }
-
-    private static func icon(active: Bool) -> NSImage {
-        let image = NSImage(size: NSSize(width: 18, height: 18), flipped: false) { _ in
-            let color = NSColor.black.withAlphaComponent(active ? 1 : 0.62)
-            color.setStroke()
-            color.setFill()
-            let stem = NSBezierPath()
-            stem.move(to: NSPoint(x: 11, y: 4))
-            stem.line(to: NSPoint(x: 11, y: 13))
-            stem.line(to: NSPoint(x: 15, y: 14))
-            stem.lineWidth = 1.6
-            stem.lineCapStyle = .round
-            stem.lineJoinStyle = .round
-            stem.stroke()
-            NSBezierPath(ovalIn: NSRect(x: 4, y: 3, width: 7, height: 5)).fill()
-            return true
-        }
-        image.isTemplate = true
-        return image
     }
 
     @objc private func handleClick() {
@@ -156,7 +138,7 @@ final class PomoAmpMenuBarController: NSObject, NSPopoverDelegate {
         menu.autoenablesItems = false
 
         addItem("Show / Hide Pomo Amp", to: menu, action: #selector(toggleHUD))
-        addItem("Show / Hide Pomo", to: menu, action: #selector(openPomo), image: Self.pomoIcon)
+        addItem("Show / Hide Pomo", to: menu, action: #selector(openPomo), image: PomoStatusIcon.timerRing(size: 16))
         menu.addItem(.separator())
         addItem(audio.isPlaying ? "Pause" : "Play", to: menu, action: #selector(toggleAudio))
         addItem("Previous Timestamp Section", to: menu, action: #selector(previousSection))
@@ -182,18 +164,6 @@ final class PomoAmpMenuBarController: NSObject, NSPopoverDelegate {
         item.image = image
         menu.addItem(item)
     }
-
-    private static let pomoIcon: NSImage? = {
-        if let image = NSImage(named: "AppIcon") {
-            image.size = NSSize(width: 16, height: 16)
-            return image
-        }
-        guard let url = Bundle.main.url(forResource: "AppIcon", withExtension: "icns"),
-              let image = NSImage(contentsOf: url)
-        else { return nil }
-        image.size = NSSize(width: 16, height: 16)
-        return image
-    }()
 
     private func faceItem() -> NSMenuItem {
         let item = NSMenuItem(title: "Face", action: nil, keyEquivalent: "")

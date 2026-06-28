@@ -29,13 +29,14 @@ usage() {
   cat <<EOF
 Usage: build-dmg.sh [--debug] [--local] [--no-build] [--app PATH] [--amp-app PATH] [--output PATH] [--volname NAME]
 
-Builds, signs, notarizes, and packages Pomo.app plus Pomo Amp.app into a drag-to-Applications DMG.
+Builds, signs, notarizes, and packages one visible Pomo.app into a drag-to-Applications DMG.
+Pomo Amp is embedded as Pomo.app/Contents/Helpers/Pomo Amp.app.
 
   --debug          Build debug apps before packaging
   --local          Build a local unsigned smoke DMG; skips signing and notarization
   --no-build       Package existing app bundles
   --app PATH       Pomo app bundle to build/package (default: $app_path)
-  --amp-app PATH   Pomo Amp app bundle to build/package (default: $amp_app_path)
+  --amp-app PATH   Pomo Amp helper bundle to embed (default: $amp_app_path)
   --output PATH    DMG output path (default: $dmg_path)
   --volname NAME   Mounted volume name (default: $volname)
 
@@ -46,6 +47,40 @@ Environment:
   POMO_SKIP_SIGN=1      Skip signing
   POMO_SKIP_NOTARIZE=1  Skip notarization
 EOF
+}
+
+amp_helper_path() {
+  printf '%s\n' "$app_path/Contents/Helpers/$amp_app_name.app"
+}
+
+validate_app_bundle() {
+  local bundle="$1"
+  if [[ ! -d "$bundle" ]]; then
+    echo "App bundle not found: $bundle" >&2
+    exit 66
+  fi
+
+  if [[ ! -f "$bundle/Contents/Info.plist" ]]; then
+    echo "That does not look like a macOS .app bundle: $bundle" >&2
+    exit 65
+  fi
+}
+
+install_amp_helper() {
+  local helper_path
+  helper_path="$(amp_helper_path)"
+  echo "Embedding $amp_app_path in $helper_path"
+  rm -rf "$helper_path"
+  mkdir -p "$(dirname "$helper_path")"
+  ditto "$amp_app_path" "$helper_path"
+  validate_app_bundle "$helper_path"
+}
+
+sign_app_bundle() {
+  local bundle="$1"
+  echo "Signing $bundle"
+  codesign --force --deep --options runtime --timestamp --sign "$sign_identity" "$bundle"
+  codesign --verify --deep --strict --verbose=2 "$bundle"
 }
 
 while [[ $# -gt 0 ]]; do
@@ -152,27 +187,16 @@ if [[ "$build_app" == true ]]; then
     POMO_SUPPORT_DIR="${POMO_AMP_SUPPORT_DIR:-Pomo Amp}" \
     POMO_URL_SCHEME="${POMO_AMP_URL_SCHEME:-pomo-amp}" \
     "$repo_root/scripts/run-app.sh" --amp "${run_args[@]}"
-elif [[ "$skip_sign" != "1" ]]; then
-  echo "Signing $app_path"
-  codesign --force --deep --options runtime --timestamp --sign "$sign_identity" "$app_path"
-  codesign --verify --deep --strict --verbose=2 "$app_path"
-
-  echo "Signing $amp_app_path"
-  codesign --force --deep --options runtime --timestamp --sign "$sign_identity" "$amp_app_path"
-  codesign --verify --deep --strict --verbose=2 "$amp_app_path"
 fi
 
-for bundle in "$app_path" "$amp_app_path"; do
-  if [[ ! -d "$bundle" ]]; then
-    echo "App bundle not found: $bundle" >&2
-    exit 66
-  fi
+validate_app_bundle "$app_path"
+validate_app_bundle "$amp_app_path"
+install_amp_helper
 
-  if [[ ! -f "$bundle/Contents/Info.plist" ]]; then
-    echo "That does not look like a macOS .app bundle: $bundle" >&2
-    exit 65
-  fi
-done
+if [[ "$skip_sign" != "1" ]]; then
+  sign_app_bundle "$(amp_helper_path)"
+  sign_app_bundle "$app_path"
+fi
 
 mkdir -p "$(dirname "$dmg_path")" "$repo_root/dist"
 staging_dir="$(mktemp -d "$repo_root/dist/dmg-staging.XXXXXXXX")"
@@ -183,7 +207,6 @@ trap cleanup EXIT
 
 echo "Packaging $dmg_path"
 ditto "$app_path" "$staging_dir/$app_name.app"
-ditto "$amp_app_path" "$staging_dir/$amp_app_name.app"
 ln -s /Applications "$staging_dir/Applications"
 
 rm -f "$dmg_path"

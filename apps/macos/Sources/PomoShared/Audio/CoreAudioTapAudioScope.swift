@@ -86,7 +86,7 @@ final class CoreAudioTapAudioScope {
     }
 
     func setFrameInterval(milliseconds: Int) {
-        let interval = Double(max(50, min(500, milliseconds))) / 1000.0
+        let interval = Double(max(33, min(500, milliseconds))) / 1000.0
         sampleQueue.async { [weak self] in
             guard let self else { return }
             guard abs(self.frameInterval - interval) > 0.001 else { return }

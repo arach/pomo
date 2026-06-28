@@ -179,6 +179,17 @@ jobs:
           set -euo pipefail
 
           hdiutil verify apps/macos/dist/Pomo.dmg
+          mount_point="$(mktemp -d)"
+          hdiutil attach apps/macos/dist/Pomo.dmg -nobrowse -readonly -mountpoint "$mount_point"
+          cleanup() {
+            hdiutil detach "$mount_point" >/dev/null 2>&1 || true
+            rm -rf "$mount_point"
+          }
+          trap cleanup EXIT
+          test -d "$mount_point/Pomo.app"
+          test -L "$mount_point/Applications"
+          test ! -e "$mount_point/Pomo Amp.app"
+          test -d "$mount_point/Pomo.app/Contents/Helpers/Pomo Amp.app"
           if [[ "$SHOULD_PUBLISH" == "1" ]]; then
             codesign --verify --verbose apps/macos/dist/Pomo.dmg
             spctl --assess --type open --context context:primary-signature --verbose apps/macos/dist/Pomo.dmg
@@ -209,7 +220,7 @@ jobs:
           cat > "$notes_path" <<EOF
           Release $VERSION
 
-          Download and install Pomo and Pomo Amp for Mac.
+          Download Pomo for Mac. Pomo Amp ships inside Pomo.app as the music companion.
           EOF
 
           if gh release view "$release_tag" >/dev/null 2>&1; then

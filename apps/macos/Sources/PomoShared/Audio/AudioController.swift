@@ -65,7 +65,9 @@ final class AudioController {
     func persistPlaybackSnapshot() { web.persistPlaybackSnapshotNow() }
     func signIn() { web.signIn() }
     func showImportLogin() { web.showImportLogin() }
-    func importCookies(browser: String?, profile: String?) { web.importCookies(fromBrowser: browser, profile: profile) }
+    func importCookies(browser: String?, profile: String?, accountIndex: Int = 0) {
+        web.importCookies(fromBrowser: browser, profile: profile, accountIndex: accountIndex)
+    }
     func clearLogin() { web.clearLogin() }
     func setAccount(_ index: Int) { web.setAccount(index) }
     func requestAudioScopePermission() { web.requestAudioScopePermission(); notify() }

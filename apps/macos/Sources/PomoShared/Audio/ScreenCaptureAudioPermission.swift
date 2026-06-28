@@ -1,5 +1,6 @@
 import AppKit
 import Combine
+import CoreServices
 import CoreGraphics
 import Foundation
 import SwiftUI
@@ -7,8 +8,36 @@ import SwiftUI
 enum ScreenCaptureAudioPermission {
     static let neededMessage = "audio scope needs macOS screen/system audio permission"
     static let requirementLabel = "Screen & System Audio Recording"
+    static let tccService = "AudioCapture"
+    static let legacyTCCService = "ScreenCapture"
     private static let successfulAccessUntilKey = "pomo.visualizerAudio.successfulAccessUntil"
     private static let successfulAccessTTL: TimeInterval = 60 * 60
+
+    struct PermissionTarget: Equatable {
+        let appURL: URL
+        let bundleIdentifier: String
+        let displayName: String
+        let isAppBundle: Bool
+
+        var path: String { appURL.path }
+    }
+
+    static var permissionTarget: PermissionTarget {
+        let appURL = appBundleURL(for: Bundle.main.bundleURL)
+        let bundle = Bundle(url: appURL) ?? Bundle.main
+        let bundleIdentifier = bundle.bundleIdentifier
+            ?? Bundle.main.bundleIdentifier
+            ?? ""
+        let displayName = (bundle.object(forInfoDictionaryKey: "CFBundleDisplayName") as? String)
+            ?? (bundle.object(forInfoDictionaryKey: "CFBundleName") as? String)
+            ?? appURL.deletingPathExtension().lastPathComponent
+        return PermissionTarget(
+            appURL: appURL,
+            bundleIdentifier: bundleIdentifier,
+            displayName: displayName,
+            isAppBundle: appBundleExists(at: appURL)
+        )
+    }
 
     static var systemReportsAccess: Bool {
         CGPreflightScreenCaptureAccess()
@@ -44,13 +73,53 @@ enum ScreenCaptureAudioPermission {
 
     @MainActor
     static func showAssistant(startRequest: Bool = false) {
+        registerPermissionTarget(reason: "show assistant")
         ScreenCaptureAudioPermissionWindowController.shared.show(startRequest: startRequest)
     }
 
     static func openSettings() {
+        registerPermissionTarget(reason: "open settings")
         if let url = URL(string: "x-apple.systempreferences:com.apple.preference.security?Privacy_ScreenCapture") {
             NSWorkspace.shared.open(url)
         }
+    }
+
+    @discardableResult
+    static func registerPermissionTarget(reason: String) -> Bool {
+        let target = permissionTarget
+        guard target.isAppBundle else {
+            print("[pomo-permissions] permission target is not an app bundle: \(target.path)")
+            return false
+        }
+
+        let status = LSRegisterURL(target.appURL as CFURL, true)
+        if status == noErr {
+            print("[pomo-permissions] registered \(target.bundleIdentifier) at \(target.path) (\(reason))")
+            return true
+        }
+
+        print("[pomo-permissions] LSRegisterURL failed status=\(status) path=\(target.path)")
+        return false
+    }
+
+    private static func appBundleURL(for url: URL) -> URL {
+        var candidate = url.standardizedFileURL
+        if appBundleExists(at: candidate) {
+            return candidate
+        }
+
+        while candidate.path != "/" {
+            if candidate.pathExtension == "app", appBundleExists(at: candidate) {
+                return candidate
+            }
+            candidate.deleteLastPathComponent()
+        }
+
+        return url.standardizedFileURL
+    }
+
+    private static func appBundleExists(at url: URL) -> Bool {
+        FileManager.default.fileExists(atPath: url.appendingPathComponent("Contents/Info.plist").path)
     }
 }
 
@@ -95,11 +164,13 @@ final class ScreenCaptureAudioPermissionChecker: ObservableObject {
 
         if !hasLoggedIdentity {
             hasLoggedIdentity = true
+            let target = ScreenCaptureAudioPermission.permissionTarget
             let bundleId = Bundle.main.bundleIdentifier ?? "<no bundle id>"
             let execPath = Bundle.main.executablePath ?? ProcessInfo.processInfo.arguments.first ?? "<unknown>"
             let pid = ProcessInfo.processInfo.processIdentifier
             print("[pomo-permissions] bundleId=\(bundleId) pid=\(pid)")
             print("[pomo-permissions] exec=\(execPath)")
+            print("[pomo-permissions] permissionTarget bundleId=\(target.bundleIdentifier) path=\(target.path)")
             print("[pomo-permissions] CGPreflightScreenCaptureAccess() -> \(preflight)")
         }
 
@@ -111,21 +182,14 @@ final class ScreenCaptureAudioPermissionChecker: ObservableObject {
     }
 
     func requestScreenAudio() {
+        ScreenCaptureAudioPermission.registerPermissionTarget(reason: "request permission")
         check()
         guard !screenAudio else { return }
 
         refreshInFlight = true
-        lastMessage = "Opening macOS permission flow..."
+        let target = ScreenCaptureAudioPermission.permissionTarget
+        lastMessage = "Opening Settings for \(target.displayName)..."
         NSApp.activate(ignoringOtherApps: true)
-
-        let requestResult = CGRequestScreenCaptureAccess()
-        print("[pomo-permissions] CGRequestScreenCaptureAccess() -> \(requestResult)")
-        if requestResult {
-            screenAudio = true
-            refreshInFlight = false
-            lastMessage = "\(ScreenCaptureAudioPermission.requirementLabel) is enabled."
-            return
-        }
 
         finishRequestAfterPermissionRequest()
     }
@@ -149,21 +213,27 @@ final class ScreenCaptureAudioPermissionChecker: ObservableObject {
     }
 
     func resetSavedApproval() {
-        let bundleId = Bundle.main.bundleIdentifier ?? ""
+        let target = ScreenCaptureAudioPermission.permissionTarget
+        ScreenCaptureAudioPermission.registerPermissionTarget(reason: "reset saved approval")
+        let bundleId = target.bundleIdentifier
         guard !bundleId.isEmpty else { return }
         refreshInFlight = true
         screenAudio = false
         lastMessage = "Clearing saved macOS permission row..."
 
         DispatchQueue.global(qos: .userInitiated).async {
-            let result = Self.runTccutilReset(service: "ScreenCapture", bundleId: bundleId)
+            let result = Self.runTccutilReset(service: ScreenCaptureAudioPermission.tccService, bundleId: bundleId)
+            let legacyResult = Self.runTccutilReset(service: ScreenCaptureAudioPermission.legacyTCCService, bundleId: bundleId)
             DispatchQueue.main.async {
                 if result.status == 0 {
-                    print("[pomo-permissions] tccutil reset ScreenCapture \(bundleId)")
-                    self.lastMessage = "Cleared saved row. Add the current Pomo Amp app again."
+                    print("[pomo-permissions] tccutil reset \(ScreenCaptureAudioPermission.tccService) \(bundleId)")
+                    if legacyResult.status == 0 {
+                        print("[pomo-permissions] tccutil reset \(ScreenCaptureAudioPermission.legacyTCCService) \(bundleId)")
+                    }
+                    self.lastMessage = "Cleared saved row. Add \(target.displayName) again."
                 } else {
                     let detail = result.output.isEmpty ? "exit \(result.status)" : result.output
-                    print("[pomo-permissions] tccutil reset ScreenCapture failed: \(detail)")
+                    print("[pomo-permissions] tccutil reset \(ScreenCaptureAudioPermission.tccService) failed: \(detail)")
                     self.lastMessage = "Could not clear the saved row: \(detail)"
                 }
                 self.openSettings()
@@ -173,7 +243,7 @@ final class ScreenCaptureAudioPermissionChecker: ObservableObject {
     }
 
     func quitAndRelaunch() {
-        let appURL = Bundle.main.bundleURL
+        let appURL = ScreenCaptureAudioPermission.permissionTarget.appURL
         let task = Process()
         task.launchPath = "/bin/sh"
         task.arguments = [
@@ -216,7 +286,8 @@ final class ScreenCaptureAudioPermissionChecker: ObservableObject {
             lastMessage = "\(ScreenCaptureAudioPermission.requirementLabel) is enabled."
             stopPolling()
         } else {
-            lastMessage = "Open System Settings, add Pomo Amp if needed, and toggle it on."
+            let target = ScreenCaptureAudioPermission.permissionTarget
+            lastMessage = "Open System Settings, add \(target.displayName) if needed, and toggle it on."
             openSettings()
             startPolling()
             schedulePermissionRefresh()
@@ -460,13 +531,15 @@ private struct ScreenCaptureAudioPermissionAssistantView: View {
 
     private var dragCard: some View {
         sectionCard(title: "IF SETTINGS SHOWS AN OLD ENTRY") {
+            let target = ScreenCaptureAudioPermission.permissionTarget
             HStack(alignment: .center, spacing: 14) {
                 PomoAmpPermissionAppDragTile(
-                    appURL: Bundle.main.bundleURL,
-                    appIcon: NSWorkspace.shared.icon(forFile: Bundle.main.bundleURL.path),
+                    appURL: target.appURL,
+                    appIcon: NSWorkspace.shared.icon(forFile: target.path),
                     permissionName: ScreenCaptureAudioPermission.requirementLabel,
                     isDragEnabled: !checker.granted,
                     onDragStarted: {
+                        ScreenCaptureAudioPermission.registerPermissionTarget(reason: "drag started")
                         checker.passiveRecheck(reason: "drag started")
                     },
                     onDragCompleted: {
@@ -476,13 +549,13 @@ private struct ScreenCaptureAudioPermissionAssistantView: View {
                 .frame(width: 92, height: 92)
 
                 VStack(alignment: .leading, spacing: 5) {
-                    Text(checker.granted ? "Current Pomo Amp app is enabled" : "Optional: add the current Pomo Amp app")
+                    Text(checker.granted ? "\(target.displayName) is enabled" : "Add the running \(target.displayName) app")
                         .font(.system(size: 12, weight: .black, design: .monospaced))
-                    Text("If macOS shows an older Pomo Amp row, remove it first. Then drag this app into Screen & System Audio Recording and toggle it on.")
+                    Text("If macOS shows an older row, remove it first. Then drag this exact app into Screen & System Audio Recording and toggle it on.")
                         .font(.system(size: 10, weight: .medium))
                         .foregroundStyle(Color.white.opacity(0.58))
                         .lineSpacing(2)
-                    Text(Bundle.main.bundleURL.path)
+                    Text(target.bundleIdentifier.isEmpty ? target.path : "\(target.bundleIdentifier)  \(target.path)")
                         .font(.system(size: 8.5, weight: .medium, design: .monospaced))
                         .foregroundStyle(Color.white.opacity(0.42))
                         .lineLimit(2)
@@ -511,7 +584,8 @@ private struct ScreenCaptureAudioPermissionAssistantView: View {
             }
 
             Button {
-                NSWorkspace.shared.activateFileViewerSelecting([Bundle.main.bundleURL])
+                ScreenCaptureAudioPermission.registerPermissionTarget(reason: "reveal app")
+                NSWorkspace.shared.activateFileViewerSelecting([ScreenCaptureAudioPermission.permissionTarget.appURL])
             } label: {
                 Label("Reveal App", systemImage: "folder")
             }
@@ -529,7 +603,7 @@ private struct ScreenCaptureAudioPermissionAssistantView: View {
                 } label: {
                     Label("Clear Row", systemImage: "trash")
                 }
-                .help("Clears the saved macOS permission row for this Pomo Amp bundle id.")
+                .help("Clears the saved macOS audio-capture permission row for this app bundle id.")
             }
 
             Spacer()
@@ -733,7 +807,12 @@ private final class PomoAmpPermissionAppDragTileView: NSView, NSDraggingSource {
         dragStartLocation = nil
         onDragStarted()
 
-        let draggingItem = NSDraggingItem(pasteboardWriter: appURL as NSURL)
+        let pasteboardItem = NSPasteboardItem()
+        pasteboardItem.setString(appURL.absoluteString, forType: .fileURL)
+        pasteboardItem.setString(appURL.absoluteString, forType: .URL)
+        pasteboardItem.setString(appURL.path, forType: .string)
+
+        let draggingItem = NSDraggingItem(pasteboardWriter: pasteboardItem)
         let imageSize = NSSize(width: 64, height: 64)
         let imageFrame = NSRect(
             x: bounds.midX - imageSize.width / 2,

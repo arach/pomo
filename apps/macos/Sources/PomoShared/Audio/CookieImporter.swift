@@ -101,7 +101,17 @@ enum CookieImporter {
     private static func parse(_ text: String) -> [HTTPCookie] {
         var cookies: [HTTPCookie] = []
         for rawLine in text.split(separator: "\n") {
-            let fields = String(rawLine).components(separatedBy: "\t")
+            var line = String(rawLine)
+            guard !line.isEmpty else { continue }
+            var httpOnly = false
+            if line.hasPrefix("#HttpOnly_") {
+                httpOnly = true
+                line.removeFirst("#HttpOnly_".count)
+            } else if line.hasPrefix("#") {
+                continue
+            }
+
+            let fields = line.components(separatedBy: "\t")
             guard fields.count >= 7 else { continue }
             let domain = fields[0]
             let path = fields[2].isEmpty ? "/" : fields[2]
@@ -115,6 +125,7 @@ enum CookieImporter {
                 .domain: domain, .path: path, .name: name, .value: value,
             ]
             if secure { props[.secure] = "TRUE" }
+            if httpOnly { props[HTTPCookiePropertyKey("HttpOnly")] = "TRUE" }
             if let expiry, expiry > 0 { props[.expires] = Date(timeIntervalSince1970: expiry) }
             if let cookie = HTTPCookie(properties: props) { cookies.append(cookie) }
         }

@@ -17,7 +17,7 @@ enum PomoCommand {
     case audioPrev
     case sessionAudio(SessionType, String?)
     case login
-    case importCookies(browser: String?, profile: String?)
+    case importCookies(browser: String?, profile: String?, accountIndex: Int)
     case logout
     case selectAccount(Int)
     case videoShow
@@ -73,9 +73,11 @@ enum PomoCommand {
         case "login":
             switch arg {
             case "import":
+                let accountValue = query?.first(where: { ["account", "authuser", "authUser"].contains($0.name) })?.value
                 self = .importCookies(
                     browser: query?.first(where: { $0.name == "browser" })?.value,
-                    profile: query?.first(where: { $0.name == "profile" })?.value
+                    profile: query?.first(where: { $0.name == "profile" })?.value,
+                    accountIndex: max(0, Int(accountValue ?? "") ?? 0)
                 )
             case "account":
                 guard path.count > 1, let index = Int(path[1]) else { return nil }

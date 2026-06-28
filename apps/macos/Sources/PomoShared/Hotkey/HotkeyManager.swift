@@ -79,7 +79,7 @@ final class HotkeyManager {
     }
 }
 
-/// Carbon modifier masks. `hyper` = ⌃⌥⇧⌘ (matches the Tauri app's Hyperkey+P).
+/// Carbon modifier masks. `hyper` = ⌃⌥⇧⌘ (matches the legacy Hyperkey+P shortcut).
 enum CarbonModifier {
     static let hyper: UInt32 = UInt32(controlKey | optionKey | shiftKey | cmdKey)
 }

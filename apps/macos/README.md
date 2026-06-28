@@ -136,8 +136,8 @@ Release from a tag:
 scripts/release.sh 0.2.5
 ```
 
-That checks you are on up-to-date `main`, verifies the landing page already
-mentions the release version, then pushes the canonical release tag:
+That checks you are on up-to-date `main`, verifies the tag is unused, then
+pushes the canonical release tag:
 
 ```sh
 git tag -a v0.2.5 -m "Pomo 0.2.5"
@@ -161,7 +161,7 @@ Both assets are the same notarized product DMG. The mounted volume contains
 `Pomo.app` and an Applications shortcut; `Pomo Amp.app` is nested at
 `Pomo.app/Contents/Helpers/Pomo Amp.app`.
 
-The landing page downloads from:
+Public download links can point at:
 
 ```text
 https://github.com/arach/pomo/releases/latest/download/Pomo.dmg

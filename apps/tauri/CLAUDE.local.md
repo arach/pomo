@@ -1,1 +1,0 @@
-- After developing new features, ask for my feedback before suggesting a commit. We always want to iterate outside of git because it's faster.

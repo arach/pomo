@@ -404,21 +404,21 @@ enum PomoAmpVisualizerMode: String, Codable, CaseIterable, Identifiable {
         case .smooth:
             return PomoAmpVisualizerProfile(
                 modeName: "smooth",
-                skinFPS: 24,
+                skinFPS: 45,
                 inspectorFPS: 8,
-                scopeFrameIntervalMilliseconds: 66,
-                canvasLiveDelayMilliseconds: 42,
+                scopeFrameIntervalMilliseconds: 33,
+                canvasLiveDelayMilliseconds: 16,
                 canvasSilentDelayMilliseconds: 180,
                 canvasIdleDelayMilliseconds: 900,
-                canvasMaxDevicePixelRatio: 1.7
+                canvasMaxDevicePixelRatio: 1.6
             )
         case .balanced:
             return PomoAmpVisualizerProfile(
                 modeName: "balanced",
-                skinFPS: 15,
+                skinFPS: 30,
                 inspectorFPS: 6,
-                scopeFrameIntervalMilliseconds: 100,
-                canvasLiveDelayMilliseconds: 67,
+                scopeFrameIntervalMilliseconds: 33,
+                canvasLiveDelayMilliseconds: 33,
                 canvasSilentDelayMilliseconds: 250,
                 canvasIdleDelayMilliseconds: 1200,
                 canvasMaxDevicePixelRatio: 1.35

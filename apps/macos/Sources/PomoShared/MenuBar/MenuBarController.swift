@@ -25,6 +25,10 @@ final class MenuBarController: NSObject, NSPopoverDelegate {
     var onToggleAudio: (() -> Void)?
     var onStopAudio: (() -> Void)?
     var onPlayFavorite: ((Favorite) -> Void)?
+    var onOpenPomoAmp: (() -> Void)?
+    var onQuitPomoAmp: (() -> Void)?
+    var isPomoAmpRunning: (() -> Bool)?
+    var hasPomoAmpCompanion: (() -> Bool)?
 
     init(model: TimerModel, settings: PomoSettings, audio: AudioController, favorites: FavoritesStore) {
         self.statusItem = NSStatusBar.system.statusItem(withLength: NSStatusItem.variableLength)
@@ -68,61 +72,10 @@ final class MenuBarController: NSObject, NSPopoverDelegate {
         } else { try? entry.data(using: .utf8)?.write(to: url) }
     }
 
-    /// The Pomo ring mark, drawn as a template image so the menu bar tints it
-    /// to match the system appearance. The outer stroke doubles as an elapsed
-    /// timer ring while the tick + centre dot keep the app-mark silhouette.
-    private static func ringMarkImage(progress rawProgress: Double, isPaused: Bool, isIdle: Bool) -> NSImage {
-        let progress = CGFloat(max(0, min(1, rawProgress)))
-        let image = NSImage(size: NSSize(width: 18, height: 18), flipped: false) { _ in
-            let center = NSPoint(x: 9, y: 9)
-            let radius: CGFloat = 6.0
-
-            let ring = NSBezierPath()
-            ring.appendArc(withCenter: center, radius: radius, startAngle: 0, endAngle: 360)
-            ring.lineWidth = 1.3
-            NSColor.black.withAlphaComponent(isIdle ? 0.42 : 0.24).setStroke()
-            ring.stroke()
-
-            if !isIdle {
-                let arc = NSBezierPath()
-                let capped = min(progress, 0.999)
-                arc.appendArc(
-                    withCenter: center,
-                    radius: radius,
-                    startAngle: 90,
-                    endAngle: 90 - capped * 360,
-                    clockwise: true
-                )
-                arc.lineWidth = 1.9
-                arc.lineCapStyle = .round
-                NSColor.black.withAlphaComponent(isPaused ? 0.62 : 1.0).setStroke()
-                arc.stroke()
-            }
-
-            let tick = NSBezierPath()
-            tick.move(to: NSPoint(x: center.x, y: center.y + radius + 1.8))
-            tick.line(to: NSPoint(x: center.x, y: center.y + radius - 0.4))
-            tick.lineWidth = 1.5
-            tick.lineCapStyle = .round
-            NSColor.black.setStroke()
-            tick.stroke()
-
-            let dotRadius: CGFloat = 1.4
-            let dotRect = NSRect(x: center.x - dotRadius, y: center.y - dotRadius,
-                                 width: dotRadius * 2, height: dotRadius * 2)
-            NSColor.black.setFill()
-            NSBezierPath(ovalIn: dotRect).fill()
-
-            return true
-        }
-        image.isTemplate = true
-        return image
-    }
-
     /// Update the countdown title. Called from `TimerModel.onTick`.
     func refresh() {
         guard let button = statusItem.button else { return }
-        button.image = MenuBarController.ringMarkImage(
+        button.image = PomoStatusIcon.timerRing(
             progress: model.progress,
             isPaused: model.isPaused,
             isIdle: model.isIdle
@@ -195,7 +148,15 @@ final class MenuBarController: NSObject, NSPopoverDelegate {
                 },
                 onToggleAudio: { [weak self] in self?.onToggleAudio?() },
                 onStopAudio: { [weak self] in self?.onStopAudio?() },
-                onPlayFavorite: { [weak self] favorite in self?.onPlayFavorite?(favorite) }
+                onPlayFavorite: { [weak self] favorite in self?.onPlayFavorite?(favorite) },
+                onOpenPomoAmp: { [weak self] in
+                    self?.popover?.performClose(nil)
+                    self?.onOpenPomoAmp?()
+                },
+                isPomoAmpRunning: { [weak self] in self?.isPomoAmpRunning?() == true },
+                hasPomoAmpCompanion: { [weak self] in
+                    self?.hasPomoAmpCompanion?() == true || self?.isPomoAmpRunning?() == true
+                }
             )
         )
         host.sizingOptions = .preferredContentSize
@@ -262,6 +223,17 @@ final class MenuBarController: NSObject, NSPopoverDelegate {
         sound.target = self
         sound.state = settings.soundEnabled ? .on : .off
         menu.addItem(sound)
+
+        if hasPomoAmpCompanion?() == true || isPomoAmpRunning?() == true {
+            let isRunning = isPomoAmpRunning?() == true
+            let amp = NSMenuItem(
+                title: isRunning ? "Quit Pomo Amp" : "Open Pomo Amp",
+                action: isRunning ? #selector(quitPomoAmp) : #selector(openPomoAmp),
+                keyEquivalent: ""
+            )
+            amp.target = self
+            menu.addItem(amp)
+        }
 
         menu.addItem(.separator())
 
@@ -385,6 +357,8 @@ final class MenuBarController: NSObject, NSPopoverDelegate {
     @objc private func openSettings() { onOpenSettings?() }
     @objc private func openStats() { onOpenStats?() }
     @objc private func quit() { onQuit?() }
+    @objc private func openPomoAmp() { onOpenPomoAmp?() }
+    @objc private func quitPomoAmp() { onQuitPomoAmp?() }
 
     @objc private func toggleSound() {
         settings.soundEnabled.toggle()

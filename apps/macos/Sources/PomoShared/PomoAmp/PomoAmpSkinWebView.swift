@@ -304,7 +304,7 @@ struct PomoAmpSkinWebView: NSViewRepresentable {
         func sendViz(force: Bool = false) {
             guard let webView, let viz else { return }
             if !force {
-                let fps = max(1.0, profile?.skinFPS ?? 15.0)
+                let fps = max(1.0, profile?.skinFPS ?? 30.0)
                 let minInterval = viz.isPlaying ? 1.0 / fps : 1.0
                 guard viz.hostTime - lastVizDispatchHostTime >= minInterval else { return }
             }

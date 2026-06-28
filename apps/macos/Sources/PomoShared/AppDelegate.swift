@@ -95,6 +95,13 @@ public final class AppDelegate: NSObject, NSApplicationDelegate {
         menuBar.onToggleAudio = { [weak self] in self?.toggleAudio() }
         menuBar.onStopAudio = { [weak self] in self?.audio.stop() }
         menuBar.onPlayFavorite = { [weak self] favorite in self?.playFavorite(favorite) }
+        menuBar.onOpenPomoAmp = { [weak self] in self?.openPomoAmp() }
+        menuBar.onQuitPomoAmp = { [weak self] in self?.quitPomoAmp() }
+        menuBar.isPomoAmpRunning = { [weak self] in self?.runningPomoAmpApplication() != nil }
+        menuBar.hasPomoAmpCompanion = { [weak self] in
+            guard let self else { return false }
+            return self.runningPomoAmpApplication() != nil || self.availablePomoAmpAppURL() != nil
+        }
 
         hud.onOpenSettings = { [weak self] in self?.showSettings() }
         hud.onVideoCommand = { [weak self] command in
@@ -242,7 +249,8 @@ public final class AppDelegate: NSObject, NSApplicationDelegate {
             settings.setAudioURL(url, for: type)
             menuBar.refresh()
         case .login:       audio.signIn()
-        case .importCookies(let browser, let profile): audio.importCookies(browser: browser, profile: profile)
+        case .importCookies(let browser, let profile, let accountIndex):
+            audio.importCookies(browser: browser, profile: profile, accountIndex: accountIndex)
         case .logout: audio.clearLogin()
         case .selectAccount(let index): audio.setAccount(index)
         case .videoShow:
@@ -290,11 +298,29 @@ public final class AppDelegate: NSObject, NSApplicationDelegate {
         writeState()
     }
 
+    private func openPomoAmp() {
+        _ = sendPomoAmpCommand(.showHUD, launchIfNeeded: true)
+    }
+
+    private func quitPomoAmp() {
+        _ = sendPomoAmpCommand(.quit, launchIfNeeded: false)
+    }
+
     private func deferVideoCommandToPomoAmp(_ command: PomoCommand) -> Bool {
-        guard let url = pomoAmpURL(for: command),
-              let app = runningPomoAmpApplication(),
-              let bundleURL = app.bundleURL
-        else { return false }
+        sendPomoAmpCommand(command, launchIfNeeded: false)
+    }
+
+    private func sendPomoAmpCommand(_ command: PomoCommand, launchIfNeeded: Bool) -> Bool {
+        guard let url = pomoAmpURL(for: command) else { return false }
+        let bundleURL: URL?
+        if let app = runningPomoAmpApplication(), let runningBundleURL = app.bundleURL {
+            bundleURL = runningBundleURL
+        } else if launchIfNeeded {
+            bundleURL = availablePomoAmpAppURL()
+        } else {
+            bundleURL = nil
+        }
+        guard let bundleURL else { return false }
 
         let configuration = NSWorkspace.OpenConfiguration()
         NSWorkspace.shared.open([url], withApplicationAt: bundleURL, configuration: configuration) { _, error in
@@ -307,13 +333,28 @@ public final class AppDelegate: NSObject, NSApplicationDelegate {
 
     private func pomoAmpURL(for command: PomoCommand) -> URL? {
         switch command {
+        case .showHUD:     return URL(string: "pomo-amp://show")
+        case .hideHUD:     return URL(string: "pomo-amp://hide")
+        case .toggleHUD:   return URL(string: "pomo-amp://toggle-hud")
         case .videoShow:   return URL(string: "pomo-amp://video/show")
         case .videoHide:   return URL(string: "pomo-amp://video/hide")
         case .videoToggle: return URL(string: "pomo-amp://video/toggle")
         case .videoPage:   return URL(string: "pomo-amp://video/page")
         case .videoPlayer: return URL(string: "pomo-amp://video/player")
+        case .quit:        return URL(string: "pomo-amp://quit")
         default:           return nil
         }
+    }
+
+    private func availablePomoAmpAppURL() -> URL? {
+        let bundleURL = Bundle.main.bundleURL
+        let candidates = [
+            bundleURL.appendingPathComponent("Contents/Helpers/Pomo Amp.app", isDirectory: true),
+            bundleURL.deletingLastPathComponent().appendingPathComponent("Pomo Amp.app", isDirectory: true),
+        ]
+        return candidates.first(where: { url in
+            FileManager.default.fileExists(atPath: url.appendingPathComponent("Contents/Info.plist").path)
+        })
     }
 
     private func runningPomoAmpApplication() -> NSRunningApplication? {

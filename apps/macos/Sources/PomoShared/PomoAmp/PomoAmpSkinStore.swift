@@ -66,7 +66,7 @@ public enum PomoAmpSkinStore {
         try? PomoAmpDefaultSkinHTML.html.write(to: directory.appendingPathComponent("index.html"), atomically: true, encoding: .utf8)
     }
 
-    private static let exampleVersion = "1.1.9"
+    private static let exampleVersion = "1.1.10"
 
     private static let exampleManifest = """
     {

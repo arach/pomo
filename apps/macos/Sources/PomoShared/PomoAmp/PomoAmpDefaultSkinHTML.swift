@@ -786,13 +786,13 @@ enum PomoAmpDefaultSkinHTML {
     var viz = emptyViz;
     var profile = {
       modeName: "balanced",
-      skinFPS: 15,
-      canvasLiveDelayMilliseconds: 67,
+      skinFPS: 30,
+      canvasLiveDelayMilliseconds: 33,
       canvasSilentDelayMilliseconds: 250,
       canvasIdleDelayMilliseconds: 1200,
       canvasMaxDevicePixelRatio: 1.35
     };
-    const skinBuild = "1.1.8";
+    const skinBuild = "1.1.10";
     if (localStorage.getItem("pomoAmp.defaultSkin.build") !== skinBuild) {
       localStorage.setItem("pomoAmp.defaultSkin.build", skinBuild);
       localStorage.setItem("pomoAmp.defaultSkin.preset", "0");
@@ -807,6 +807,7 @@ enum PomoAmpDefaultSkinHTML {
     const gain = { bandPeaks: [], wavePeak: 0.08, rmsPeak: 0.05, energy: 0 };
     var drawTimer = 0;
     var drawScheduled = false;
+    var lastDrawTime = 0;
     var vizSerial = 0;
     const canvasCache = new WeakMap();
     const vizMemo = {
@@ -1621,7 +1622,7 @@ enum PomoAmpDefaultSkinHTML {
       if (document.hidden) return 1000;
       if (!state.isPlaying) return Number(profile.canvasIdleDelayMilliseconds) || 1200;
       if (!hasLiveViz()) return Number(profile.canvasSilentDelayMilliseconds) || 250;
-      return Number(profile.canvasLiveDelayMilliseconds) || 67;
+      return Number(profile.canvasLiveDelayMilliseconds) || 33;
     }
 
     function scheduleDraw(delay = drawDelay()) {
@@ -1631,13 +1632,23 @@ enum PomoAmpDefaultSkinHTML {
         clearTimeout(drawTimer);
       }
       drawScheduled = true;
-      drawTimer = setTimeout(() => {
+      const requestDraw = () => {
         drawTimer = 0;
-        requestAnimationFrame(() => {
+        requestAnimationFrame((timestamp) => {
+          if (nextDelay > 0 && lastDrawTime > 0) {
+            const remaining = nextDelay - (timestamp - lastDrawTime);
+            if (remaining > 1) {
+              drawTimer = setTimeout(requestDraw, remaining);
+              return;
+            }
+          }
+          lastDrawTime = timestamp;
           drawScheduled = false;
           drawFrame();
         });
-      }, nextDelay);
+      };
+      const elapsed = lastDrawTime > 0 ? performance.now() - lastDrawTime : nextDelay;
+      drawTimer = setTimeout(requestDraw, Math.max(0, nextDelay - elapsed));
     }
 
     function drawFrame() {

@@ -137,13 +137,14 @@ final class WebAudioPlayer: NSObject {
     /// burst of cookie changes during a page load only persists once.
     private var cookieObserver: CookieStoreObserver?
     private var cookieSaveWork: DispatchWorkItem?
+    private var restoredSavedLogin = false
+    private var restoreLoginTask: Task<Void, Never>?
+    private var persistedCookieSignature: String?
 
     override init() {
         super.init()
-        // Re-seed any login saved on disk into the shared store, then keep that
-        // backup current as cookies change — so login survives relaunches and
-        // even a switch between the dev build and the installed release.
-        restoreSavedLogin()
+        // Keep the on-disk backup current. Playback/sign-in explicitly await
+        // restoreSavedLoginIfNeeded() before first navigation.
         startCookiePersistence()
         startAudioScopeFreshnessWatchdog()
     }
@@ -160,7 +161,6 @@ final class WebAudioPlayer: NSObject {
     func play(urlString raw: String, startAt: Double? = nil, knownTitle: String? = nil) {
         let urlString = raw.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !urlString.isEmpty, let base = Self.watchURL(from: urlString) else { return }
-        let url = Self.withAuthUser(base, authUser)
         cancelIdleMemoryPurge()
         cancelBoundaryMemoryPurge()
         cancelPreparedBrowserSwap()
@@ -175,10 +175,16 @@ final class WebAudioPlayer: NSObject {
         resetAudioScope()
         stopNativeAudioScope()
         ensureWebView()
-        log("play \(url.absoluteString)")
-        webView?.load(URLRequest(url: url))
         isPlaying = true
         persistPlaybackSnapshot(force: true, wasPlaying: true)
+
+        Task { @MainActor in
+            await self.restoreSavedLoginIfNeeded()
+            guard self.currentURL == urlString else { return }
+            let url = Self.withAuthUser(base, self.authUser)
+            self.log("play \(url.absoluteString)")
+            self.webView?.load(URLRequest(url: url))
+        }
     }
 
     /// Pick which signed-in Google account to use, and reload.
@@ -244,17 +250,13 @@ final class WebAudioPlayer: NSObject {
     func requestAudioScopePermission() {
         audioScopeError = nil
         nativeAudioScopeSuppressedUntil = 0
-        guard Self.canStartNativeAudioScopeWithoutPrompt() else {
-            nativeAudioScopeEnabledForSession = false
-            audioScopeError = Self.nativeAudioScopePermissionMessage
-            ScreenCaptureAudioPermission.showAssistant(startRequest: false)
-            onStateChange?()
-            return
-        }
+        ScreenCaptureAudioPermission.registerPermissionTarget(reason: "visualizer requested")
         Self.recordNativeAudioScopeUserIntent()
         nativeAudioScopeEnabledForSession = true
         if isPlaying {
             startNativeAudioScope(reason: "visualizer requested", userInitiated: true)
+        } else {
+            ScreenCaptureAudioPermission.showAssistant(startRequest: false)
         }
         onStateChange?()
     }
@@ -279,7 +281,7 @@ final class WebAudioPlayer: NSObject {
     }
 
     func setVisualizerScopeFrameInterval(milliseconds: Int) {
-        let clamped = max(50, min(500, milliseconds))
+        let clamped = max(33, min(500, milliseconds))
         guard audioScopeFrameIntervalMilliseconds != clamped else { return }
         audioScopeFrameIntervalMilliseconds = clamped
         nativeAudioScope.setFrameInterval(milliseconds: clamped)
@@ -942,7 +944,11 @@ final class WebAudioPlayer: NSObject {
         window.delegate = self
         signInWindow = window
 
-        wv.load(URLRequest(url: URL(string: "https://accounts.google.com/ServiceLogin?service=youtube&continue=https%3A%2F%2Fwww.youtube.com%2F")!))
+        Task { @MainActor in
+            await self.restoreSavedLoginIfNeeded()
+            let continueURL = URL(string: "https://www.youtube.com/")!
+            wv.load(URLRequest(url: Self.serviceLoginURL(continueURL: continueURL, accountIndex: self.authUser)))
+        }
         NSApp.activate(ignoringOtherApps: true)
         window.makeKeyAndOrderFront(nil)
     }
@@ -950,28 +956,52 @@ final class WebAudioPlayer: NSObject {
     /// Borrow the YouTube login from a browser/profile (via the rookie helper)
     /// and reload signed-in. Clears any prior Google/YouTube cookies first so
     /// accounts/profiles don't mix. `browser` nil = all; `profile` e.g. "Profile 1".
-    func importCookies(fromBrowser browser: String?, profile: String?) {
-        Task { @MainActor in _ = await importLogin(fromBrowser: browser, profile: profile) }
+    func importCookies(fromBrowser browser: String?, profile: String?, accountIndex: Int = 0) {
+        Task { @MainActor in
+            _ = await importLogin(fromBrowser: browser, profile: profile, accountIndex: accountIndex)
+        }
     }
 
     /// Awaitable import that returns how many auth cookies were found, so callers
     /// (e.g. the import panel) can report success vs "nothing found". Clears any
     /// prior Google/YouTube cookies first so accounts/profiles don't mix.
     @discardableResult
-    func importLogin(fromBrowser browser: String?, profile: String?) async -> Int {
+    func importLogin(fromBrowser browser: String?, profile: String?, accountIndex: Int = 0) async -> Int {
         ensureWebView()
         guard let webView else { return 0 }
+        let accountIndex = max(0, accountIndex)
         let label = [browser, profile].compactMap { $0 }.joined(separator: " / ")
         log("importing cookies from \(label.isEmpty ? "all browsers" : label)…")
         let store = webView.configuration.websiteDataStore.httpCookieStore
-        let cleared = await Self.clearAuthCookies(store)
         let cookies = await CookieImporter.cookies(fromBrowser: browser, profile: profile)
-        for cookie in cookies { await store.setCookie(cookie) }
-        authUser = 0   // a profile's default account is the intended one
-        log("cleared \(cleared), imported \(cookies.count) cookies")
-        if !currentURL.isEmpty, let base = Self.watchURL(from: currentURL) {
-            webView.load(URLRequest(url: Self.withAuthUser(base, 0)))
+        guard !cookies.isEmpty else {
+            log("import found no cookies; keeping existing login")
+            return 0
         }
+
+        if let restoreLoginTask {
+            await restoreLoginTask.value
+            self.restoreLoginTask = nil
+        }
+        let cleared = await Self.clearAuthCookies(store)
+        for cookie in cookies { await store.setCookie(cookie) }
+        let acceptedCookies = (await store.allCookies()).filter(Self.isPersistableAuthCookie)
+        let persistedCookies = acceptedCookies.isEmpty ? cookies.filter(Self.isPersistableAuthCookie) : acceptedCookies
+        CookieJar.save(persistedCookies)
+        restoredSavedLogin = true
+        persistedCookieSignature = Self.cookieSignature(persistedCookies)
+        cookieSaveWork?.cancel()
+        authUser = accountIndex
+        log("cleared \(cleared), imported \(cookies.count) cookies for account \(accountIndex)")
+        let targetURL: URL
+        if !currentURL.isEmpty, let base = Self.watchURL(from: currentURL) {
+            targetURL = Self.withAuthUser(base, accountIndex)
+        } else if let url = URL(string: "https://www.youtube.com/") {
+            targetURL = Self.withAuthUser(url, accountIndex)
+        } else {
+            return cookies.count
+        }
+        webView.load(URLRequest(url: Self.serviceLoginURL(continueURL: targetURL, accountIndex: accountIndex)))
         return cookies.count
     }
 
@@ -980,8 +1010,14 @@ final class WebAudioPlayer: NSObject {
         ensureWebView()
         guard let webView else { return }
         Task { @MainActor in
+            if let restoreLoginTask = self.restoreLoginTask {
+                await restoreLoginTask.value
+                self.restoreLoginTask = nil
+            }
             let cleared = await Self.clearAuthCookies(webView.configuration.websiteDataStore.httpCookieStore)
             self.authUser = 0
+            self.restoredSavedLogin = true
+            self.persistedCookieSignature = nil
             CookieJar.save([])   // write-through so logout survives an immediate quit
             self.log("logout — cleared \(cleared) cookies")
             if !self.currentURL.isEmpty, let url = Self.watchURL(from: self.currentURL) {
@@ -1009,22 +1045,39 @@ final class WebAudioPlayer: NSObject {
     }
 
     private static func isAuthDomain(_ domain: String) -> Bool {
-        let d = domain.lowercased()
-        return d.contains("youtube.com") || d.contains("google.com") || d.contains("google.")
+        let d = domain
+            .trimmingCharacters(in: CharacterSet(charactersIn: "."))
+            .lowercased()
+        return d == "youtube.com" || d.hasSuffix(".youtube.com")
+            || d == "google.com" || d.hasSuffix(".google.com")
     }
 
     // MARK: - Login persistence (cookies on disk)
 
-    /// Re-inject any login saved on a prior run into the shared default store, so
-    /// a one-time sign-in is reloaded on every launch (and across builds).
-    private func restoreSavedLogin() {
-        let saved = CookieJar.load()
-        guard !saved.isEmpty else { return }
-        let store = WKWebsiteDataStore.default().httpCookieStore
-        Task { @MainActor in
+    /// Re-inject any login saved on a prior run into the shared default store.
+    /// First navigation waits for this so YouTube does not boot signed-out and
+    /// overwrite the imported session during hydration.
+    private func restoreSavedLoginIfNeeded() async {
+        if restoredSavedLogin { return }
+        if let restoreLoginTask {
+            await restoreLoginTask.value
+            return
+        }
+
+        let task = Task { @MainActor in
+            defer { self.restoredSavedLogin = true }
+            let saved = CookieJar.load()
+            guard !saved.isEmpty else { return }
+            let store = self.webView?.configuration.websiteDataStore.httpCookieStore
+                ?? WKWebsiteDataStore.default().httpCookieStore
             for cookie in saved { await store.setCookie(cookie) }
+            self.persistedCookieSignature = Self.cookieSignature(saved)
             self.log("restored \(saved.count) login cookies from disk")
         }
+
+        restoreLoginTask = task
+        await task.value
+        restoreLoginTask = nil
     }
 
     /// Watch the shared cookie store and mirror the auth cookies to disk whenever
@@ -1052,8 +1105,40 @@ final class WebAudioPlayer: NSObject {
         let store = WKWebsiteDataStore.default().httpCookieStore
         Task { @MainActor in
             let all = await store.allCookies()
-            CookieJar.save(all.filter { Self.isAuthDomain($0.domain) })
+            let cookies = all.filter(Self.isPersistableAuthCookie)
+            guard !cookies.isEmpty else { return }
+            let signature = Self.cookieSignature(cookies)
+            guard signature != self.persistedCookieSignature else { return }
+            CookieJar.save(cookies)
+            self.persistedCookieSignature = signature
+            self.log("persisted \(cookies.count) login cookies")
         }
+    }
+
+    private static func isPersistableAuthCookie(_ cookie: HTTPCookie) -> Bool {
+        guard isAuthDomain(cookie.domain), !cookie.value.isEmpty else { return false }
+        if let expires = cookie.expiresDate, expires <= Date() { return false }
+        return true
+    }
+
+    private static func cookieSignature(_ cookies: [HTTPCookie]) -> String {
+        cookies
+            .map { cookie in
+                let expires = cookie.expiresDate?.timeIntervalSince1970 ?? 0
+                return "\(cookie.domain)\t\(cookie.path)\t\(cookie.name)\t\(cookie.value)\t\(expires)"
+            }
+            .sorted()
+            .joined(separator: "\n")
+    }
+
+    private static func serviceLoginURL(continueURL: URL, accountIndex: Int) -> URL {
+        var components = URLComponents(string: "https://accounts.google.com/ServiceLogin")!
+        components.queryItems = [
+            URLQueryItem(name: "service", value: "youtube"),
+            URLQueryItem(name: "continue", value: continueURL.absoluteString),
+            URLQueryItem(name: "authuser", value: String(max(0, accountIndex))),
+        ]
+        return components.url!
     }
 
     // MARK: - Video-pane context menu + import panel
@@ -1155,8 +1240,8 @@ final class WebAudioPlayer: NSObject {
         let view = CookieImportPanel(
             account: account,
             profiles: CookieImporter.detectedProfiles(),
-            onImport: { [weak self] browser, profile in
-                await self?.importLogin(fromBrowser: browser, profile: profile) ?? 0
+            onImport: { [weak self] browser, profile, accountIndex in
+                await self?.importLogin(fromBrowser: browser, profile: profile, accountIndex: accountIndex) ?? 0
             },
             onClose: { [weak self] in self?.importLoginWindow?.close() }
         )
@@ -1244,7 +1329,7 @@ final class WebAudioPlayer: NSObject {
     }
 
     private static func setAudioScopeFrameIntervalJS(_ milliseconds: Int) -> String {
-        "window.__pomoScopeIntervalMs=\(max(50, min(500, milliseconds)));"
+        "window.__pomoScopeIntervalMs=\(max(33, min(500, milliseconds)));"
     }
 
     private static let suspendAudioScopeJS = """
@@ -1785,7 +1870,7 @@ final class WebAudioPlayer: NSObject {
                     }
                   }
                   if (v.__pomoScopeTimer) clearInterval(v.__pomoScopeTimer);
-                  v.__pomoScopeTimer = setInterval(tick, Math.max(50, Math.min(500, Number(window.__pomoScopeIntervalMs) || 100)));
+                  v.__pomoScopeTimer = setInterval(tick, Math.max(33, Math.min(500, Number(window.__pomoScopeIntervalMs) || 100)));
                   tick();
                   post('scope:started');
                 } catch(e) {
@@ -2267,11 +2352,7 @@ final class WebAudioPlayer: NSObject {
         guard isPlaying else { return }
         guard !nativeAudioScope.isActive else { return }
         if userInitiated {
-            guard Self.canStartNativeAudioScopeWithoutPrompt() else {
-                noteNativeAudioScopePermissionNeeded(reason: reason)
-                ScreenCaptureAudioPermission.showAssistant(startRequest: false)
-                return
-            }
+            ScreenCaptureAudioPermission.registerPermissionTarget(reason: reason)
             Self.recordNativeAudioScopeUserIntent()
             nativeAudioScopeEnabledForSession = true
         } else if !nativeAudioScopeEnabledForSession {
@@ -2378,6 +2459,9 @@ final class WebAudioPlayer: NSObject {
             audioScope = nil
             silentScopeFrames = 0
             nonSilentScopeFrames = 0
+            if !alreadyAllowed {
+                ScreenCaptureAudioPermission.showAssistant(startRequest: false)
+            }
             return
         }
         let lowercased = error.lowercased()
@@ -2404,8 +2488,8 @@ final class WebAudioPlayer: NSObject {
     }
 
     private static func shouldAutoStartNativeAudioScope() -> Bool {
-        canStartNativeAudioScopeWithoutPrompt()
-            && (hasSuccessfulNativeAudioScopeAccessForCurrentExecutable() || hasNativeAudioScopeUserIntent())
+        hasSuccessfulNativeAudioScopeAccessForCurrentExecutable()
+            || (canStartNativeAudioScopeWithoutPrompt() && hasNativeAudioScopeUserIntent())
     }
 
     private static func canStartNativeAudioScopeWithoutPrompt() -> Bool {
@@ -2542,6 +2626,7 @@ final class WebAudioPlayer: NSObject {
             avatarView?.image = nil
             avatarView?.isHidden = true
         }
+        onStateChange?()
     }
 
     private func loadAvatar(_ urlString: String) {
@@ -2553,6 +2638,7 @@ final class WebAudioPlayer: NSObject {
                 self.account.avatar = image
                 self.avatarView?.image = image
                 self.avatarView?.isHidden = !self.account.signedIn
+                self.onStateChange?()
             }
         }.resume()
     }

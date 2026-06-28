@@ -1,7 +1,7 @@
 import Foundation
 import Observation
 
-/// The countdown engine. Ported from the Tauri app's `timer-store.ts` but
+/// The countdown engine. Ported from the original web app's timer store but
 /// drift-free: while running it derives `remainingSeconds` from a target
 /// `endDate` rather than decrementing a counter, so it stays accurate even if a
 /// tick is late. Pausing snapshots the remaining time.

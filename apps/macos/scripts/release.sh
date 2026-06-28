@@ -7,11 +7,10 @@ repo_root="$(cd "$script_dir/../../.." && pwd)"
 version=""
 dry_run=false
 allow_dirty=false
-skip_landing_check=false
 
 usage() {
   cat <<EOF
-Usage: scripts/release.sh VERSION [--dry-run] [--allow-dirty] [--skip-landing-check]
+Usage: scripts/release.sh VERSION [--dry-run] [--allow-dirty]
 
 Create and push the canonical v<version> tag that triggers the signed macOS DMG
 release workflow.
@@ -26,7 +25,6 @@ Checks:
   - HEAD must match origin/main
   - no tracked files may be dirty unless --allow-dirty is used
   - v<version> must not already exist locally or on origin
-  - landing page text must already mention v<version>
 EOF
 }
 
@@ -38,10 +36,6 @@ while [[ $# -gt 0 ]]; do
       ;;
     --allow-dirty)
       allow_dirty=true
-      shift
-      ;;
-    --skip-landing-check)
-      skip_landing_check=true
       shift
       ;;
     -h|--help)
@@ -113,15 +107,6 @@ fi
 if git ls-remote --exit-code --tags origin "refs/tags/$tag" >/dev/null 2>&1; then
   echo "Remote tag already exists: $tag" >&2
   exit 1
-fi
-
-landing_file="apps/tauri/landing/app/home-content.tsx"
-if [[ "$skip_landing_check" != true && -f "$landing_file" ]]; then
-  if ! grep -q "v$version" "$landing_file"; then
-    echo "Landing page does not mention v$version." >&2
-    echo "Update $landing_file first, then commit and rerun this script." >&2
-    exit 1
-  fi
 fi
 
 echo "Release tag: $tag"

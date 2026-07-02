@@ -7,6 +7,16 @@ timer from the shell or an agent. A thin, zero-dependency wrapper over Pomo's
 > macOS only. It drives the installed Pomo app via `open` (and `hdiutil` for
 > `install`); it doesn't bundle the app itself.
 
+<p align="center">
+  <img src="docs/pomo-app.png" alt="Pomo HUD timer" width="420" />
+</p>
+
+<p align="center">
+  <img src="docs/pomo-watchface.png" alt="Pomo watchfaces" width="280" />
+  &nbsp;&nbsp;
+  <img src="docs/pomo-settings.png" alt="Pomo settings" width="280" />
+</p>
+
 ## Use it
 
 No install needed — run it with `npx`:
@@ -14,15 +24,19 @@ No install needed — run it with `npx`:
 ```sh
 npx @arach/pomo install     # download & install the latest Pomo.app
 npx @arach/pomo start       # start a focus session
-npx @arach/pomo status      # see what's happening
+pomo                        # live terminal UI (or: pomo status for one-shot)
 ```
 
 Or put it on your PATH:
 
 ```sh
 npm install -g @arach/pomo
-pomo status
+pomo
 ```
+
+In a terminal, bare `pomo` opens a small live TUI — countdown, session, intent,
+and quick keys (`space` toggle, `n` skip, `h` HUD, `q` quit). Use `pomo status`
+for a one-shot snapshot, or `pomo status --json` for scripts.
 
 ## Commands
 
@@ -42,7 +56,7 @@ Login      login · login import [--browser b] [--profile p] · login profiles
 App        install [--dry-run] [--open] · quit
 ```
 
-Run `pomo` with no arguments for a live status; `pomo help` for the full list.
+Run `pomo help` for the full list.
 
 ### Examples
 
@@ -66,7 +80,7 @@ prints what it would do; `--open` launches the app afterward.
 ## How it works
 
 - **Commands** → `open "pomo://<verb>"` (fire-and-forget).
-- **`status`** → reads `~/Library/Application Support/Pomo/state.json`.
+- **TUI / `status`** → reads `~/Library/Application Support/Pomo/state.json`.
 
 That's the whole contract, so anything the app exposes over `pomo://` is one
 line away here.

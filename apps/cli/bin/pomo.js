@@ -9,7 +9,16 @@
 // `hdiutil`, etc.).
 
 import { execFileSync } from 'node:child_process';
-import { existsSync, mkdtempSync, readdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
+import {
+  existsSync,
+  mkdtempSync,
+  readFileSync,
+  readdirSync,
+  rmSync,
+  unwatchFile,
+  watchFile,
+  writeFileSync,
+} from 'node:fs';
 import { homedir, tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { createInterface } from 'node:readline';
@@ -49,13 +58,15 @@ function targetApp() {
 }
 
 /** Fire a pomo:// command at the app via `open`. */
-function send(path) {
+function send(path, { soft = false } = {}) {
   requireMac();
   const url = `pomo://${path}`;
   const app = targetApp();
   try {
     execFileSync('open', app ? ['-a', app, url] : [url], { stdio: 'ignore' });
+    return true;
   } catch {
+    if (soft) return false;
     die(`couldn't reach Pomo. Is it installed? Try: pomo install`);
   }
 }
@@ -134,6 +145,152 @@ function printStatus(args) {
     console.log('  favorites');
     favs.forEach((f, i) => console.log(`    ${i + 1}. ${f.title}`));
   }
+}
+
+// ─── quick TUI (bare `pomo` in a TTY) ──────────────────────────────────────
+
+function tryReadState() {
+  if (!existsSync(STATE_FILE)) return null;
+  try {
+    return JSON.parse(readFileSync(STATE_FILE, 'utf8'));
+  } catch {
+    return null;
+  }
+}
+
+function sessionLabel(type) {
+  switch ((type || '').toLowerCase()) {
+    case 'focus':
+      return 'focus';
+    case 'shortbreak':
+      return 'short break';
+    case 'longbreak':
+      return 'long break';
+    default:
+      return type || '—';
+  }
+}
+
+function phaseGlyph(phase) {
+  switch (phase) {
+    case 'running':
+      return '●';
+    case 'paused':
+      return '❚❚';
+    default:
+      return '○';
+  }
+}
+
+function progressBar(progress, width = 28) {
+  const clamped = Math.max(0, Math.min(1, Number(progress) || 0));
+  const filled = Math.round(clamped * width);
+  return `${'█'.repeat(filled)}${'░'.repeat(width - filled)}`;
+}
+
+function audioLine(s) {
+  if (!s.audioURL) return '—';
+  const fav = (s.favorites || []).find((f) => f.url === s.audioURL);
+  const label = fav ? fav.title : s.audioURL;
+  return `${s.audioPlaying ? '▶' : '⏸'} ${label}`;
+}
+
+function truncate(text, max) {
+  const value = String(text || '');
+  if (value.length <= max) return value;
+  return `${value.slice(0, max - 1)}…`;
+}
+
+function renderTui(s) {
+  const pct = Math.round((Number(s.progress) || 0) * 100);
+  const intent = s.intent ? truncate(s.intent, 52) : '—';
+  const lines = [
+    '',
+    `  ${phaseGlyph(s.phase)} ${sessionLabel(s.sessionType)} · ${s.phase}`,
+    '',
+    `        ${s.clock || '--:--'}`,
+    `    ${progressBar(s.progress)}  ${pct}%`,
+    '',
+    `  intent   ${intent}`,
+    `  audio    ${truncate(audioLine(s), 52)}`,
+    `  today    ${s.focusToday ?? 0} focus · streak ${s.streakDays ?? 0}d · ${s.focusTotal ?? 0} total`,
+    `  hud      ${s.hudVisible ? 'visible' : 'hidden'} · face ${s.watchface || '—'}`,
+    '',
+    '  space toggle · n skip · h hud · r reset · q quit',
+    '',
+  ];
+  return lines.join('\n');
+}
+
+function runTui() {
+  if (!process.stdin.isTTY) {
+    printStatus([]);
+    return;
+  }
+
+  let stopping = false;
+  let drawTimer = null;
+  let usedAltScreen = false;
+
+  const cleanup = (code = 0) => {
+    if (stopping) return;
+    stopping = true;
+    if (drawTimer) clearInterval(drawTimer);
+    unwatchFile(STATE_FILE);
+    if (usedAltScreen) process.stdout.write('\x1b[?1049l\x1b[?25h\x1b[0m');
+    else process.stdout.write('\x1b[?25h\x1b[0m');
+    process.stdin.setRawMode?.(false);
+    process.stdin.pause();
+    process.exit(code);
+  };
+
+  const draw = () => {
+    const s = tryReadState();
+    if (!s) {
+      process.stdout.write('\x1b[2J\x1b[H');
+      process.stdout.write('\npomo: waiting for state… (is Pomo running?)\n\n  q quit\n');
+      return;
+    }
+    process.stdout.write('\x1b[H\x1b[2J');
+    process.stdout.write(renderTui(s));
+  };
+
+  const act = (path) => {
+    if (!send(path, { soft: true })) {
+      process.stdout.write('\x1b[2J\x1b[H');
+      process.stdout.write('\npomo: couldn\'t reach Pomo. Is it installed? Try: pomo install\n\n  q quit\n');
+      return;
+    }
+    setTimeout(draw, 120);
+  };
+
+  if (process.stdout.isTTY && process.env.TERM !== 'dumb') {
+    process.stdout.write('\x1b[?1049h\x1b[?25l');
+    usedAltScreen = true;
+  } else {
+    process.stdout.write('\x1b[?25l');
+  }
+
+  process.stdin.setRawMode(true);
+  process.stdin.resume();
+  process.stdin.setEncoding('utf8');
+  process.stdin.on('data', (key) => {
+    if (stopping) return;
+    if (key === '\u0003' || key === 'q' || key === 'Q' || key === '\u001b') cleanup();
+    else if (key === ' ') act('toggle');
+    else if (key === 's' || key === 'S') act('start');
+    else if (key === 'p' || key === 'P') act('pause');
+    else if (key === 'r' || key === 'R') act('reset');
+    else if (key === 'n' || key === 'N') act('skip');
+    else if (key === 'h' || key === 'H') act('hud');
+    else if (key === '?') draw();
+  });
+
+  watchFile(STATE_FILE, { interval: 250 }, draw);
+  drawTimer = setInterval(draw, 1000);
+  process.on('SIGINT', () => cleanup(130));
+  process.on('SIGTERM', () => cleanup(143));
+  draw();
 }
 
 // ─── install ────────────────────────────────────────────────────────────────
@@ -439,7 +596,7 @@ function help() {
 Usage: pomo <command> [args]
 
 Timer
-  status [--json]        show the live state (default when run with no command)
+  status [--json]        one-shot status (bare \`pomo\` opens the live TUI in a terminal)
   start | pause | toggle | reset | skip
   session <focus|short|long>
   duration <minutes>
@@ -571,8 +728,8 @@ switch (cmd) {
     break;
 
   case '':
-    // bare `pomo` → a friendly status if the app's around, else help.
-    if (existsSync(STATE_FILE)) printStatus([]);
+    // bare `pomo` → live TUI when we're in a terminal; one-shot status otherwise.
+    if (existsSync(STATE_FILE)) runTui();
     else help();
     break;
 

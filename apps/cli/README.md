@@ -34,14 +34,15 @@ npm install -g @arach/pomo
 pomo
 ```
 
-In a terminal, bare `pomo` opens a small live TUI — countdown, session, intent,
-and quick keys (`space` toggle, `n` skip, `h` HUD, `q` quit). Use `pomo status`
-for a one-shot snapshot, or `pomo status --json` for scripts.
+Run `pomo` in a terminal for a live panel — framed countdown, session, intent,
+cycle dots, and quick keys (`space` pause/play, `n` skip, `h` HUD, `q` quit).
+`pomo tui` opens the same view explicitly. Use `pomo status` for a one-shot
+snapshot, or `pomo status --json` for scripts.
 
 ## Commands
 
 ```
-Timer      status [--json] · start · pause · toggle · reset · skip
+Timer      tui · status [--json] · start · pause · toggle · reset · skip
            session <focus|short|long> · duration <minutes>
 Intent     intent <text…> · intent clear
 Audio      audio <url> · audio <play|pause|stop|next|prev>

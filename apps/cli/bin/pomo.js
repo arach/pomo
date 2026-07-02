@@ -147,7 +147,10 @@ function printStatus(args) {
   }
 }
 
-// ─── quick TUI (bare `pomo` in a TTY) ──────────────────────────────────────
+// ─── TUI (`pomo` in a TTY, or `pomo tui`) ───────────────────────────────────
+
+const TUI_WIDTH = 46;
+const TUI_LINES = 20;
 
 function tryReadState() {
   if (!existsSync(STATE_FILE)) return null;
@@ -158,34 +161,76 @@ function tryReadState() {
   }
 }
 
+function tuiPalette() {
+  const on = process.stdout.isTTY && !process.env.NO_COLOR;
+  if (!on) {
+    return { r: '', b: '', d: '', hi: '', accent: '', ok: '', warn: '', mute: '' };
+  }
+  return {
+    r: '\x1b[0m',
+    b: '\x1b[1m',
+    d: '\x1b[2m',
+    hi: '\x1b[97m',
+    accent: '\x1b[38;5;214m',
+    ok: '\x1b[32m',
+    warn: '\x1b[33m',
+    mute: '\x1b[38;5;245m',
+  };
+}
+
+function visibleLen(text) {
+  return String(text).replace(/\x1b\[[0-9;]*m/g, '').length;
+}
+
+function padLine(text, width = TUI_WIDTH - 2) {
+  const pad = Math.max(0, width - visibleLen(text));
+  return `${text}${' '.repeat(pad)}`;
+}
+
+function boxRow(text = '') {
+  return `│ ${padLine(text)} │`;
+}
+
 function sessionLabel(type) {
   switch ((type || '').toLowerCase()) {
     case 'focus':
-      return 'focus';
+      return 'Focus';
     case 'shortbreak':
-      return 'short break';
+      return 'Short break';
     case 'longbreak':
-      return 'long break';
+      return 'Long break';
     default:
       return type || '—';
   }
 }
 
-function phaseGlyph(phase) {
+function titleCase(value) {
+  const text = String(value || '');
+  if (!text) return '—';
+  return text.charAt(0).toUpperCase() + text.slice(1);
+}
+
+function phaseTone(phase, c) {
   switch (phase) {
     case 'running':
-      return '●';
+      return `${c.ok}●${c.r}`;
     case 'paused':
-      return '❚❚';
+      return `${c.warn}❚❚${c.r}`;
     default:
-      return '○';
+      return `${c.mute}○${c.r}`;
   }
 }
 
-function progressBar(progress, width = 28) {
+function progressBar(progress, width = 30) {
   const clamped = Math.max(0, Math.min(1, Number(progress) || 0));
   const filled = Math.round(clamped * width);
-  return `${'█'.repeat(filled)}${'░'.repeat(width - filled)}`;
+  return `${'▓'.repeat(filled)}${'░'.repeat(width - filled)}`;
+}
+
+function cycleDots(completed, slots = 4) {
+  const done = Number(completed) || 0;
+  const pos = done % slots;
+  return Array.from({ length: slots }, (_, i) => (i < pos ? '●' : '○')).join(' ');
 }
 
 function audioLine(s) {
@@ -201,25 +246,75 @@ function truncate(text, max) {
   return `${value.slice(0, max - 1)}…`;
 }
 
+function fieldRow(label, value, c, valueWidth = 28) {
+  return boxRow(
+    `${c.mute}${label.padEnd(8)}${c.r} ${truncate(value, valueWidth)}`,
+  );
+}
+
 function renderTui(s) {
+  const c = tuiPalette();
   const pct = Math.round((Number(s.progress) || 0) * 100);
-  const intent = s.intent ? truncate(s.intent, 52) : '—';
+  const session = sessionLabel(s.sessionType);
+  const phase = s.phase || 'idle';
+  const clock = s.clock || '--:--';
+  const bar = progressBar(s.progress);
+  const intent = s.intent ? truncate(s.intent, 28) : '—';
+  const audio = truncate(audioLine(s), 28);
+  const today = `${s.focusToday ?? 0} today · ${s.streakDays ?? 0}d streak · ${s.focusTotal ?? 0} all`;
+  const hud = `${s.hudVisible ? 'visible' : 'hidden'} · ${titleCase(s.watchface)}`;
+  const status = `${phaseTone(phase, c)} ${c.b}${session}${c.r} ${c.mute}· ${phase}${c.r}`;
+  const top = '╭' + '─'.repeat(TUI_WIDTH) + '╮';
+  const bottom = '╰' + '─'.repeat(TUI_WIDTH) + '╯';
+
   const lines = [
     '',
-    `  ${phaseGlyph(s.phase)} ${sessionLabel(s.sessionType)} · ${s.phase}`,
+    top,
+    boxRow(`${c.accent}${c.b}pomo${c.r}`),
+    boxRow(''),
+    boxRow(' '.repeat(Math.max(0, Math.floor((TUI_WIDTH - 2 - visibleLen(status)) / 2))) + status),
+    boxRow(''),
+    boxRow(
+      ' '.repeat(Math.max(0, Math.floor((TUI_WIDTH - 2 - clock.length) / 2)))
+      + `${c.accent}${c.b}${clock}${c.r}`,
+    ),
+    boxRow(`${' '.repeat(4)}${c.accent}${bar}${c.r} ${c.mute}${pct}%${c.r}`),
+    boxRow(''),
+    fieldRow('intent', intent, c),
+    fieldRow('audio', audio, c),
+    fieldRow('today', today, c),
+    fieldRow('hud', hud, c),
+    boxRow(''),
+    boxRow(`${c.mute}${cycleDots(s.completedFocusCount)}  this cycle${c.r}`),
+    bottom,
     '',
-    `        ${s.clock || '--:--'}`,
-    `    ${progressBar(s.progress)}  ${pct}%`,
-    '',
-    `  intent   ${intent}`,
-    `  audio    ${truncate(audioLine(s), 52)}`,
-    `  today    ${s.focusToday ?? 0} focus · streak ${s.streakDays ?? 0}d · ${s.focusTotal ?? 0} total`,
-    `  hud      ${s.hudVisible ? 'visible' : 'hidden'} · face ${s.watchface || '—'}`,
-    '',
-    '  space toggle · n skip · h hud · r reset · q quit',
+    `${c.mute} space pause/play   n skip   h HUD   r reset   q quit${c.r}`,
     '',
   ];
-  return lines.join('\n');
+
+  while (lines.length < TUI_LINES) lines.push('');
+  return `${lines.map((line) => `${line}\x1b[K`).join('\n')}\n`;
+}
+
+function renderTuiMessage(title, body, hint = 'q quit') {
+  const c = tuiPalette();
+  const top = '╭' + '─'.repeat(TUI_WIDTH) + '╮';
+  const bottom = '╰' + '─'.repeat(TUI_WIDTH) + '╯';
+  const lines = [
+    '',
+    top,
+    boxRow(`${c.accent}${c.b}pomo${c.r}`),
+    boxRow(''),
+    boxRow(title),
+    boxRow(''),
+    boxRow(body),
+    bottom,
+    '',
+    `${c.mute} ${hint}${c.r}`,
+    '',
+  ];
+  while (lines.length < TUI_LINES) lines.push('');
+  return `${lines.map((line) => `${line}\x1b[K`).join('\n')}\n`;
 }
 
 function runTui() {
@@ -231,6 +326,7 @@ function runTui() {
   let stopping = false;
   let drawTimer = null;
   let usedAltScreen = false;
+  let cleared = false;
 
   const cleanup = (code = 0) => {
     if (stopping) return;
@@ -244,21 +340,28 @@ function runTui() {
     process.exit(code);
   };
 
+  const paint = (frame) => {
+    if (!cleared) {
+      process.stdout.write('\x1b[2J\x1b[H');
+      cleared = true;
+    } else {
+      process.stdout.write('\x1b[H');
+    }
+    process.stdout.write(frame);
+  };
+
   const draw = () => {
     const s = tryReadState();
     if (!s) {
-      process.stdout.write('\x1b[2J\x1b[H');
-      process.stdout.write('\npomo: waiting for state… (is Pomo running?)\n\n  q quit\n');
+      paint(renderTuiMessage('waiting for Pomo…', 'Start the app, then this panel updates live.'));
       return;
     }
-    process.stdout.write('\x1b[H\x1b[2J');
-    process.stdout.write(renderTui(s));
+    paint(renderTui(s));
   };
 
   const act = (path) => {
     if (!send(path, { soft: true })) {
-      process.stdout.write('\x1b[2J\x1b[H');
-      process.stdout.write('\npomo: couldn\'t reach Pomo. Is it installed? Try: pomo install\n\n  q quit\n');
+      paint(renderTuiMessage('could not reach Pomo', 'Try: pomo install'));
       return;
     }
     setTimeout(draw, 120);
@@ -596,7 +699,8 @@ function help() {
 Usage: pomo <command> [args]
 
 Timer
-  status [--json]        one-shot status (bare \`pomo\` opens the live TUI in a terminal)
+  tui                    open the live terminal UI
+  status [--json]        one-shot status (\`pomo\` alone opens the TUI in a terminal)
   start | pause | toggle | reset | skip
   session <focus|short|long>
   duration <minutes>
@@ -719,6 +823,10 @@ switch (cmd) {
     favorites(rest);
     break;
 
+  case 'tui':
+    runTui();
+    break;
+
   case 'status':
     printStatus(rest);
     break;
@@ -728,7 +836,7 @@ switch (cmd) {
     break;
 
   case '':
-    // bare `pomo` → live TUI when we're in a terminal; one-shot status otherwise.
+    // `pomo` alone → live TUI when we're in a terminal; one-shot status otherwise.
     if (existsSync(STATE_FILE)) runTui();
     else help();
     break;

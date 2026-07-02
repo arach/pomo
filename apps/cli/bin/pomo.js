@@ -252,14 +252,20 @@ function fieldRow(label, value, c, valueWidth = 28) {
   );
 }
 
-function renderTui(s) {
+function renderTui(s, edit = null) {
   const c = tuiPalette();
   const pct = Math.round((Number(s.progress) || 0) * 100);
   const session = sessionLabel(s.sessionType);
   const phase = s.phase || 'idle';
   const clock = s.clock || '--:--';
   const bar = progressBar(s.progress);
-  const intent = s.intent ? truncate(s.intent, 28) : '—';
+  const editingIntent = edit?.intentMode === true;
+  const intentValue = editingIntent
+    ? truncate(`${edit.intentDraft}▌`, 28)
+    : (s.intent ? truncate(s.intent, 28) : '—');
+  const intentRow = editingIntent
+    ? boxRow(`${c.accent}${c.b}intent${c.r}   ${intentValue}`)
+    : fieldRow('intent', intentValue, c);
   const audio = truncate(audioLine(s), 28);
   const today = `${s.focusToday ?? 0} today · ${s.streakDays ?? 0}d streak · ${s.focusTotal ?? 0} all`;
   const hud = `${s.hudVisible ? 'visible' : 'hidden'} · ${titleCase(s.watchface)}`;
@@ -280,7 +286,7 @@ function renderTui(s) {
     ),
     boxRow(`${' '.repeat(4)}${c.accent}${bar}${c.r} ${c.mute}${pct}%${c.r}`),
     boxRow(''),
-    fieldRow('intent', intent, c),
+    intentRow,
     fieldRow('audio', audio, c),
     fieldRow('today', today, c),
     fieldRow('hud', hud, c),
@@ -288,7 +294,9 @@ function renderTui(s) {
     boxRow(`${c.mute}${cycleDots(s.completedFocusCount)}  this cycle${c.r}`),
     bottom,
     '',
-    `${c.mute} space pause/play   n skip   h HUD   r reset   q quit${c.r}`,
+    editingIntent
+      ? `${c.mute} enter save · esc cancel · empty clears${c.r}`
+      : `${c.mute} space pause/play   i intent   n skip   h HUD   q quit${c.r}`,
     '',
   ];
 
@@ -327,6 +335,8 @@ function runTui() {
   let drawTimer = null;
   let usedAltScreen = false;
   let cleared = false;
+  let intentMode = false;
+  let intentDraft = '';
 
   const cleanup = (code = 0) => {
     if (stopping) return;
@@ -356,7 +366,7 @@ function runTui() {
       paint(renderTuiMessage('waiting for Pomo…', 'Start the app, then this panel updates live.'));
       return;
     }
-    paint(renderTui(s));
+    paint(renderTui(s, intentMode ? { intentMode: true, intentDraft } : null));
   };
 
   const act = (path) => {
@@ -365,6 +375,26 @@ function runTui() {
       return;
     }
     setTimeout(draw, 120);
+  };
+
+  const leaveIntentMode = (save) => {
+    intentMode = false;
+    process.stdout.write('\x1b[?25l');
+    if (save) {
+      const text = intentDraft.trim();
+      act(text ? `intent${query({ text })}` : 'intent/clear');
+    } else {
+      intentDraft = '';
+      draw();
+    }
+  };
+
+  const enterIntentMode = () => {
+    const s = tryReadState();
+    intentDraft = s?.intent || '';
+    intentMode = true;
+    process.stdout.write('\x1b[?25h');
+    draw();
   };
 
   if (process.stdout.isTTY && process.env.TERM !== 'dumb') {
@@ -379,8 +409,24 @@ function runTui() {
   process.stdin.setEncoding('utf8');
   process.stdin.on('data', (key) => {
     if (stopping) return;
+
+    if (intentMode) {
+      if (key === '\u0003') cleanup();
+      else if (key === '\u001b' || key === '\u001b\u001b') leaveIntentMode(false);
+      else if (key === '\r' || key === '\n') leaveIntentMode(true);
+      else if (key === '\u007f' || key === '\b') {
+        intentDraft = intentDraft.slice(0, -1);
+        draw();
+      } else if (key.length === 1 && key >= ' ' && key <= '~') {
+        intentDraft += key;
+        draw();
+      }
+      return;
+    }
+
     if (key === '\u0003' || key === 'q' || key === 'Q' || key === '\u001b') cleanup();
     else if (key === ' ') act('toggle');
+    else if (key === 'i' || key === 'I') enterIntentMode();
     else if (key === 's' || key === 'S') act('start');
     else if (key === 'p' || key === 'P') act('pause');
     else if (key === 'r' || key === 'R') act('reset');

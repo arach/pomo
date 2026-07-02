@@ -35,7 +35,7 @@ pomo
 ```
 
 Run `pomo` in a terminal for a live panel — framed countdown, session, intent,
-cycle dots, and quick keys (`space` pause/play, `n` skip, `h` HUD, `q` quit).
+cycle dots, and quick keys (`space` pause/play, `i` intent, `n` skip, `h` HUD, `q` quit).
 `pomo tui` opens the same view explicitly. Use `pomo status` for a one-shot
 snapshot, or `pomo status --json` for scripts.
 

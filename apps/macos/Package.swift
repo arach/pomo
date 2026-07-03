@@ -23,7 +23,10 @@ let package = Package(
                 .product(name: "HudsonUI", package: "hudsonkit-xcframework"),
                 .product(name: "HudsonShell", package: "hudsonkit-xcframework"),
             ],
-            path: "Sources/PomoShared"
+            path: "Sources/PomoShared",
+            resources: [
+                .copy("Resources/PomoAmpDefaultSkin")
+            ]
         ),
         .executableTarget(
             name: "Pomo",

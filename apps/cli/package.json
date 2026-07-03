@@ -10,7 +10,8 @@
     "tui": "bun bin/pomo.js",
     "dev": "bun run tui",
     "status": "bun bin/pomo.js status",
-    "docs:screenshots": "bash scripts/capture-docs.sh"
+    "docs:screenshots": "bash scripts/capture-docs.sh",
+    "docs:crop-hud": "swift scripts/crop-hud-screenshots.swift"
   },
   "files": [
     "bin",

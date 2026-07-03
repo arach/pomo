@@ -1,0 +1,321 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+:root {
+  --background: #17120f;
+  --foreground: #f2ece3;
+  --accent: #eae434;
+  --border: rgba(255, 255, 255, 0.08);
+  --font-sans: var(--font-space-grotesk);
+  --font-mono: var(--font-jetbrains-mono);
+}
+
+@layer base {
+  * {
+    @apply border-border;
+  }
+
+  html {
+    scroll-behavior: smooth;
+  }
+
+  body {
+    margin: 0;
+    @apply bg-background text-foreground antialiased;
+    font-family: var(--font-space-grotesk, ui-sans-serif), sans-serif;
+    text-rendering: optimizeLegibility;
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+  }
+
+  ::selection {
+    background-color: rgba(234, 228, 52, 0.32);
+    color: #1a0f0c;
+  }
+
+  /* Custom scrollbar */
+  ::-webkit-scrollbar {
+    width: 10px;
+    height: 10px;
+  }
+
+  ::-webkit-scrollbar-track {
+    background: rgba(0, 0, 0, 0.25);
+  }
+
+  ::-webkit-scrollbar-thumb {
+    background: rgba(234, 228, 52, 0.35);
+    border-radius: 5px;
+  }
+
+  ::-webkit-scrollbar-thumb:hover {
+    background: rgba(234, 228, 52, 0.55);
+  }
+}
+
+/* ── Landing animations (from Pomo Landing design) ── */
+@keyframes pomoPulse {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.3; }
+}
+
+@keyframes ringGlow {
+  0%, 100% { filter: drop-shadow(0 0 5px var(--accent-glow, rgba(234, 228, 52, 0.42))); }
+  50% { filter: drop-shadow(0 0 13px var(--accent-glow, rgba(234, 228, 52, 0.42))); }
+}
+
+@layer utilities {
+  .font-mono {
+    font-family: var(--font-jetbrains-mono), monospace;
+  }
+
+  .font-grotesk {
+    font-family: var(--font-space-grotesk), sans-serif;
+  }
+  
+  @keyframes shimmer {
+    0% {
+      background-position: 0% 50%;
+    }
+    50% {
+      background-position: 100% 50%;
+    }
+    100% {
+      background-position: 0% 50%;
+    }
+  }
+  
+  @keyframes gradient {
+    0% {
+      background-position: 0% 50%;
+    }
+    50% {
+      background-position: 100% 50%;
+    }
+    100% {
+      background-position: 0% 50%;
+    }
+  }
+  
+  @keyframes float {
+    0%, 100% {
+      transform: translateY(0px);
+    }
+    50% {
+      transform: translateY(-20px);
+    }
+  }
+  
+  @keyframes glow {
+    0%, 100% {
+      opacity: 0.3;
+    }
+    50% {
+      opacity: 0.8;
+    }
+  }
+  
+  @keyframes slide-up {
+    from {
+      opacity: 0;
+      transform: translateY(20px);
+    }
+    to {
+      opacity: 1;
+      transform: translateY(0);
+    }
+  }
+  
+  @keyframes fade-in {
+    from {
+      opacity: 0;
+    }
+    to {
+      opacity: 1;
+    }
+  }
+  
+  .animate-shimmer {
+    animation: shimmer 3s ease-in-out infinite;
+    background-size: 200% 200%;
+  }
+  
+  .animate-float {
+    animation: float 6s ease-in-out infinite;
+  }
+  
+  .animate-glow {
+    animation: glow 4s ease-in-out infinite;
+  }
+  
+  .animate-slide-up {
+    animation: slide-up 0.6s ease-out forwards;
+  }
+  
+  .animate-fade-in {
+    animation: fade-in 0.8s ease-out forwards;
+  }
+  
+  .gradient-hero {
+    background: radial-gradient(ellipse at top, rgba(239, 68, 68, 0.2) 0%, transparent 45%),
+                radial-gradient(ellipse at bottom right, rgba(239, 68, 68, 0.15) 0%, transparent 60%),
+                radial-gradient(ellipse at bottom left, rgba(220, 38, 38, 0.1) 0%, transparent 60%);
+  }
+  
+  .gradient-hero-intense {
+    background: radial-gradient(circle at 50% 0%, rgba(239, 68, 68, 0.25) 0%, transparent 35%),
+                radial-gradient(circle at 80% 50%, rgba(248, 113, 113, 0.15) 0%, transparent 40%),
+                radial-gradient(circle at 20% 80%, rgba(185, 28, 28, 0.15) 0%, transparent 40%);
+  }
+  
+  .text-gradient {
+    background: linear-gradient(135deg, #ffffff 0%, rgba(255, 255, 255, 0.9) 50%, rgba(255, 255, 255, 0.7) 100%);
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+    background-clip: text;
+  }
+  
+  .text-gradient-red {
+    background: linear-gradient(135deg, #ef4444 0%, #dc2626 50%, #b91c1c 100%);
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+    background-clip: text;
+  }
+  
+  .text-gradient-subtle {
+    background: linear-gradient(to right, rgba(255, 255, 255, 0.95), rgba(255, 255, 255, 0.6));
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+    background-clip: text;
+  }
+  
+  .glow-red {
+    text-shadow: 0 0 30px rgba(239, 68, 68, 0.6),
+                 0 0 60px rgba(239, 68, 68, 0.4),
+                 0 0 90px rgba(239, 68, 68, 0.2);
+  }
+  
+  .glow-red-subtle {
+    text-shadow: 0 0 15px rgba(239, 68, 68, 0.4),
+                 0 0 30px rgba(239, 68, 68, 0.2);
+  }
+  
+  .glow-white {
+    text-shadow: 0 0 20px rgba(255, 255, 255, 0.3),
+                 0 0 40px rgba(255, 255, 255, 0.15);
+  }
+  
+  .shadow-3xl {
+    box-shadow: 0 35px 60px -15px rgba(0, 0, 0, 0.3);
+  }
+  
+  .shadow-red-glow {
+    box-shadow: 0 4px 20px rgba(239, 68, 68, 0.25),
+                0 8px 40px rgba(239, 68, 68, 0.15);
+  }
+  
+  /* Profession carousel specific styles */
+  .profession-carousel {
+    mask-image: linear-gradient(to bottom, transparent, black 20%, black 80%, transparent);
+    -webkit-mask-image: linear-gradient(to bottom, transparent, black 20%, black 80%, transparent);
+  }
+  
+  /* Badge styles */
+  .badge-glow {
+    box-shadow: 0 0 20px rgba(239, 68, 68, 0.2),
+                inset 0 1px 0 rgba(255, 255, 255, 0.1);
+  }
+  
+  /* Button hover effects */
+  .button-shine {
+    position: relative;
+    overflow: hidden;
+  }
+  
+  .button-shine::before {
+    content: '';
+    position: absolute;
+    top: 0;
+    left: -100%;
+    width: 100%;
+    height: 100%;
+    background: linear-gradient(90deg, transparent, rgba(255, 255, 255, 0.2), transparent);
+    transition: left 0.5s;
+  }
+  
+  .button-shine:hover::before {
+    left: 100%;
+  }
+}
+
+/* ── Micro-interactions ──
+   "Kindle, don't levitate." On hover the accent edge ignites and a soft glow
+   blooms — no hover-raise (it's played out). The only motion is a tactile
+   press-in on click and a slow zoom on imagery. Hovers win over the page's
+   inline styles via !important where a property is also set inline. */
+
+/* Brand mark — gentle dim */
+.pomo-brand { transition: opacity .2s ease; }
+.pomo-brand:hover { opacity: 0.82; }
+
+/* Text links — an accent underline wipes in from the left; ":" prefix lights up */
+.pomo-link { position: relative; transition: color .18s ease; }
+.pomo-link:hover { color: #f4eee6 !important; }
+.pomo-link:hover span { color: var(--accent) !important; }
+.pomo-link::after {
+  content: ""; position: absolute; left: 0; right: 0; bottom: -3px; height: 1px;
+  background: var(--accent); transform: scaleX(0); transform-origin: left;
+  transition: transform .28s cubic-bezier(.2,.7,.3,1);
+}
+.pomo-link:hover::after { transform: scaleX(1); }
+
+/* Primary (accent) buttons — glow blooms, a touch brighter; press sinks in */
+.pomo-btn-primary { transition: filter .2s ease, box-shadow .25s ease, transform .12s ease; }
+.pomo-btn-primary:hover { filter: brightness(1.05); box-shadow: 0 0 28px -6px var(--accent-glow) !important; }
+.pomo-btn-primary:active { transform: translateY(1px); filter: brightness(0.97); }
+
+/* Ghost / secondary buttons — accent edge ignites + a faint fill; press sinks */
+.pomo-btn-ghost { transition: border-color .25s ease, background-color .25s ease, color .2s ease, box-shadow .25s ease, transform .12s ease; }
+.pomo-btn-ghost:hover { border-color: rgba(234,228,52,0.5) !important; background: rgba(234,228,52,0.07) !important; color: #f4eee6 !important; box-shadow: 0 0 22px -10px var(--accent-glow); }
+.pomo-btn-ghost:active { transform: translateY(1px); }
+
+/* Cards / panels / figures / beats — the accent edge ignites with a soft glow */
+.pomo-card, .pomo-shot, .pomo-beat { transition: border-color .25s ease, background-color .25s ease, box-shadow .3s ease; }
+.pomo-card:hover { border-color: rgba(234,228,52,0.4) !important; background: #241c16 !important; box-shadow: 0 0 30px -16px var(--accent-glow); }
+.pomo-shot:hover { border-color: rgba(234,228,52,0.38) !important; box-shadow: 0 0 30px -16px var(--accent-glow); }
+.pomo-beat:hover { border-color: rgba(234,228,52,0.45) !important; box-shadow: 0 0 24px -16px var(--accent-glow); }
+.pomo-panel { transition: border-color .3s ease, box-shadow .3s ease; }
+.pomo-panel:hover { border-color: rgba(234,228,52,0.28) !important; box-shadow: 0 0 40px -22px var(--accent-glow); }
+
+/* Imagery — a slow, gentle zoom (no lift) */
+.pomo-photo { transition: transform .5s cubic-bezier(.2,.7,.3,1), box-shadow .4s ease; }
+.pomo-photo:hover { transform: scale(1.015); box-shadow: 0 0 36px -12px var(--accent-glow), 0 30px 60px -28px rgba(0,0,0,0.85) !important; }
+.pomo-shot img { transition: transform .5s cubic-bezier(.2,.7,.3,1); }
+.pomo-shot:hover img { transform: scale(1.035); }
+
+/* Timer controls — ghost ring ignites; primary glows; press sinks in */
+.pomo-ctrl { transition: border-color .18s ease, background-color .18s ease, color .18s ease, box-shadow .2s ease, transform .12s ease; }
+.pomo-ctrl:hover { border-color: rgba(234,228,52,0.5) !important; background: rgba(234,228,52,0.08) !important; color: #f4eee6 !important; box-shadow: 0 0 16px -6px var(--accent-glow); }
+.pomo-ctrl:active { transform: scale(0.92); }
+.pomo-ctrl-primary { transition: filter .18s ease, box-shadow .2s ease, transform .12s ease; }
+.pomo-ctrl-primary:hover { filter: brightness(1.07); box-shadow: 0 0 22px -4px var(--accent-glow) !important; }
+.pomo-ctrl-primary:active { transform: scale(0.92); }
+
+/* Meta strip cells — value warms to accent */
+.pomo-meta dd { transition: color .2s ease; }
+.pomo-meta:hover dd { color: var(--accent) !important; }
+
+/* Stat rows — a faint accent wash + a small inward nudge */
+.pomo-row { transition: background-color .2s ease, padding-left .2s ease; border-radius: 6px; }
+.pomo-row:hover { background: rgba(234,228,52,0.05); padding-left: 12px; }
+
+/* Heatmap cells — settle to full opacity with a soft glow */
+.pomo-cell { transition: opacity .14s ease, transform .14s ease, box-shadow .14s ease; }
+.pomo-cell:hover { opacity: 1 !important; transform: scale(1.35); box-shadow: 0 0 8px var(--accent-glow); }
+
+@media (prefers-reduced-motion: reduce) {
+  .pomo-link::after { transition: none; }
+  .pomo-btn-primary:active, .pomo-btn-ghost:active, .pomo-ctrl:active, .pomo-ctrl-primary:active,
+  .pomo-photo:hover, .pomo-shot:hover img, .pomo-cell:hover { transform: none !important; }
+}

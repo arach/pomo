@@ -1,16 +1,19 @@
 # Pomo
 
 A Pomodoro timer, across platforms — a native **macOS** HUD app (the primary
-implementation today), plus native **iOS** and **watchOS** companion apps. One
-monorepo, organized by app.
+implementation today), plus native **iOS** and **watchOS** companions, a
+**CLI** for shell and agent control, and a marketing site at
+**[pomo.arach.dev](https://pomo.arach.dev)**. One monorepo, organized by app.
 
 ## Apps
 
 | App | Platform | Stack | Status |
 | --- | --- | --- | --- |
 | [`apps/macos`](apps/macos) | macOS | SwiftUI + HudsonKit | **Primary · active** |
+| [`apps/cli`](apps/cli) | macOS | Node.js · `@arach/pomo` | CLI + live TUI |
 | [`apps/ios`](apps/ios) | iOS | SwiftUI | Native companion |
 | [`apps/watch`](apps/watch) | watchOS (+ iOS) | SwiftUI · WatchConnectivity · App Intents | Native companion |
+| [`landing`](landing) | Web | Next.js · bun | Marketing site |
 
 ### macOS — [`apps/macos`](apps/macos) · primary
 
@@ -34,6 +37,19 @@ package ([`hudsonkit-xcframework`](https://github.com/arach/hudsonkit-xcframewor
 fetched on first build. More build, signing, and Gatekeeper dequarantine commands
 are in [`apps/macos/README.md`](apps/macos/README.md).
 
+### CLI — [`apps/cli`](apps/cli) · `@arach/pomo`
+
+Control and install Pomo from the shell or an agent. Live ANSI terminal UI,
+`pomo://` commands, and JSON state reads.
+
+```sh
+npx @arach/pomo install
+npx @arach/pomo start
+npx @arach/pomo status
+```
+
+See [`apps/cli/README.md`](apps/cli/README.md) for the full command list.
+
 ### iOS — [`apps/ios`](apps/ios)
 
 A SwiftUI iPhone app: timer, session stats, and settings. Open
@@ -45,13 +61,27 @@ A standalone watchOS app plus an iOS companion: WatchConnectivity sync,
 Siri / App Intents, multiple themes (Terminal, LCD), and a circular progress
 ring. Open `apps/watch/PomoWatch/PomoWatch.xcodeproj` in Xcode.
 
+### Landing — [`landing`](landing)
+
+The marketing site at **[pomo.arach.dev](https://pomo.arach.dev)**, a Next.js
+static export deployed to GitHub Pages. Uses **bun**.
+
+```sh
+cd landing
+bun install
+bun run dev      # local dev server
+bun run build    # static export to landing/out
+```
+
 ## Layout
 
 ```
 apps/
   macos/   SwiftUI menu-bar HUD          (primary, active)
+  cli/     @arach/pomo CLI + TUI
   ios/     SwiftUI iPhone app
   watch/   watchOS app + iOS companion
+landing/   Next.js marketing site        (pomo.arach.dev)
 ```
 
 ## License

@@ -1,8 +1,12 @@
 # @arach/pomo
 
-Control — and install — the [Pomo](https://github.com/arach/pomo) macOS HUD
-timer from the shell or an agent. A thin, zero-dependency wrapper over Pomo's
-`pomo://` URL scheme and the JSON state file it writes on every tick.
+**Website:** [pomo.arach.dev](https://pomo.arach.dev) · **npm:**
+[@arach/pomo](https://www.npmjs.com/package/@arach/pomo) · **GitHub:**
+[arach/pomo](https://github.com/arach/pomo)
+
+Control — and install — the Pomo macOS HUD timer from the shell or an agent. A
+thin, zero-dependency wrapper over Pomo's `pomo://` URL scheme and the JSON state
+file it writes on every tick.
 
 > macOS only. It drives the installed Pomo app via `open` (and `hdiutil` for
 > `install`); it doesn't bundle the app itself.

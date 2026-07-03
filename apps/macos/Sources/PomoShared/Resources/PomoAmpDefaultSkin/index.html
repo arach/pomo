@@ -1,7 +1,3 @@
-import Foundation
-
-enum PomoAmpDefaultSkinHTML {
-    static let html = #"""
 <!doctype html>
 <html>
 <head>
@@ -769,8 +765,13 @@ enum PomoAmpDefaultSkinHTML {
 
   <script>
     const presets = [
+      { name: "Focus Halo", short: "HALO", face: "nowplaying", treatment: "halo" },
+      { name: "Orbit Drift", short: "ORBIT", face: "ambient", treatment: "orbit" },
+      { name: "Signal Lattice", short: "LATTICE", face: "scope", treatment: "lattice" },
       { name: "Signal Card", short: "SIGNAL", face: "signal", treatment: "signal" },
       { name: "Studio Deck", short: "STUDIO", face: "deck", treatment: "deck" },
+      { name: "Console Spectro", short: "SPECTRO", face: "studio", treatment: "spectro" },
+      { name: "Module Bandprint", short: "BANDS", face: "modules", treatment: "bandprint" },
       { name: "MiniDisc Frost", short: "MINIDISC", face: "minidisc", treatment: "minidisc" }
     ];
 
@@ -779,7 +780,7 @@ enum PomoAmpDefaultSkinHTML {
       bands: [], waveform: [], rms: 0, peak: 0, bpmEstimate: 0, beatPhase: 0,
       centroidHz: 0, rolloff85Hz: 0, flux: 0, low: 0, mid: 0, high: 0,
       sub: 0, presence: 0, brilliance: 0, transient: 0, drop: 0,
-      crest: 0, peakDb: -90, rmsDb: -90
+      crest: 0, crestDb: 0, onsetPulse: 0, onsetScore: 0, peakDb: -90, rmsDb: -90
     };
 
     var state = { isPlaying: false, title: "Pomo Amp", source: "youtube.com", videoOpen: false, videoExpanded: false };
@@ -792,7 +793,7 @@ enum PomoAmpDefaultSkinHTML {
       canvasIdleDelayMilliseconds: 1200,
       canvasMaxDevicePixelRatio: 1.35
     };
-    const skinBuild = "1.1.10";
+    const skinBuild = "1.2.1";
     if (localStorage.getItem("pomoAmp.defaultSkin.build") !== skinBuild) {
       localStorage.setItem("pomoAmp.defaultSkin.build", skinBuild);
       localStorage.setItem("pomoAmp.defaultSkin.preset", "0");
@@ -805,6 +806,18 @@ enum PomoAmpDefaultSkinHTML {
     const spectroColumns = 90;
     const peakHistory = [];
     const gain = { bandPeaks: [], wavePeak: 0.08, rmsPeak: 0.05, energy: 0 };
+    const signal = {
+      serial: -1,
+      low: 0,
+      mid: 0,
+      high: 0,
+      energy: 0,
+      slowEnergy: 0,
+      beat: 0,
+      onset: 0,
+      bands: [],
+      wave: []
+    };
     var drawTimer = 0;
     var drawScheduled = false;
     var lastDrawTime = 0;
@@ -919,6 +932,49 @@ enum PomoAmpDefaultSkinHTML {
       const target = clamp(raw / gain.rmsPeak);
       gain.energy += (target - gain.energy) * 0.22;
       return clamp(gain.energy);
+    }
+
+    function averageSlice(values, start, end) {
+      const lower = Math.max(0, Math.min(values.length, start));
+      const upper = Math.max(lower + 1, Math.min(values.length, end));
+      let total = 0;
+      for (let i = lower; i < upper; i += 1) total += Number(values[i]) || 0;
+      return total / Math.max(1, upper - lower);
+    }
+
+    function smoothSignal(previous, next, attack = 0.30, decay = 0.12) {
+      const rate = next > previous ? attack : decay;
+      return previous + (next - previous) * rate;
+    }
+
+    function audioSignal() {
+      if (signal.serial === vizSerial) return signal;
+      const bs = normalizedBands();
+      const xs = normalizedWave();
+      const count = bs.length || 24;
+      const lowEnd = Math.max(2, Math.floor(count * 0.25));
+      const midEnd = Math.max(lowEnd + 1, Math.floor(count * 0.62));
+      const rawLow = clamp(Number(viz.low) || averageSlice(bs, 0, lowEnd));
+      const rawMid = clamp(Number(viz.mid) || averageSlice(bs, lowEnd, midEnd));
+      const rawHigh = clamp(Number(viz.high) || averageSlice(bs, midEnd, count));
+      const energy = liveEnergy();
+      signal.slowEnergy += (energy - signal.slowEnergy) * 0.04;
+      const energyOnset = clamp((energy - signal.slowEnergy) * 4.0);
+      const onset = Math.max(
+        clamp(Number(viz.onsetPulse) || 0),
+        energyOnset,
+        clamp((Number(viz.drop) || 0) * 0.74)
+      );
+      signal.low = smoothSignal(signal.low, rawLow);
+      signal.mid = smoothSignal(signal.mid, rawMid);
+      signal.high = smoothSignal(signal.high, rawHigh);
+      signal.energy = smoothSignal(signal.energy, energy);
+      signal.onset = onset;
+      signal.beat = Math.max(onset, signal.beat * 0.82);
+      signal.bands = bs;
+      signal.wave = xs;
+      signal.serial = vizSerial;
+      return signal;
     }
 
     function mediaProgress() {
@@ -1100,7 +1156,7 @@ enum PomoAmpDefaultSkinHTML {
       const energy = liveEnergy();
       const rms = energy;
       const peak = clamp((Number(viz.peak) || 0) / Math.max(0.04, gain.rmsPeak));
-      const crest = clamp((viz.crest || 0) / 16);
+      const crest = clamp((Number(viz.crestDb) || Number(viz.crest) || 0) / 16);
       const margin = 18;
       const meterH = Math.max(18, h * 0.16);
       [["RMS", rms, "#79f2ad"], ["PEAK", peak, "#ff9b52"], ["CREST", crest, "#86b8ff"]].forEach((row, i) => {
@@ -1351,7 +1407,196 @@ enum PomoAmpDefaultSkinHTML {
       ctx.stroke();
     }
 
+    function drawFocusHalo(canvas) {
+      const pack = resizeCanvas(canvas);
+      if (!pack) return;
+      const { ctx, w, h } = pack;
+      const s = audioSignal();
+      const t = Number(viz.hostTime) || performance.now() / 1000;
+      const progress = mediaProgress();
+      ctx.fillStyle = "rgba(3,5,6,0.96)";
+      ctx.fillRect(0, 0, w, h);
+
+      const wash = ctx.createLinearGradient(0, 0, w, h);
+      wash.addColorStop(0, `rgba(143,216,194,${0.055 + s.energy * 0.08})`);
+      wash.addColorStop(0.58, `rgba(198,164,106,${0.030 + s.mid * 0.08})`);
+      wash.addColorStop(1, "rgba(6,8,10,0.88)");
+      ctx.fillStyle = wash;
+      ctx.fillRect(0, 0, w, h);
+
+      const margin = 18 + s.beat * 5;
+      const rx = margin + s.low * 5;
+      const ry = margin + s.mid * 4;
+      const rw = Math.max(1, w - rx * 2);
+      const rh = Math.max(1, h - ry * 2);
+      for (let i = 0; i < 4; i += 1) {
+        const inset = i * (5 + s.energy * 2);
+        ctx.strokeStyle = i % 2
+          ? `rgba(198,164,106,${0.10 + s.high * 0.18})`
+          : `rgba(143,216,194,${0.16 + s.low * 0.22})`;
+        ctx.lineWidth = 1.1 + s.energy * 2.4 + i * 0.25;
+        ctx.strokeRect(rx + inset, ry + inset, Math.max(1, rw - inset * 2), Math.max(1, rh - inset * 2));
+      }
+
+      const meterY = ry + rh - 13;
+      ctx.fillStyle = "rgba(242,241,236,0.08)";
+      ctx.fillRect(rx + 8, meterY, Math.max(1, rw - 16), 3);
+      ctx.fillStyle = `rgba(143,216,194,${0.42 + s.energy * 0.30})`;
+      ctx.fillRect(rx + 8, meterY, Math.max(10, (rw - 16) * progress), 3 + s.beat * 3);
+
+      const wave = s.wave;
+      ctx.lineWidth = 1.2 + s.energy * 1.7;
+      ctx.strokeStyle = `rgba(242,241,236,${0.28 + s.energy * 0.25})`;
+      ctx.beginPath();
+      wave.forEach((sample, i) => {
+        const x = rx + 12 + i / Math.max(1, wave.length - 1) * Math.max(1, rw - 24);
+        const y = ry + rh * 0.50 - clamp(sample, -1, 1) * (rh * (0.10 + s.energy * 0.13));
+        if (i === 0) ctx.moveTo(x, y); else ctx.lineTo(x, y);
+      });
+      ctx.stroke();
+
+      const bars = s.bands;
+      const barW = Math.max(1, (rw - 20) / Math.max(1, bars.length));
+      bars.forEach((value, i) => {
+        const v = clamp(value);
+        const x = rx + 10 + i * barW;
+        const bh = rh * (0.04 + v * (0.20 + s.beat * 0.06));
+        ctx.fillStyle = i > bars.length * 0.66 ? "rgba(198,164,106,0.44)" : "rgba(143,216,194,0.36)";
+        ctx.fillRect(x, ry + rh - 20 - bh, Math.max(1, barW - 1), bh);
+      });
+
+      ctx.fillStyle = `rgba(255,155,82,${0.24 + s.beat * 0.42})`;
+      const sparkCount = 4;
+      for (let i = 0; i < sparkCount; i += 1) {
+        const u = (progress + i / sparkCount + t * 0.025) % 1;
+        const side = Math.floor(u * 4);
+        const p = (u * 4) % 1;
+        const x = side === 0 ? rx + p * rw : side === 1 ? rx + rw : side === 2 ? rx + (1 - p) * rw : rx;
+        const y = side === 0 ? ry : side === 1 ? ry + p * rh : side === 2 ? ry + rh : ry + (1 - p) * rh;
+        ctx.beginPath();
+        ctx.arc(x, y, 2.0 + s.high * 3 + s.beat * 2, 0, Math.PI * 2);
+        ctx.fill();
+      }
+    }
+
+    function drawOrbitDrift(canvas) {
+      const pack = resizeCanvas(canvas);
+      if (!pack) return;
+      const { ctx, w, h } = pack;
+      const s = audioSignal();
+      const t = Number(viz.hostTime) || performance.now() / 1000;
+      const cx = w * 0.5;
+      const cy = h * 0.48;
+      const span = Math.min(w, h);
+      ctx.fillStyle = "rgba(2,4,5,0.94)";
+      ctx.fillRect(0, 0, w, h);
+
+      const bg = ctx.createLinearGradient(0, 0, w, h);
+      bg.addColorStop(0, `rgba(143,216,194,${0.07 + s.energy * 0.08})`);
+      bg.addColorStop(0.64, `rgba(198,164,106,${0.04 + s.high * 0.08})`);
+      bg.addColorStop(1, "rgba(0,0,0,0.38)");
+      ctx.fillStyle = bg;
+      ctx.fillRect(0, 0, w, h);
+
+      const rings = [
+        [0.22, s.low, "rgba(143,216,194,"],
+        [0.34, s.mid, "rgba(213,233,141,"],
+        [0.47, s.high, "rgba(198,164,106,"]
+      ];
+      rings.forEach((ring, ringIndex) => {
+        const radius = span * (ring[0] + s.energy * 0.035 + s.beat * 0.018);
+        ctx.strokeStyle = `${ring[2]}${0.13 + ring[1] * 0.30})`;
+        ctx.lineWidth = 1 + ring[1] * 3;
+        ctx.beginPath();
+        ctx.ellipse(cx, cy, radius * 1.45, radius * 0.62, -0.18 + ringIndex * 0.17, 0, Math.PI * 2);
+        ctx.stroke();
+      });
+
+      const beads = Math.min(32, Math.max(12, s.bands.length));
+      for (let i = 0; i < beads; i += 1) {
+        const v = s.bands[Math.floor(i / beads * Math.max(1, s.bands.length))] || 0;
+        const orbit = i % 3;
+        const radius = span * ([0.22, 0.34, 0.47][orbit] + s.energy * 0.03);
+        const angle = i / beads * Math.PI * 2 + t * (0.13 + orbit * 0.045) + s.beat * 0.45;
+        const x = cx + Math.cos(angle) * radius * 1.45;
+        const y = cy + Math.sin(angle) * radius * 0.62;
+        ctx.fillStyle = orbit === 2
+          ? `rgba(198,164,106,${0.20 + v * 0.62})`
+          : `rgba(143,216,194,${0.18 + v * 0.58})`;
+        ctx.beginPath();
+        ctx.arc(x, y, 1.5 + v * 4.8 + s.beat * 1.4, 0, Math.PI * 2);
+        ctx.fill();
+      }
+
+      ctx.fillStyle = `rgba(242,241,236,${0.10 + s.energy * 0.22})`;
+      ctx.beginPath();
+      ctx.arc(cx, cy, span * (0.035 + s.low * 0.045), 0, Math.PI * 2);
+      ctx.fill();
+    }
+
+    function drawSignalLattice(canvas) {
+      const pack = resizeCanvas(canvas);
+      if (!pack) return;
+      const { ctx, w, h } = pack;
+      const s = audioSignal();
+      const xs = s.wave;
+      ctx.fillStyle = "rgba(1,8,7,0.94)";
+      ctx.fillRect(0, 0, w, h);
+
+      const laneHeight = h / 3;
+      const lanes = [
+        ["LOW", s.low, "rgba(143,216,194,"],
+        ["MID", s.mid, "rgba(213,233,141,"],
+        ["AIR", s.high, "rgba(198,164,106,"]
+      ];
+      lanes.forEach((lane, laneIndex) => {
+        const y = laneIndex * laneHeight;
+        ctx.fillStyle = laneIndex % 2 ? "rgba(255,255,255,0.025)" : "rgba(255,255,255,0.040)";
+        ctx.fillRect(0, y, w, laneHeight);
+        ctx.strokeStyle = `${lane[2]}${0.14 + lane[1] * 0.18})`;
+        ctx.lineWidth = 1;
+        ctx.beginPath();
+        ctx.moveTo(0, y + laneHeight * 0.5);
+        ctx.lineTo(w, y + laneHeight * 0.5);
+        ctx.stroke();
+        ctx.fillStyle = "rgba(242,241,236,0.36)";
+        ctx.font = "900 8px ui-monospace";
+        ctx.fillText(lane[0], 8, y + 14);
+      });
+
+      const bars = s.bands;
+      const barW = Math.max(1, w / Math.max(1, bars.length));
+      bars.forEach((value, i) => {
+        const v = clamp(value);
+        const laneIndex = i < bars.length * 0.25 ? 0 : i < bars.length * 0.62 ? 1 : 2;
+        const laneTop = laneIndex * laneHeight;
+        const bh = Math.max(1, v * laneHeight * 0.72);
+        ctx.fillStyle = laneIndex === 2 ? "rgba(255,155,82,0.46)" : laneIndex === 1 ? "rgba(213,233,141,0.38)" : "rgba(143,216,194,0.42)";
+        ctx.fillRect(i * barW, laneTop + laneHeight - bh, Math.max(1, barW - 1), bh);
+      });
+
+      ctx.lineWidth = 1.5 + s.energy * 2.0 + s.beat;
+      ctx.strokeStyle = `rgba(143,216,194,${0.72 + s.energy * 0.24})`;
+      ctx.shadowColor = "rgba(143,216,194,0.42)";
+      ctx.shadowBlur = 6 + s.beat * 12;
+      ctx.beginPath();
+      xs.forEach((sample, i) => {
+        const x = i / Math.max(1, xs.length - 1) * w;
+        const y = h * 0.50 - clamp(sample, -1, 1) * (h * (0.10 + s.energy * 0.12));
+        if (i === 0) ctx.moveTo(x, y); else ctx.lineTo(x, y);
+      });
+      ctx.stroke();
+      ctx.shadowBlur = 0;
+
+      const markerX = clamp(viz.progress || mediaProgress()) * w;
+      ctx.fillStyle = `rgba(255,155,82,${0.36 + s.beat * 0.36})`;
+      ctx.fillRect(markerX - 1, 0, 2 + s.beat * 4, h);
+    }
+
     const treatmentDraw = {
+      halo: drawFocusHalo,
+      orbit: drawOrbitDrift,
+      lattice: drawSignalLattice,
       wave: drawWaveTrace,
       spectro: drawSpectro,
       headroom: drawHeadroom,
@@ -1726,8 +1971,6 @@ enum PomoAmpDefaultSkinHTML {
     mountFace();
     scheduleDraw(0);
     window.yamp?.ready?.();
-  </script>
+</script>
 </body>
 </html>
-"""#
-}

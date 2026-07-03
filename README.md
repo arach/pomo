@@ -40,7 +40,9 @@ are in [`apps/macos/README.md`](apps/macos/README.md).
 ### CLI — [`apps/cli`](apps/cli) · `@arach/pomo`
 
 Control and install Pomo from the shell or an agent. Live ANSI terminal UI,
-`pomo://` commands, and JSON state reads.
+`pomo://` commands, and JSON state reads. Published independently of the macOS
+app — see **`cli-v*`** tags for npm releases (currently **0.3.6** in tree;
+registry may be ahead until the next tag publish).
 
 ```sh
 npx @arach/pomo install
@@ -83,6 +85,18 @@ apps/
   watch/   watchOS app + iOS companion
 landing/   Next.js marketing site        (pomo.arach.dev)
 ```
+
+## Versioning
+
+Two release lines share this repo:
+
+| Line | Tag format | Current | Ships |
+| --- | --- | --- | --- |
+| macOS app | `v*` | `v0.2.8` | `Pomo.dmg` via GitHub Releases |
+| npm CLI | `cli-v*` | `cli-v0.3.6` (next) | `@arach/pomo` on npm |
+
+Keep `apps/cli/package.json` in sync with the latest npm publish before cutting
+the next `cli-v*` tag.
 
 ## License
 

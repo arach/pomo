@@ -1,13 +1,21 @@
 {
   "name": "@arach/pomo",
-  "version": "0.2.0",
+  "version": "0.3.6",
   "description": "Control and install the Pomo macOS HUD timer from the shell or an agent — live ANSI terminal UI, pomo:// commands, and JSON state reads. Zero dependencies.",
   "type": "module",
   "bin": {
     "pomo": "bin/pomo.js"
   },
+  "scripts": {
+    "tui": "bun bin/pomo.js",
+    "dev": "bun run tui",
+    "status": "bun bin/pomo.js status",
+    "docs:screenshots": "bash scripts/capture-docs.sh",
+    "docs:crop-hud": "swift scripts/crop-hud-screenshots.swift"
+  },
   "files": [
     "bin",
+    "docs",
     "README.md"
   ],
   "engines": {
@@ -28,9 +36,12 @@
     "pomodoro",
     "pomo",
     "cli",
+    "tui",
+    "terminal",
     "macos",
     "timer",
     "focus",
-    "agent"
+    "agent",
+    "ansi"
   ]
 }

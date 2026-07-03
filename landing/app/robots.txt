@@ -1,0 +1,4 @@
+User-agent: *
+Allow: /
+
+Sitemap: https://pomo.app/sitemap.xml

@@ -1,7 +1,7 @@
 {
   "name": "@arach/pomo",
   "version": "0.2.0",
-  "description": "Control and install the Pomo macOS HUD timer from the shell or an agent — a thin wrapper over the pomo:// URL scheme and the JSON state file.",
+  "description": "Control and install the Pomo macOS HUD timer from the shell or an agent — live ANSI terminal UI, pomo:// commands, and JSON state reads. Zero dependencies.",
   "type": "module",
   "bin": {
     "pomo": "bin/pomo.js"
@@ -23,7 +23,7 @@
     "url": "git+https://github.com/arach/pomo.git",
     "directory": "apps/cli"
   },
-  "homepage": "https://github.com/arach/pomo/tree/master/apps/cli",
+  "homepage": "https://pomo.arach.dev",
   "keywords": [
     "pomodoro",
     "pomo",

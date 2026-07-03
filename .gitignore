@@ -24,8 +24,7 @@ xcuserdata/
 dist/
 *.app
 
-# ──────────────── Tauri / web implementation (apps/tauri/) ────────────────
-# Patterns are unanchored so they also cover the app under apps/tauri/.
+# ──────────────────────────── Node / web ────────────────────────────
 node_modules/
 dist-ssr/
 target/

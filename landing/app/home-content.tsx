@@ -84,11 +84,12 @@ function Nav() {
         </a>
         <nav style={{ display: "flex", gap: 26, fontFamily: mono, fontSize: 12, letterSpacing: "0.04em" }}>
           <a href="#features" className="pomo-link" style={link}><span style={{ color: "#6b6055" }}>:</span>features</a>
-          <a href="#rhythm" className="pomo-link" style={link}><span style={{ color: "#6b6055" }}>:</span>rhythm</a>
+          <a href="#inside" className="pomo-link" style={link}><span style={{ color: "#6b6055" }}>:</span>inside</a>
+          <a href="#cli" className="pomo-link" style={link}><span style={{ color: "#6b6055" }}>:</span>cli</a>
           <a href="#stats" className="pomo-link" style={link}><span style={{ color: "#6b6055" }}>:</span>stats</a>
         </nav>
         <div style={{ display: "flex", alignItems: "center", gap: 18 }}>
-          <span style={{ fontFamily: mono, fontSize: 11, color: "#6b6055", letterSpacing: "0.06em" }}>v0.2.4 · macOS</span>
+          <span style={{ fontFamily: mono, fontSize: 11, color: "#6b6055", letterSpacing: "0.06em" }}>v0.2.8 · macOS</span>
           <a
             href={DOWNLOAD_URL}
             className="pomo-btn-primary"
@@ -466,10 +467,10 @@ function Screenshots() {
         </h2>
 
         {/* featured: the whole app panel */}
-        <div className="pomo-panel" style={{ ...featCard, display: "grid", gridTemplateColumns: "minmax(0,1fr) minmax(0,1fr)", gap: 36, alignItems: "center" }}>
+        <div className="pomo-panel" style={{ ...featCard, display: "grid", gridTemplateColumns: "minmax(0,0.95fr) minmax(0,1.05fr)", gap: 40, alignItems: "center" }}>
           <div style={{ display: "flex", justifyContent: "center" }}>
             {/* eslint-disable-next-line @next/next/no-img-element */}
-            <img src="/pomo-app.png" alt="The Pomo app panel" className="pomo-photo" style={{ maxWidth: "100%", maxHeight: 480, borderRadius: 14, border: "1px solid rgba(255,255,255,0.08)", boxShadow: "0 30px 60px -25px rgba(0,0,0,0.85)" }} />
+            <img src="/pomo-app.png" alt="The Pomo app panel" className="pomo-photo" style={{ width: "100%", maxWidth: 420, maxHeight: 360, objectFit: "contain", borderRadius: 14, border: "1px solid rgba(255,255,255,0.08)", boxShadow: "0 24px 48px -28px rgba(0,0,0,0.75)" }} />
           </div>
           <div>
             <div style={eyebrow}>The whole app</div>
@@ -480,7 +481,7 @@ function Screenshots() {
         </div>
 
         {/* featured: music / the YouTube video drawer */}
-        <div className="pomo-panel" style={{ ...featCard, display: "grid", gridTemplateColumns: "minmax(0,0.85fr) minmax(0,1.35fr)", gap: 36, alignItems: "center" }}>
+        <div className="pomo-panel" style={{ ...featCard, display: "grid", gridTemplateColumns: "minmax(0,1.1fr) minmax(0,0.9fr)", gap: 40, alignItems: "center" }}>
           <div>
             <div style={eyebrow}>Sound · your way</div>
             <h3 style={featTitle}>Your playlist, in the same window.</h3>
@@ -491,7 +492,7 @@ function Screenshots() {
           </div>
           <div style={{ display: "flex", justifyContent: "center" }}>
             {/* eslint-disable-next-line @next/next/no-img-element */}
-            <img src="/pomo-hud-video.png" alt="Pomo timer with the YouTube video drawer open" className="pomo-photo" style={{ maxWidth: "100%", borderRadius: 14, border: "1px solid rgba(255,255,255,0.08)", boxShadow: "0 30px 60px -25px rgba(0,0,0,0.85)" }} />
+            <img src="/pomo-hud-video.png" alt="Pomo timer with the YouTube video drawer open" className="pomo-photo" style={{ width: "100%", maxWidth: 380, objectFit: "contain", borderRadius: 14, border: "1px solid rgba(255,255,255,0.08)", boxShadow: "0 24px 48px -28px rgba(0,0,0,0.75)" }} />
           </div>
         </div>
 
@@ -499,9 +500,9 @@ function Screenshots() {
         <div style={{ display: "grid", gridTemplateColumns: "repeat(3,1fr)", gap: 18 }}>
           {shots.map((s) => (
             <figure key={s.title} className="pomo-shot" style={{ margin: 0, background: "#211a15", border: "1px solid rgba(255,255,255,0.07)", borderRadius: 13, overflow: "hidden", display: "flex", flexDirection: "column" }}>
-              <div style={{ background: "#17110d", borderBottom: "1px solid rgba(255,255,255,0.06)", padding: 18, display: "flex", alignItems: "center", justifyContent: "center", minHeight: 200 }}>
+              <div style={{ background: "#17110d", borderBottom: "1px solid rgba(255,255,255,0.06)", padding: 16, display: "flex", alignItems: "center", justifyContent: "center", minHeight: 168 }}>
                 {/* eslint-disable-next-line @next/next/no-img-element */}
-                <img src={s.src} alt={s.title} style={{ maxWidth: "100%", maxHeight: 220, borderRadius: 8, boxShadow: "0 18px 40px -20px rgba(0,0,0,0.8)" }} />
+                <img src={s.src} alt={s.title} style={{ maxWidth: "88%", maxHeight: 176, objectFit: "contain", borderRadius: 8, boxShadow: "0 14px 32px -22px rgba(0,0,0,0.75)" }} />
               </div>
               <figcaption style={{ padding: "16px 18px" }}>
                 <div style={{ fontFamily: mono, fontSize: 10, letterSpacing: "0.14em", textTransform: "uppercase", color: "var(--accent)", marginBottom: 6 }}>{s.title}</div>
@@ -509,6 +510,87 @@ function Screenshots() {
               </figcaption>
             </figure>
           ))}
+        </div>
+      </div>
+    </section>
+  );
+}
+
+/* ───────────────────────── CLI / terminal ───────────────────────── */
+function CliSection() {
+  const cliHighlights = [
+    "Live ANSI terminal UI with 13 layout templates",
+    "12 color themes — layout and palette are independent",
+    "`pomo status --json` for scripts and agents",
+    "`npx @arach/pomo install` to fetch the latest Mac app",
+  ];
+  const eyebrow = { fontFamily: mono, fontSize: 10, letterSpacing: "0.14em", textTransform: "uppercase", color: "var(--accent)", marginBottom: 12 } as React.CSSProperties;
+  const featTitle = { fontFamily: sans, fontWeight: 300, fontSize: "clamp(24px,2.4vw,32px)", lineHeight: 1.1, letterSpacing: "-0.01em", color: "#f4eee6", margin: "0 0 14px" } as React.CSSProperties;
+  const featBody = { fontFamily: sans, fontWeight: 300, fontSize: 15, lineHeight: 1.6, color: "#a89b8b", margin: "0 0 18px", maxWidth: "42ch" } as React.CSSProperties;
+  const featCard = { background: "#211a15", border: "1px solid rgba(255,255,255,0.07)", borderRadius: 16, padding: "30px 34px" } as React.CSSProperties;
+
+  return (
+    <section id="cli" style={{ position: "relative", zIndex: 3 }}>
+      <div style={{ maxWidth: 1180, margin: "0 auto", padding: "20px 40px 60px" }}>
+        <div className="pomo-panel" style={{ ...featCard, display: "grid", gridTemplateColumns: "minmax(0,1.05fr) minmax(0,0.95fr)", gap: 40, alignItems: "center" }}>
+          <div>
+            <div style={eyebrow}>Shell · npm · agents</div>
+            <h3 style={featTitle}>Same timer, from the terminal.</h3>
+            <p style={featBody}>
+              <code style={{ fontFamily: mono, fontSize: 13, color: "#e7dccb" }}>@arach/pomo</code> drives the installed Mac app over <code style={{ fontFamily: mono, fontSize: 13, color: "#e7dccb" }}>pomo://</code> URLs, reads live JSON state, and opens a full-screen ANSI panel when you want a keyboard-first view.
+            </p>
+            <div
+              style={{
+                display: "inline-flex",
+                alignItems: "center",
+                gap: 10,
+                padding: "12px 14px",
+                borderRadius: 9,
+                background: "#17110d",
+                border: "1px solid rgba(255,255,255,0.1)",
+                fontFamily: mono,
+                fontSize: 12,
+                color: "#e7dccb",
+                marginBottom: 20,
+              }}
+            >
+              <span style={{ color: "#6b6055" }}>$</span>
+              npx @arach/pomo
+            </div>
+            <ul style={{ listStyle: "none", margin: 0, padding: 0, display: "flex", flexDirection: "column", gap: 10 }}>
+              {cliHighlights.map((item) => (
+                <li key={item} style={{ display: "flex", gap: 10, alignItems: "flex-start" }}>
+                  <span style={{ fontFamily: mono, color: "var(--accent)", fontSize: 13, lineHeight: 1.5 }}>→</span>
+                  <span style={{ fontFamily: sans, fontWeight: 300, fontSize: 14, lineHeight: 1.5, color: "#bcae9e" }}>{item}</span>
+                </li>
+              ))}
+            </ul>
+            <div style={{ marginTop: 22, display: "flex", gap: 12, flexWrap: "wrap" }}>
+              <a
+                href="https://www.npmjs.com/package/@arach/pomo"
+                className="pomo-link"
+                style={{ fontFamily: mono, fontSize: 11, letterSpacing: "0.08em", textTransform: "uppercase", color: "var(--accent)", textDecoration: "none" }}
+              >
+                npm package
+              </a>
+              <a
+                href={GITHUB_URL}
+                className="pomo-link"
+                style={{ fontFamily: mono, fontSize: 11, letterSpacing: "0.08em", textTransform: "uppercase", color: "#9c8f7f", textDecoration: "none" }}
+              >
+                view source
+              </a>
+            </div>
+          </div>
+          <div style={{ display: "flex", justifyContent: "center" }}>
+            {/* eslint-disable-next-line @next/next/no-img-element */}
+            <img
+              src="/pomo-tui.png"
+              alt="Pomo terminal UI — Sheet template"
+              className="pomo-photo"
+              style={{ width: "100%", maxWidth: 520, objectFit: "contain", borderRadius: 12, border: "1px solid rgba(255,255,255,0.08)", boxShadow: "0 24px 48px -28px rgba(0,0,0,0.75)" }}
+            />
+          </div>
         </div>
       </div>
     </section>
@@ -761,7 +843,7 @@ function DownloadCTA() {
             >
               View source
             </a>
-            <span style={{ fontFamily: mono, fontSize: 11, letterSpacing: "0.06em", color: "#6b6055" }}>v0.2.4 · macOS 13+</span>
+            <span style={{ fontFamily: mono, fontSize: 11, letterSpacing: "0.06em", color: "#6b6055" }}>v0.2.8 · macOS 13+</span>
           </div>
         </div>
       </div>
@@ -796,7 +878,7 @@ function Footer() {
         </div>
         <div style={{ display: "flex", gap: 22 }}>
           <a href="#features" className="pomo-link" style={link}>features</a>
-          <a href="#rhythm" className="pomo-link" style={link}>rhythm</a>
+          <a href="#cli" className="pomo-link" style={link}>cli</a>
           <a href="#stats" className="pomo-link" style={link}>stats</a>
           <a href={GITHUB_URL} className="pomo-link" style={link}>github</a>
         </div>
@@ -842,6 +924,7 @@ export default function HomeContent() {
       <Hero />
       <Features />
       <Screenshots />
+      <CliSection />
       <Rhythm />
       <Origin />
       <Stats />

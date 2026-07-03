@@ -6,6 +6,10 @@ name: Publish CLI to npm
 # release-app-macos.yml), so this rides its own `cli-v*` tag namespace — e.g.
 # `cli-v0.1.0`. Also runnable on demand via the Actions tab.
 #
+# After a successful publish, creates a matching GitHub Release on the `cli-v*`
+# tag (npm-only; no assets). macOS app releases stay on `v*` in
+# release-app-macos.yml.
+#
 # Requires a repo secret `NPM_TOKEN` (an npm automation token with publish
 # rights to the `@arach` scope).
 
@@ -21,7 +25,7 @@ on:
         default: false
 
 permissions:
-  contents: read
+  contents: write
 
 jobs:
   publish:
@@ -62,4 +66,35 @@ jobs:
             npm publish --dry-run --access public
           else
             npm publish --access public
+          fi
+
+      - name: Create GitHub release
+        if: github.ref_type == 'tag' && inputs.dry_run != true
+        env:
+          GH_TOKEN: ${{ github.token }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          version="${GITHUB_REF_NAME#cli-v}"
+          notes_path="$RUNNER_TEMP/release-notes.md"
+          cat > "$notes_path" <<EOF
+          \`@arach/pomo@${version}\` on npm.
+
+          ## Install
+
+          \`\`\`sh
+          npm install -g @arach/pomo
+          # or
+          npx @arach/pomo
+          \`\`\`
+          EOF
+
+          if gh release view "$GITHUB_REF_NAME" >/dev/null 2>&1; then
+            gh release edit "$GITHUB_REF_NAME" \
+              --title "Pomo CLI ${version}" \
+              --notes-file "$notes_path"
+          else
+            gh release create "$GITHUB_REF_NAME" \
+              --title "Pomo CLI ${version}" \
+              --notes-file "$notes_path"
           fi

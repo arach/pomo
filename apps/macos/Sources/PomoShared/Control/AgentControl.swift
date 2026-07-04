@@ -6,6 +6,7 @@ import Foundation
 enum PomoCommand {
     case start, pause, toggle, reset, skip
     case showHUD, hideHUD, toggleHUD
+    case hudTiny(Bool?)        // nil toggles tiny/full; true = tiny; false = full
     case session(SessionType)
     case face(Watchface)
     case duration(Int)
@@ -61,7 +62,17 @@ enum PomoCommand {
         case "skip":       self = .skip
         case "show":       self = .showHUD
         case "hide":       self = .hideHUD
-        case "toggle-hud", "togglehud", "hud": self = .toggleHUD
+        case "tiny", "tiny-hud", "mini", "mini-hud": self = .hudTiny(true)
+        case "full", "full-hud", "big-hud": self = .hudTiny(false)
+        case "toggle-hud", "togglehud": self = .toggleHUD
+        case "hud":
+            switch arg {
+            case "tiny", "mini", "small": self = .hudTiny(true)
+            case "full", "normal", "large": self = .hudTiny(false)
+            case "mode", "size": self = .hudTiny(nil)
+            case "toggle", nil: self = .toggleHUD
+            default: return nil
+            }
         case "menu":       self = .openMenu
         case "shortcuts", "help", "keys":
             switch arg {
@@ -236,6 +247,7 @@ struct PomoState: Codable {
     var intent: String
     var watchface: String
     var hudVisible: Bool
+    var hudMode: String
     var audioPlaying: Bool
     var audioURL: String
     var audioEngine: String   // "web" | "none"

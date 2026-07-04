@@ -68,7 +68,7 @@ public final class AppDelegate: NSObject, NSApplicationDelegate {
         settings.onChange = { [weak self] in
             guard let self else { return }
             self.model.reloadDurationsIfIdle()
-            self.hud.applyOpacity()
+            self.hud.applyPresentationSettings()
             self.menuBar.refresh()
             self.registerSummonHotkey()
             self.audio.setVolume(self.settings.audioVolume)
@@ -223,6 +223,10 @@ public final class AppDelegate: NSObject, NSApplicationDelegate {
         case .showHUD:     hud.show()
         case .hideHUD:     hud.hide()
         case .toggleHUD:   hud.toggle()
+        case .hudTiny(let tiny):
+            if let tiny { hud.setTinyMode(tiny) }
+            else { hud.toggleTinyMode() }
+            hud.show()
         case .session(let type): model.setSessionType(type)
         case .duration(let minutes): model.setMinutes(minutes)
         case .face(let face):
@@ -386,6 +390,7 @@ public final class AppDelegate: NSObject, NSApplicationDelegate {
             intent: model.intent,
             watchface: settings.watchface.rawValue,
             hudVisible: hud.isShown,
+            hudMode: hud.chrome.isTiny ? "tiny" : "full",
             audioPlaying: audio.isPlaying,
             audioURL: preferredAudioURL(),
             audioEngine: audio.engineName,

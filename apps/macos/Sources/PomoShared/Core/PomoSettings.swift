@@ -31,6 +31,8 @@ final class PomoSettings {
     // Independent of `panelOpacity` so a see-through panel can still read as
     // frosted glass.
     var backgroundBlur: Double = 1.0
+    // Persisted presentation mode for a small always-visible corner HUD.
+    var hudTinyMode: Bool = false
 
     // Sound
     var soundEnabled: Bool = true
@@ -203,6 +205,7 @@ final class PomoSettings {
         var pomoAmpVisualizerMode: PomoAmpVisualizerMode?
         var panelOpacity: Double
         var backgroundBlur: Double?
+        var hudTinyMode: Bool?
         var soundEnabled: Bool
         var volume: Double
         // Optional so settings files written before these fields still decode.
@@ -231,6 +234,7 @@ final class PomoSettings {
             pomoAmpVisualizerMode: pomoAmpVisualizerMode,
             panelOpacity: panelOpacity,
             backgroundBlur: backgroundBlur,
+            hudTinyMode: hudTinyMode,
             soundEnabled: soundEnabled,
             volume: volume,
             appearanceMode: appearanceMode,
@@ -259,6 +263,7 @@ final class PomoSettings {
         if let mode = dto.appearanceMode { appearanceMode = mode }
         panelOpacity = min(1.0, max(0.3, dto.panelOpacity))
         if let blur = dto.backgroundBlur { backgroundBlur = min(1.0, max(0.0, blur)) }
+        if let tiny = dto.hudTinyMode { hudTinyMode = tiny }
         soundEnabled = dto.soundEnabled
         volume = min(1.0, max(0.0, dto.volume))
         if let code = dto.hotkeyKeyCode { hotkeyKeyCode = code }
@@ -299,9 +304,8 @@ final class PomoSettings {
     }
 }
 
-/// How the adaptive app windows (Settings) choose their light/dark palette.
-/// The HUD, menu popover, and Stats are deliberately fixed-dark glass, so this
-/// only affects the windows that sit against the desktop via `AppPalette`.
+/// How adaptive surfaces (Settings, the menu popover, and tiny HUD) choose their
+/// light/dark palette. The full watchface HUD remains fixed-dark glass.
 enum AppearanceMode: String, Codable, CaseIterable, Identifiable {
     case system, light, dark
 

@@ -1,6 +1,6 @@
 {
   "name": "@arach/pomo",
-  "version": "0.3.6",
+  "version": "0.3.7",
   "description": "Control and install the Pomo macOS HUD timer from the shell or an agent — live ANSI terminal UI, pomo:// commands, and JSON state reads. Zero dependencies.",
   "type": "module",
   "bin": {

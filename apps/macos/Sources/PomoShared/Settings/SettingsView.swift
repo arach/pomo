@@ -209,6 +209,8 @@ struct SettingsView: View {
                 row("Opacity") { sliderControl(settings.binding(\.panelOpacity), range: 0.4...1.0) }
                 rowDivider
                 row("Background blur") { sliderControl(settings.binding(\.backgroundBlur), range: 0.0...1.0) }
+                rowDivider
+                row("Tiny mode") { toggle(settings.binding(\.hudTinyMode)) }
             }
         }
     }

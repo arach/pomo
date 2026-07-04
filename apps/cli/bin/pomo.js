@@ -127,7 +127,7 @@ function printStatus(args) {
   }
   console.log(`  audio   ${audio}`);
   console.log(`  today   ${s.focusToday ?? 0} focus · streak ${s.streakDays ?? 0}d · ${s.focusTotal ?? 0} total`);
-  console.log(`  hud     ${s.hudVisible ? 'visible' : 'hidden'} · face ${s.watchface}`);
+  console.log(`  hud     ${s.hudVisible ? 'visible' : 'hidden'} · ${s.hudMode || 'full'} · face ${s.watchface}`);
 
   const favs = s.favorites || [];
   const sessionAudio = s.sessionAudioURLs || {};
@@ -1654,7 +1654,7 @@ function buildDashboardLayout(s, edit, template, themeId, width, celebrate, tick
     c, frame, inner, progress, pct, phase, session, roundNum, audio, whisper, clock, align,
   } = ctx;
   const stats = `${s.focusToday ?? 0} today · ${s.streakDays ?? 0}d streak · ${s.focusTotal ?? 0} all`;
-  const hud = `${s.hudVisible ? 'on' : 'off'} · ${titleCase(s.watchface)}`;
+  const hud = `${s.hudVisible ? 'on' : 'off'} · ${s.hudMode || 'full'} · ${titleCase(s.watchface)}`;
   const header = splitRow(
     `${c.accent}${c.b}${c.mark} POMO${c.t}`,
     `${c.mute}${template.label}${c.t} · ${c.label}${c.t}`,
@@ -2366,7 +2366,7 @@ function buildStatsCard(s, templateId, themeId, width, celebrate, tick) {
     boxRow(statRow('session', `${sessionLabel(s.sessionType)} · ${s.phase || 'idle'}`, c, inner), width, frame, c, celebrate, tick),
     boxRow(statRow('clock', `${s.clock || '--:--'} (${pct}%)`, c, inner), width, frame, c, celebrate, tick),
     boxRow(statRow('elapsed', `${formatClock(elapsed)} / ${formatClock(s.totalSeconds)}`, c, inner), width, frame, c, celebrate, tick),
-    boxRow(statRow('hud', `${s.hudVisible ? 'visible' : 'hidden'} · ${titleCase(s.watchface)}`, c, inner), width, frame, c, celebrate, tick),
+    boxRow(statRow('hud', `${s.hudVisible ? 'visible' : 'hidden'} · ${s.hudMode || 'full'} · ${titleCase(s.watchface)}`, c, inner), width, frame, c, celebrate, tick),
     boxRow(statRow('audio', truncate(audioLine(s, celebrate, tick), inner - 8), c, inner), width, frame, c, celebrate, tick),
     boxRow('', width, frame, c, celebrate, tick),
     boxRow(centerRow(`${c.dim}4 or esc close${c.t}`, inner), width, frame, c, celebrate, tick),
@@ -3077,6 +3077,8 @@ Favorites
 
 Window & app
   show | hide | hud      summon / dismiss / toggle the HUD
+  tiny                   show the HUD in tiny corner mode
+  hud tiny|full          switch HUD size
   menu                   open the menu-bar popover
   face <name>            switch watchface
   settings | stats       open the Settings / Stats window
@@ -3116,7 +3118,14 @@ switch (cmd) {
     break;
 
   case 'hud':
-    send('hud');
+    if (rest[0] === 'tiny' || rest[0] === 'mini' || rest[0] === 'small') send('hud/tiny');
+    else if (rest[0] === 'full' || rest[0] === 'normal') send('hud/full');
+    else if (rest[0]) die('usage: pomo hud [tiny|full]');
+    else send('hud');
+    break;
+
+  case 'tiny':
+    send('hud/tiny');
     break;
 
   case 'session':

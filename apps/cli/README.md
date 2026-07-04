@@ -86,7 +86,7 @@ Video      video <show|hide|toggle|page|player|browser>
 Favorites  fav · fav add <url> [title…] · fav rename <n> <title…>
            fav url <n> <url> · fav move <from> <to>
            fav set <json-file|json|-> · fav play <n> · fav remove <n> · fav clear
-Window     show · hide · hud · menu · face <name> · settings · stats
+Window     show · hide · hud · tiny · hud <tiny|full> · menu · face <name> · settings · stats
 Login      login · login import [--browser b] [--profile p] · login profiles
            login account <n> · logout
 App        install [--dry-run] [--open] · quit

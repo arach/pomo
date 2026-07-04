@@ -3,11 +3,18 @@ import Observation
 import SwiftUI
 
 /// HUD-only presentation chrome the SwiftUI content reacts to but the AppKit key
-/// monitor drives — currently just the keyboard cheat sheet toggled with `?`.
+/// monitor drives: keyboard cheat sheet, tiny/full mode, and live panel size.
 @MainActor
 @Observable
 final class HUDChrome {
     var showShortcuts = false
+    var isTiny: Bool
+    var panelSize: CGSize
+
+    init(panelSize: CGSize, isTiny: Bool = false) {
+        self.panelSize = panelSize
+        self.isTiny = isTiny
+    }
 }
 
 /// Owns the floating HUD panel: lazy construction, summon/dismiss with a fade,
@@ -15,6 +22,11 @@ final class HUDChrome {
 /// shortcuts that are live only while the HUD is visible.
 @MainActor
 final class HUDController {
+    private static let fullContentSize = NSSize(width: 352, height: 268)
+    private static let tinyContentSize = NSSize(width: 188, height: 86)
+    private static let fullSavedPanelFrameKey = "pomo.hud.panelFrame.full"
+    private static let tinySavedPanelFrameKey = "pomo.hud.panelFrame.tiny"
+
     private let model: TimerModel
     private let settings: PomoSettings
     private let audio: AudioController
@@ -32,13 +44,12 @@ final class HUDController {
     /// ⌘-Tab-able — dropping back to a menu-bar accessory when hidden).
     var onVisibilityChange: ((Bool) -> Void)?
 
-    /// HUD-only chrome (keyboard cheat sheet) shared with the SwiftUI content.
-    let chrome = HUDChrome()
+    /// HUD-only chrome shared with the SwiftUI content.
+    let chrome: HUDChrome
 
-    private let contentSize = NSSize(width: 352, height: 268)
     private var panel: HUDPanel?
     private var keyMonitor: Any?
-    private var hasPositioned = false
+    private var panelFrameObserverTokens: [NSObjectProtocol] = []
     private(set) var isShown = false
 
     init(model: TimerModel, settings: PomoSettings, audio: AudioController, favorites: FavoritesStore) {
@@ -46,13 +57,19 @@ final class HUDController {
         self.settings = settings
         self.audio = audio
         self.favorites = favorites
+        self.chrome = HUDChrome(
+            panelSize: settings.hudTinyMode ? Self.tinyContentSize : Self.fullContentSize,
+            isTiny: settings.hudTinyMode
+        )
     }
 
     // MARK: - Panel lifecycle
 
     private func ensurePanel() -> HUDPanel {
         if let panel { return panel }
-        let panel = HUDPanel(contentSize: contentSize)
+        let initialSize = effectivePanelSize()
+        chrome.panelSize = initialSize
+        let panel = HUDPanel(contentSize: initialSize)
         panel.onKeyDown = { [weak self] event in
             self?.handle(event) ?? false
         }
@@ -60,15 +77,23 @@ final class HUDController {
             rootView: HUDRootView(
                 model: model, settings: settings, audio: audio, favorites: favorites,
                 chrome: chrome,
-                size: contentSize,
                 onHide: { [weak self] in self?.hide() },
+                onSetTinyMode: { [weak self] tiny in self?.setTinyMode(tiny) },
                 onToggleVideoDrawer: { [weak self] in self?.toggleVideoDrawer() },
                 onEditingChange: { [weak self] editing in self?.setEditingFocus(editing) }
             )
         )
-        hosting.frame = NSRect(origin: .zero, size: contentSize)
+        hosting.frame = NSRect(origin: .zero, size: initialSize)
         hosting.autoresizingMask = [.width, .height]
         panel.contentView = hosting
+        if let restored = restoredPanelFrame(size: initialSize, for: panel, tiny: chrome.isTiny) {
+            panel.setFrame(restored, display: false)
+        } else {
+            positionOnActiveScreen(panel)
+            savePanelFrame(panel.frame, tiny: chrome.isTiny)
+        }
+        installPanelFrameObservers(panel)
+        panel.alphaValue = CGFloat(settings.panelOpacity)
         self.panel = panel
         return panel
     }
@@ -81,10 +106,8 @@ final class HUDController {
 
     func show() {
         let panel = ensurePanel()
-        if !hasPositioned {
-            positionOnActiveScreen(panel)
-            hasPositioned = true
-        }
+        applyPresentationSettings()
+        keepPanelVisible(panel)
         isShown = true
         installKeyMonitor()
 
@@ -97,7 +120,11 @@ final class HUDController {
             panel.animator().alphaValue = CGFloat(settings.panelOpacity)
         }
         // Dock the video drawer to the panel (slides back out if it was open).
-        audio.attachDrawer(to: panel)
+        if chrome.isTiny {
+            audio.detachDrawer()
+        } else {
+            audio.attachDrawer(to: panel)
+        }
         onVisibilityChange?(true)
     }
 
@@ -125,6 +152,20 @@ final class HUDController {
         panel.alphaValue = CGFloat(settings.panelOpacity)
     }
 
+    /// Keep mode + opacity in sync with persisted settings edits.
+    func applyPresentationSettings() {
+        setTinyMode(settings.hudTinyMode, persist: false)
+        applyOpacity()
+    }
+
+    func toggleTinyMode() {
+        setTinyMode(!chrome.isTiny)
+    }
+
+    func setTinyMode(_ tiny: Bool) {
+        setTinyMode(tiny, persist: true)
+    }
+
     /// While a quick field is open, ramp the panel to full opacity so the editor
     /// card is crisp; restore the user's opacity when it closes.
     private func setEditingFocus(_ editing: Bool) {
@@ -134,6 +175,101 @@ final class HUDController {
             ctx.timingFunction = CAMediaTimingFunction(name: .easeOut)
             panel.animator().alphaValue = editing ? 1.0 : CGFloat(settings.panelOpacity)
         }
+    }
+
+    private func setTinyMode(_ tiny: Bool, persist: Bool) {
+        if chrome.isTiny == tiny {
+            if persist, settings.hudTinyMode != tiny {
+                settings.hudTinyMode = tiny
+                settings.saveNow()
+            }
+            return
+        }
+
+        if let panel {
+            savePanelFrame(panel.frame, tiny: chrome.isTiny)
+        }
+
+        chrome.isTiny = tiny
+        chrome.panelSize = effectivePanelSize()
+
+        if tiny {
+            chrome.showShortcuts = false
+            model.cancelEditing()
+            audio.detachDrawer()
+        }
+
+        if persist, settings.hudTinyMode != tiny {
+            settings.hudTinyMode = tiny
+            settings.saveNow()
+        }
+
+        guard let panel else { return }
+        let size = effectivePanelSize()
+        let old = panel.frame
+        let fallback: NSRect
+        if tiny {
+            fallback = NSRect(x: old.maxX - size.width, y: old.maxY - size.height, width: size.width, height: size.height)
+        } else {
+            fallback = NSRect(x: old.midX - size.width / 2, y: old.midY - size.height / 2, width: size.width, height: size.height)
+        }
+        let target = restoredPanelFrame(size: size, for: panel, tiny: tiny)
+            ?? clampedFrame(fallback, for: panel)
+
+        panel.contentView?.setFrameSize(size)
+        panel.setFrame(target, display: true)
+        savePanelFrame(target, tiny: tiny)
+
+        if isShown, !tiny {
+            audio.attachDrawer(to: panel)
+        }
+    }
+
+    private func effectivePanelSize() -> NSSize {
+        chrome.isTiny ? Self.tinyContentSize : Self.fullContentSize
+    }
+
+    private func installPanelFrameObservers(_ panel: NSPanel) {
+        let center = NotificationCenter.default
+        panelFrameObserverTokens.forEach(center.removeObserver)
+        panelFrameObserverTokens = [
+            center.addObserver(forName: NSWindow.didMoveNotification, object: panel, queue: .main) { [weak self, weak panel] _ in
+                guard let panel else { return }
+                Task { @MainActor [weak self] in
+                    guard let self else { return }
+                    self.savePanelFrame(panel.frame, tiny: self.chrome.isTiny)
+                }
+            },
+            center.addObserver(forName: NSWindow.didResizeNotification, object: panel, queue: .main) { [weak self, weak panel] _ in
+                guard let panel else { return }
+                Task { @MainActor [weak self] in
+                    guard let self else { return }
+                    self.savePanelFrame(panel.frame, tiny: self.chrome.isTiny)
+                }
+            }
+        ]
+    }
+
+    private func restoredPanelFrame(size: NSSize, for panel: NSPanel, tiny: Bool) -> NSRect? {
+        guard let raw = UserDefaults.standard.string(forKey: savedPanelFrameKey(tiny: tiny)) else { return nil }
+        let saved = NSRectFromString(raw)
+        guard saved.width > 1, saved.height > 1 else { return nil }
+        let target = NSRect(
+            x: saved.minX,
+            y: saved.maxY - size.height,
+            width: size.width,
+            height: size.height
+        )
+        return clampedFrame(target, for: panel)
+    }
+
+    private func savePanelFrame(_ frame: NSRect, tiny: Bool) {
+        guard frame.width > 1, frame.height > 1 else { return }
+        UserDefaults.standard.set(NSStringFromRect(frame), forKey: savedPanelFrameKey(tiny: tiny))
+    }
+
+    private func savedPanelFrameKey(tiny: Bool) -> String {
+        tiny ? Self.tinySavedPanelFrameKey : Self.fullSavedPanelFrameKey
     }
 
     private func positionOnActiveScreen(_ panel: NSPanel) {
@@ -146,6 +282,55 @@ final class HUDController {
         let x = frame.midX - size.width / 2
         let y = frame.midY - size.height / 2 + frame.height * 0.06
         panel.setFrameOrigin(NSPoint(x: x.rounded(), y: y.rounded()))
+    }
+
+    private func keepPanelVisible(_ panel: NSPanel) {
+        let frame = panel.frame
+        let clamped = clampedFrame(frame, for: panel)
+        if clamped != frame {
+            panel.setFrame(clamped, display: false)
+            savePanelFrame(clamped, tiny: chrome.isTiny)
+        }
+    }
+
+    private func clampedFrame(_ frame: NSRect, for panel: NSPanel) -> NSRect {
+        let bounds = bestScreen(for: frame, fallback: panel)?.visibleFrame ?? frame
+        var frame = frame
+        frame.size.width = min(frame.width, bounds.width)
+        frame.size.height = min(frame.height, bounds.height)
+        if frame.minX < bounds.minX { frame.origin.x = bounds.minX }
+        if frame.maxX > bounds.maxX { frame.origin.x = bounds.maxX - frame.width }
+        if frame.minY < bounds.minY { frame.origin.y = bounds.minY }
+        if frame.maxY > bounds.maxY { frame.origin.y = bounds.maxY - frame.height }
+        return frame
+    }
+
+    private func bestScreen(for frame: NSRect, fallback panel: NSPanel) -> NSScreen? {
+        let screens = NSScreen.screens
+        let best = screens
+            .map { screen in (screen, intersectionArea(screen.visibleFrame, frame)) }
+            .max { lhs, rhs in lhs.1 < rhs.1 }
+        if let best, best.1 > 0 { return best.0 }
+
+        let center = NSPoint(x: frame.midX, y: frame.midY)
+        let nearest = screens.min { lhs, rhs in
+            distance(from: center, to: lhs.visibleFrame) < distance(from: center, to: rhs.visibleFrame)
+        }
+        if let nearest { return nearest }
+
+        return panel.screen ?? NSScreen.main ?? NSScreen.screens.first
+    }
+
+    private func intersectionArea(_ lhs: NSRect, _ rhs: NSRect) -> CGFloat {
+        let intersection = lhs.intersection(rhs)
+        guard !intersection.isNull else { return 0 }
+        return intersection.width * intersection.height
+    }
+
+    private func distance(from point: NSPoint, to rect: NSRect) -> CGFloat {
+        let dx = max(rect.minX - point.x, 0, point.x - rect.maxX)
+        let dy = max(rect.minY - point.y, 0, point.y - rect.maxY)
+        return hypot(dx, dy)
     }
 
     // MARK: - In-panel keyboard shortcuts
@@ -215,13 +400,23 @@ final class HUDController {
         case "r": model.reset(); return true
         case "n": model.skip(); return true
         case "c": model.cycleSessionType(); return true
-        case "i": model.beginEditing(.intent); return true
+        case "i":
+            if chrome.isTiny { setTinyMode(false) }
+            model.beginEditing(.intent)
+            return true
         case "v":
             if shift { toggleVideoDrawer() }            // ⇧V: show / hide the video drawer
-            else { model.beginEditing(.video) }         // v: paste an audio / video link
+            else {
+                if chrome.isTiny { setTinyMode(false) }
+                model.beginEditing(.video)              // v: paste an audio / video link
+            }
             return true
         case "m": toggleMusic(); return true            // play/pause background music
-        case "?", "/": chrome.showShortcuts.toggle(); return true  // keyboard cheat sheet
+        case "y": toggleTinyMode(); return true         // tiny/full HUD
+        case "?", "/":
+            if chrome.isTiny { setTinyMode(false) }
+            chrome.showShortcuts.toggle()
+            return true                                 // keyboard cheat sheet
         case "q": hide(); return true
         case "t":
             settings.watchface = settings.watchface.next
@@ -249,6 +444,7 @@ final class HUDController {
     /// is loaded yet, kick off the saved station so the drawer has something to show.
     private func toggleVideoDrawer() {
         if onVideoCommand?(.videoToggle) == true { return }
+        if chrome.isTiny { setTinyMode(false) }
         if !audio.videoVisible, !audio.isPlaying, audio.currentURL.isEmpty, !settings.audioURL.isEmpty {
             audio.play(urlString: settings.audioURL)
         }

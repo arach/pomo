@@ -21,15 +21,20 @@ enum CookieImporter {
         var subtitle: String { "\(browserName) · \(profile)" }
     }
 
-    /// Extract YouTube/Google cookies from the named browser (nil = all detected),
-    /// optionally from a specific Chromium profile (e.g. "Profile 1").
-    static func cookies(fromBrowser browser: String?, profile: String?) async -> [HTTPCookie] {
+    /// Extract auth cookies for the given service from the named browser
+    /// (nil = all detected), optionally from a specific Chromium profile.
+    static func cookies(
+        fromBrowser browser: String?,
+        profile: String?,
+        service: AuthService = .youTube
+    ) async -> [HTTPCookie] {
         guard let bin = helperPath() else { return [] }
         var args: [String] = []
+        if let flag = service.cookieHelperFlag { args.append(flag) }
         if let browser, !browser.isEmpty { args.append(browser) }
         if let profile, !profile.isEmpty { args.append(profile) }
         guard let output = await run(bin, args) else { return [] }
-        return parse(output)
+        return parse(output, service: service)
     }
 
     /// Detected Chromium-family browser profiles, matching the CLI's picker.
@@ -98,7 +103,7 @@ enum CookieImporter {
 
     // MARK: - Parse helper output (Netscape cookies.txt rows)
 
-    private static func parse(_ text: String) -> [HTTPCookie] {
+    private static func parse(_ text: String, service: AuthService) -> [HTTPCookie] {
         var cookies: [HTTPCookie] = []
         for rawLine in text.split(separator: "\n") {
             var line = String(rawLine)
@@ -127,7 +132,10 @@ enum CookieImporter {
             if secure { props[.secure] = "TRUE" }
             if httpOnly { props[HTTPCookiePropertyKey("HttpOnly")] = "TRUE" }
             if let expiry, expiry > 0 { props[.expires] = Date(timeIntervalSince1970: expiry) }
-            if let cookie = HTTPCookie(properties: props) { cookies.append(cookie) }
+            if let cookie = HTTPCookie(properties: props),
+               service.matches(domain: cookie.domain) {
+                cookies.append(cookie)
+            }
         }
         return cookies
     }

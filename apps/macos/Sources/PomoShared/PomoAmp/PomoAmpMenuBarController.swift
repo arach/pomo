@@ -143,7 +143,7 @@ final class PomoAmpMenuBarController: NSObject, NSPopoverDelegate {
         addItem(audio.isPlaying ? "Pause" : "Play", to: menu, action: #selector(toggleAudio))
         addItem("Previous Timestamp Section", to: menu, action: #selector(previousSection))
         addItem("Next Timestamp Section", to: menu, action: #selector(nextSection))
-        addItem("Paste YouTube URL", to: menu, action: #selector(pasteURL))
+        addItem("Paste URL", to: menu, action: #selector(pasteURL))
         addItem(audio.videoOpen ? "Hide Video" : "Show Video", to: menu, action: #selector(toggleDrawer))
         addItem(audio.videoExpanded ? "Show Player" : "Show Page", to: menu, action: #selector(togglePageMode))
         addItem((isCompactMode?() ?? false) ? "Expand" : "Compact Mode", to: menu, action: #selector(toggleCompactMode))

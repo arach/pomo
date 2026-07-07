@@ -37,7 +37,7 @@ struct PomoAmpMenuPopoverView: View {
             header
             nowPlaying
             transport
-            section("YOUTUBE") { youtubeControls }
+            section("LIBRARY") { youtubeControls }
             section("FAVORITES") { favoritesList }
             section("FACE") { faceStrip }
             footer
@@ -188,7 +188,7 @@ struct PomoAmpMenuPopoverView: View {
     private var favoritesList: some View {
         Group {
             if favorites.items.isEmpty {
-                Text("No saved YouTube links")
+                Text("No saved links")
                     .font(HudFont.ui(HudTextSize.xs, weight: .medium))
                     .foregroundStyle(Color.white.opacity(0.42))
                     .frame(maxWidth: .infinity, minHeight: 34, alignment: .leading)
@@ -379,12 +379,15 @@ struct PomoAmpMenuPopoverView: View {
 
     @ViewBuilder
     private func thumbnail(for urlString: String, width: CGFloat, height: CGFloat, iconSize: CGFloat) -> some View {
-        let id = WebAudioPlayer.youTubeID(from: urlString)
+        let artwork = PlaybackSource.artworkURL(
+            for: urlString,
+            liveArtwork: urlString == currentURL ? audio.currentArtworkURL : ""
+        )
         RoundedRectangle(cornerRadius: 8, style: .continuous)
             .fill(Color.white.opacity(0.07))
             .frame(width: width, height: height)
             .overlay {
-                if let id, let url = URL(string: "https://img.youtube.com/vi/\(id)/mqdefault.jpg") {
+                if let artwork, let url = URL(string: artwork) {
                     AsyncImage(url: url) { phase in
                         if let image = phase.image {
                             image
@@ -412,12 +415,12 @@ struct PomoAmpMenuPopoverView: View {
         }
         let title = audio.currentTitle.trimmingCharacters(in: .whitespacesAndNewlines)
         if !title.isEmpty { return title }
-        guard !currentURL.isEmpty else { return "Paste a YouTube URL" }
+        guard !currentURL.isEmpty else { return "Paste a YouTube or SoundCloud URL" }
         return Self.shortURL(currentURL)
     }
 
     private var sourceLabel: String {
-        guard let host = URL(string: currentURL)?.host else { return "youtube deck" }
+        guard let host = URL(string: currentURL)?.host else { return "music deck" }
         return host.replacingOccurrences(of: "www.", with: "")
     }
 

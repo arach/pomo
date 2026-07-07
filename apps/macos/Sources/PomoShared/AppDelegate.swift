@@ -425,13 +425,17 @@ public final class AppDelegate: NSObject, NSApplicationDelegate {
             settings: settings,
             favorites: favorites,
             account: audio.account,
+            soundCloudAccount: audio.soundCloudAccount,
             onClose: { [weak self] in self?.settingsWindow?.close() },
             onAudioPlay: { [weak self] url in self?.audio.play(urlString: url) },
             onAudioPause: { [weak self] in self?.audio.pause() },
             onAudioStop: { [weak self] in self?.audio.stop() },
             onSignIn: { [weak self] in self?.audio.signIn() },
             onSignOut: { [weak self] in self?.audio.clearLogin() },
-            onImportLogin: { [weak self] in self?.audio.showImportLogin() }
+            onImportLogin: { [weak self] in self?.audio.showImportLogin() },
+            onSoundCloudSignIn: { [weak self] in self?.audio.signInSoundCloud() },
+            onSoundCloudSignOut: { [weak self] in self?.audio.clearSoundCloudLogin() },
+            onSoundCloudImportLogin: { [weak self] in self?.audio.showSoundCloudImportLogin() }
         )
         let window = NSWindow(contentViewController: NSHostingController(rootView: view))
         window.title = "Pomo Settings"

@@ -4,7 +4,7 @@ import Foundation
 import Observation
 
 /// Background audio — **browser only**. Everything (YouTube, YouTube Music,
-/// direct media URLs, pages) plays through `WebAudioPlayer`'s mini-player. No
+/// SoundCloud, direct media URLs, pages) plays through `WebAudioPlayer`'s mini-player. No
 /// yt-dlp, no native AVPlayer: the webview is the one engine, and signing in
 /// (Premium) makes it ad-free.
 ///
@@ -24,6 +24,7 @@ final class AudioController {
     private(set) var engineName = "none"   // "web" | "none" (kept in state.json)
     private(set) var currentURL = ""
     private(set) var currentTitle = ""
+    private(set) var currentArtworkURL = ""
 
     /// Whether the video drawer is open. Stored (not computed) so the on-face
     /// buttons observe it and re-render when it toggles.
@@ -64,11 +65,18 @@ final class AudioController {
     }
     func persistPlaybackSnapshot() { web.persistPlaybackSnapshotNow() }
     func signIn() { web.signIn() }
+    func signInSoundCloud() { web.signInSoundCloud() }
     func showImportLogin() { web.showImportLogin() }
+    func showSoundCloudImportLogin() { web.showSoundCloudImportLogin() }
     func importCookies(browser: String?, profile: String?, accountIndex: Int = 0) {
         web.importCookies(fromBrowser: browser, profile: profile, accountIndex: accountIndex)
     }
+    func importSoundCloudCookies(browser: String?, profile: String?) {
+        web.importSoundCloudCookies(fromBrowser: browser, profile: profile)
+    }
     func clearLogin() { web.clearLogin() }
+    func clearSoundCloudLogin() { web.clearSoundCloudLogin() }
+    var soundCloudAccount: AccountStatus { web.soundCloudAccount }
     func setAccount(_ index: Int) { web.setAccount(index) }
     func requestAudioScopePermission() { web.requestAudioScopePermission(); notify() }
     func setVisualizerActive(_ active: Bool) { web.setVisualizerActive(active); notify() }
@@ -122,6 +130,7 @@ final class AudioController {
         isPlaying = web.isPlaying
         currentURL = web.currentURL
         currentTitle = web.currentTitle
+        currentArtworkURL = web.currentArtworkURL
         engineName = web.isPlaying ? "web" : "none"
         onStateChange?()
     }

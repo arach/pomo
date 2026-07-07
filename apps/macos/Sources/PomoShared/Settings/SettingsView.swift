@@ -10,6 +10,7 @@ struct SettingsView: View {
     @Bindable var settings: PomoSettings
     @Bindable var favorites: FavoritesStore
     var account: AccountStatus
+    var soundCloudAccount: AccountStatus
     var onClose: () -> Void
     var onAudioPlay: (String) -> Void = { _ in }
     var onAudioPause: () -> Void = {}
@@ -17,6 +18,9 @@ struct SettingsView: View {
     var onSignIn: () -> Void = {}
     var onSignOut: () -> Void = {}
     var onImportLogin: () -> Void = {}
+    var onSoundCloudSignIn: () -> Void = {}
+    var onSoundCloudSignOut: () -> Void = {}
+    var onSoundCloudImportLogin: () -> Void = {}
 
     @Environment(\.colorScheme) private var scheme
     @State private var tab: SettingsTab = .general
@@ -222,7 +226,7 @@ struct SettingsView: View {
                     inputSurface(icon: "link") {
                         BrandTextField(
                             text: settings.binding(\.audioURL),
-                            placeholder: "Paste a YouTube link…",
+                            placeholder: "Paste a YouTube or SoundCloud link…",
                             textColor: pal.ink,
                             selectionColor: pal.action
                         )
@@ -367,6 +371,46 @@ struct SettingsView: View {
                 }
                 .padding(HudSpacing.lg)
             }
+
+            group("SOUNDCLOUD ACCOUNT") {
+                HStack(spacing: HudSpacing.md) {
+                    Image(systemName: soundCloudAccount.signedIn ? "person.crop.circle.fill" : "person.crop.circle")
+                        .font(.system(size: 28))
+                        .foregroundStyle(soundCloudAccount.signedIn ? pal.action : pal.dim)
+                        .frame(width: 32, height: 32)
+                    VStack(alignment: .leading, spacing: 2) {
+                        Text(soundCloudAccount.signedIn ? (soundCloudAccount.name ?? "Signed in") : "Not signed in")
+                            .font(HudFont.ui(HudTextSize.sm, weight: .medium))
+                            .foregroundStyle(pal.ink)
+                        Text(soundCloudAccount.signedIn ? "Playlists and library unlocked" : "Import or sign in to skip login prompts")
+                            .font(HudFont.ui(HudTextSize.xs))
+                            .foregroundStyle(pal.dim)
+                    }
+                    Spacer()
+                    if soundCloudAccount.signedIn {
+                        button("Sign out") { onSoundCloudSignOut() }
+                    } else {
+                        button("Sign in", icon: "person.crop.circle", kind: .primary) { onSoundCloudSignIn() }
+                    }
+                }
+                .padding(HudSpacing.lg)
+
+                rowDivider
+
+                HStack {
+                    VStack(alignment: .leading, spacing: 2) {
+                        Text("Import login from browser")
+                            .font(HudFont.ui(HudTextSize.sm))
+                            .foregroundStyle(pal.ink)
+                        Text("Reuse a SoundCloud session you're already signed into.")
+                            .font(HudFont.ui(HudTextSize.xs))
+                            .foregroundStyle(pal.dim)
+                    }
+                    Spacer()
+                    button("Import…") { onSoundCloudImportLogin() }
+                }
+                .padding(HudSpacing.lg)
+            }
         }
     }
 
@@ -489,7 +533,7 @@ struct SettingsView: View {
                 Text("No saved videos")
                     .font(HudFont.ui(HudTextSize.sm, weight: .medium))
                     .foregroundStyle(pal.ink)
-                Text("Add YouTube links here to populate the menu player.")
+                Text("Add YouTube or SoundCloud links here to populate the menu player.")
                     .font(HudFont.ui(HudTextSize.xs))
                     .foregroundStyle(pal.dim)
             }
@@ -517,7 +561,7 @@ struct SettingsView: View {
             inputSurface(icon: "link", height: 30) {
                 BrandTextField(
                     text: $newFavoriteURL,
-                    placeholder: "Paste a YouTube link to save…",
+                    placeholder: "Paste a YouTube or SoundCloud link to save…",
                     textColor: pal.ink,
                     selectionColor: pal.action
                 )

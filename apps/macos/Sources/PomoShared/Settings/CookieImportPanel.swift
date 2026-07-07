@@ -1,11 +1,11 @@
 import SwiftUI
 import HudsonUI
 
-/// A tiny, guided panel for borrowing a YouTube login from a browser the user is
-/// already signed into — so the web player goes ad-free without a fresh sign-in.
-/// Chromium-family browsers expose multiple profiles, so we make those choices
-/// explicit instead of importing from an ambiguous browser-level default.
+/// A tiny, guided panel for borrowing a web-player login from a browser the user
+/// is already signed into. Chromium-family browsers expose multiple profiles, so
+/// we make those choices explicit instead of importing from an ambiguous default.
 struct CookieImportPanel: View {
+    var service: AuthService = .youTube
     var account: AccountStatus
     var profiles: [CookieImporter.BrowserProfile]
     /// Imports auth cookies from the given browser/profile; returns how many it found.
@@ -98,10 +98,10 @@ struct CookieImportPanel: View {
                 .font(.system(size: 14, weight: .semibold))
                 .foregroundStyle(pal.accent)
             VStack(alignment: .leading, spacing: 1) {
-                Text("Import YouTube Login")
+                Text("Import \(service.displayName) Login")
                     .font(HudFont.mono(HudTextSize.md, weight: .semibold))
                     .foregroundStyle(pal.ink)
-                Text("Choose the browser profile signed into YouTube")
+                Text("Choose the browser profile signed into \(service.displayName)")
                     .font(HudFont.ui(HudTextSize.xs))
                     .foregroundStyle(pal.dim)
             }
@@ -112,12 +112,14 @@ struct CookieImportPanel: View {
 
     private var chooseStep: some View {
         VStack(alignment: .leading, spacing: HudSpacing.lg) {
-            Text("Pick the same profile you use for YouTube. Chrome-based browsers may ask for Keychain access.")
+            Text("Pick the same profile you use for \(service.displayName). Chrome-based browsers may ask for Keychain access.")
                 .font(HudFont.ui(HudTextSize.xs))
                 .foregroundStyle(pal.muted)
                 .fixedSize(horizontal: false, vertical: true)
 
-            accountPicker
+            if service == .youTube {
+                accountPicker
+            }
 
             ScrollView {
                 VStack(alignment: .leading, spacing: HudSpacing.md) {
@@ -252,9 +254,15 @@ struct CookieImportPanel: View {
                 Text("Signed in as \(account.name ?? "your account")")
                     .font(HudFont.ui(HudTextSize.sm, weight: .semibold))
                     .foregroundStyle(pal.ink)
-                Label("Ad-free with Premium", systemImage: "checkmark.seal.fill")
-                    .font(HudFont.ui(HudTextSize.xs, weight: .medium))
-                    .foregroundStyle(pal.action)
+                if service == .youTube {
+                    Label("Ad-free with Premium", systemImage: "checkmark.seal.fill")
+                        .font(HudFont.ui(HudTextSize.xs, weight: .medium))
+                        .foregroundStyle(pal.action)
+                } else {
+                    Label("Signed in for playlists and library", systemImage: "checkmark.seal.fill")
+                        .font(HudFont.ui(HudTextSize.xs, weight: .medium))
+                        .foregroundStyle(pal.action)
+                }
                 button("Done", kind: .primary, action: onClose)
             }
             .frame(maxWidth: .infinity)
@@ -264,7 +272,7 @@ struct CookieImportPanel: View {
                 Label(
                     importedCount > 0
                         ? "Imported \(importedCount) cookies from \(pickedName)."
-                        : "No YouTube login found in \(pickedName).",
+                        : "No \(service.displayName) login found in \(pickedName).",
                     systemImage: importedCount > 0 ? "checkmark.circle.fill" : "xmark.circle.fill"
                 )
                 .font(HudFont.ui(HudTextSize.sm))
@@ -272,7 +280,7 @@ struct CookieImportPanel: View {
                 .fixedSize(horizontal: false, vertical: true)
 
                 if importedCount == 0 {
-                    Text("Make sure you're logged into YouTube in that profile, or pick another.")
+                    Text("Make sure you're logged into \(service.displayName) in that profile, or pick another.")
                         .font(HudFont.ui(HudTextSize.xs))
                         .foregroundStyle(pal.dim)
                         .fixedSize(horizontal: false, vertical: true)
@@ -335,15 +343,21 @@ struct CookieImportPanel: View {
         importedCount = 0
         phase = .working
         Task {
-            let count = await onImport(target.browser, target.profile, selectedAccountIndex)
+            let count = await onImport(target.browser, target.profile, service == .youTube ? selectedAccountIndex : 0)
             importedCount = count
-            // The reload + masthead read is async; give it a moment to confirm.
             if count > 0 {
-                for _ in 0..<24 where !account.signedIn {
-                    try? await Task.sleep(nanoseconds: 250_000_000)
+                if service == .youTube {
+                    // YouTube identity is read off the page masthead after reload.
+                    for _ in 0..<24 where !account.signedIn {
+                        try? await Task.sleep(nanoseconds: 250_000_000)
+                    }
+                    confirmed = account.signedIn
+                } else {
+                    confirmed = account.signedIn || count > 0
                 }
+            } else {
+                confirmed = false
             }
-            confirmed = account.signedIn
             phase = .done
         }
     }

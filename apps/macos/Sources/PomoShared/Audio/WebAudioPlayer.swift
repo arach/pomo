@@ -3,8 +3,9 @@ import AppKit
 import CryptoKit
 import SwiftUI
 
-/// Plays YouTube / YouTube Music audio by driving the **real watch page's
-/// `<video>` element** in a small on-screen "mini-player" window. The IFrame
+/// Plays YouTube / YouTube Music / SoundCloud audio by driving the **real watch
+/// page's `<video>` element** (or the SoundCloud widget) in a small on-screen
+/// "mini-player" window. The IFrame
 /// embed is refused for embedding-restricted videos (error 150/152) and raw
 /// streams are PoToken-gated (403), so the live page is the reliable path — and
 /// once you sign in (Premium) it plays ad-free.
@@ -39,6 +40,7 @@ final class WebAudioPlayer: NSObject {
     private(set) var isPlaying = false
     private(set) var currentURL: String = ""
     private(set) var currentTitle: String = ""
+    private(set) var currentArtworkURL: String = ""
     private var volume: Int = 60
     private(set) var mediaTime: Double = 0
     private(set) var mediaDuration: Double = 0
@@ -111,6 +113,8 @@ final class WebAudioPlayer: NSObject {
 
     /// Signed-in YouTube identity, surfaced in Settings + the drawer avatar.
     let account = AccountStatus()
+    /// Signed-in SoundCloud identity, surfaced in Settings.
+    let soundCloudAccount = AccountStatus()
 
     /// Favorites, for the video menu's "Change Track" submenu. Weak — owned by
     /// AppDelegate; wired via `AudioController.bindFavorites`.
@@ -139,7 +143,9 @@ final class WebAudioPlayer: NSObject {
     private var cookieSaveWork: DispatchWorkItem?
     private var restoredSavedLogin = false
     private var restoreLoginTask: Task<Void, Never>?
-    private var persistedCookieSignature: String?
+    private var persistedCookieSignatures: [AuthService: String] = [:]
+    private var signInService: AuthService = .youTube
+    private var importLoginService: AuthService = .youTube
 
     override init() {
         super.init()
@@ -160,12 +166,13 @@ final class WebAudioPlayer: NSObject {
 
     func play(urlString raw: String, startAt: Double? = nil, knownTitle: String? = nil) {
         let urlString = raw.trimmingCharacters(in: .whitespacesAndNewlines)
-        guard !urlString.isEmpty, let base = Self.watchURL(from: urlString) else { return }
+        guard !urlString.isEmpty, let base = Self.watchURL(from: urlString, pageMode: drawerExpanded) else { return }
         cancelIdleMemoryPurge()
         cancelBoundaryMemoryPurge()
         cancelPreparedBrowserSwap()
         currentURL = urlString
         currentTitle = knownTitle?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
+        currentArtworkURL = ""
         pendingSeekTime = (startAt ?? 0) > 1 ? startAt : nil
         mediaTime = 0
         mediaDuration = 0
@@ -181,7 +188,7 @@ final class WebAudioPlayer: NSObject {
         Task { @MainActor in
             await self.restoreSavedLoginIfNeeded()
             guard self.currentURL == urlString else { return }
-            let url = Self.withAuthUser(base, self.authUser)
+            let url = Self.playbackRequestURL(base, source: urlString, authUser: self.authUser)
             self.log("play \(url.absoluteString)")
             self.webView?.load(URLRequest(url: url))
         }
@@ -206,13 +213,22 @@ final class WebAudioPlayer: NSObject {
             play(urlString: url)
             return
         }
-        eval("document.querySelector('video,audio')&&document.querySelector('video,audio').play();")
+        if PlaybackSource.detect(from: currentURL) == .soundCloud {
+            eval(PlaybackSource.resumeJS)
+        } else {
+            eval("document.querySelector('video,audio')&&document.querySelector('video,audio').play();")
+        }
         isPlaying = true
         persistPlaybackSnapshot(force: true, wasPlaying: true)
     }
 
     func pause() {
-        eval(Self.pauseAndSuspendScopeJS)
+        if PlaybackSource.detect(from: currentURL) == .soundCloud {
+            eval(PlaybackSource.pauseJS)
+            eval(Self.suspendAudioScopeJS)
+        } else {
+            eval(Self.pauseAndSuspendScopeJS)
+        }
         mediaTime = estimatedMediaTime()
         isPlaying = false
         mediaPaused = true
@@ -228,6 +244,7 @@ final class WebAudioPlayer: NSObject {
         }
         currentURL = ""
         currentTitle = ""
+        currentArtworkURL = ""
         isPlaying = false
         mediaTime = 0
         mediaDuration = 0
@@ -244,7 +261,11 @@ final class WebAudioPlayer: NSObject {
 
     func setVolume(_ value: Double) {
         volume = max(0, min(100, Int((value * 100).rounded())))
-        eval("var v=document.querySelector('video,audio'); if(v){v.volume=\(volume)/100.0;}")
+        if PlaybackSource.detect(from: currentURL) == .soundCloud {
+            eval(PlaybackSource.setVolumeJS(volume))
+        } else {
+            eval("var v=document.querySelector('video,audio'); if(v){v.volume=\(volume)/100.0;}")
+        }
     }
 
     func requestAudioScopePermission() {
@@ -302,8 +323,12 @@ final class WebAudioPlayer: NSObject {
         return max(0, time)
     }
 
-    /// Skip to the next track — works on YouTube playlists/radio and YT Music.
+    /// Skip to the next track — works on YouTube playlists/radio, YT Music, and SoundCloud sets.
     func next() {
+        if PlaybackSource.detect(from: currentURL) == .soundCloud {
+            eval(PlaybackSource.nextJS)
+            return
+        }
         eval(Self.clickJS([
             ".ytp-next-button",
             "ytmusic-player-bar .next-button button",
@@ -313,6 +338,10 @@ final class WebAudioPlayer: NSObject {
     }
 
     func previous() {
+        if PlaybackSource.detect(from: currentURL) == .soundCloud {
+            eval(PlaybackSource.previousJS)
+            return
+        }
         eval(Self.clickJS([
             "ytmusic-player-bar .previous-button button",
             "tp-yt-paper-icon-button.previous-button",
@@ -400,10 +429,16 @@ final class WebAudioPlayer: NSObject {
     /// and the chrome-stripped player view that matches the HUD.
     func setExpanded(_ on: Bool) {
         guard drawerOpen, let host = hostWindow, let anchor = anchorWindow else { return }
+        let wasExpanded = drawerExpanded
         drawerExpanded = on
         let a = anchor.frame
         let shade = isShadeAnchor(a)
-        applyBare(shade || !on)             // shade mode always uses the compact player sheet
+        if PlaybackSource.detect(from: currentURL) == .soundCloud, wasExpanded != on, !currentURL.isEmpty,
+           let url = Self.watchURL(from: currentURL, pageMode: on) {
+            let request = Self.playbackRequestURL(url, source: currentURL, authUser: authUser)
+            webView?.load(URLRequest(url: request))
+        }
+        applyBare(shouldApplyBare(shade: shade))
         applyDrawerCorners()
         updateExpandButton()
         onStateChange?()
@@ -567,7 +602,7 @@ final class WebAudioPlayer: NSObject {
         let shade = isShadeAnchor(a)
         drawerEdge = chooseEdge(a, screen)
         applyDrawerCorners()
-        applyBare(shade || !drawerExpanded)
+        applyBare(shouldApplyBare(shade: shade))
 
         let open = openFrame(size: size(for: drawerEdge, in: a), edge: drawerEdge, anchor: a, screen: screen)
         if host.parent === anchor { anchor.removeChildWindow(host) }
@@ -919,25 +954,29 @@ final class WebAudioPlayer: NSObject {
 
     // MARK: - Sign in (persistent profile)
 
-    func signIn() {
-        // A login needs keyboard focus, which an accessory app can't grab without
-        // becoming a regular app; revert when the window closes.
+    func signIn() { openSignInWindow(service: .youTube) }
+
+    func signInSoundCloud() { openSignInWindow(service: .soundCloud) }
+
+    private func openSignInWindow(service: AuthService) {
         NSApp.setActivationPolicy(.regular)
+        signInService = service
 
         if let signInWindow {
+            signInWindow.title = Self.signInWindowTitle(for: service)
             NSApp.activate(ignoringOtherApps: true)
             signInWindow.makeKeyAndOrderFront(nil)
             return
         }
 
         let config = WKWebViewConfiguration()
-        config.websiteDataStore = .default()     // shared with the player → login persists
+        config.websiteDataStore = .default()
         let frame = NSRect(x: 0, y: 0, width: 920, height: 720)
         let wv = WKWebView(frame: frame, configuration: config)
         wv.customUserAgent = Self.desktopUA
 
         let window = NSWindow(contentRect: frame, styleMask: [.titled, .closable, .resizable], backing: .buffered, defer: false)
-        window.title = "Sign in to YouTube / YouTube Music"
+        window.title = Self.signInWindowTitle(for: service)
         window.isReleasedWhenClosed = false
         window.contentView = wv
         window.center()
@@ -946,67 +985,86 @@ final class WebAudioPlayer: NSObject {
 
         Task { @MainActor in
             await self.restoreSavedLoginIfNeeded()
-            let continueURL = URL(string: "https://www.youtube.com/")!
-            wv.load(URLRequest(url: Self.serviceLoginURL(continueURL: continueURL, accountIndex: self.authUser)))
+            let request: URLRequest
+            switch service {
+            case .youTube:
+                let continueURL = AuthService.youTube.defaultContinueURL
+                request = URLRequest(url: Self.serviceLoginURL(continueURL: continueURL, accountIndex: self.authUser))
+            case .soundCloud:
+                request = URLRequest(url: AuthService.soundCloud.defaultContinueURL)
+            }
+            wv.load(request)
         }
         NSApp.activate(ignoringOtherApps: true)
         window.makeKeyAndOrderFront(nil)
     }
 
-    /// Borrow the YouTube login from a browser/profile (via the rookie helper)
-    /// and reload signed-in. Clears any prior Google/YouTube cookies first so
-    /// accounts/profiles don't mix. `browser` nil = all; `profile` e.g. "Profile 1".
+    /// Borrow a signed-in session from a browser/profile (via the rookie helper).
     func importCookies(fromBrowser browser: String?, profile: String?, accountIndex: Int = 0) {
         Task { @MainActor in
-            _ = await importLogin(fromBrowser: browser, profile: profile, accountIndex: accountIndex)
+            _ = await importLogin(fromBrowser: browser, profile: profile, service: .youTube, accountIndex: accountIndex)
         }
     }
 
-    /// Awaitable import that returns how many auth cookies were found, so callers
-    /// (e.g. the import panel) can report success vs "nothing found". Clears any
-    /// prior Google/YouTube cookies first so accounts/profiles don't mix.
+    func importSoundCloudCookies(fromBrowser browser: String?, profile: String?) {
+        Task { @MainActor in
+            _ = await importLogin(fromBrowser: browser, profile: profile, service: .soundCloud)
+        }
+    }
+
     @discardableResult
-    func importLogin(fromBrowser browser: String?, profile: String?, accountIndex: Int = 0) async -> Int {
+    func importLogin(
+        fromBrowser browser: String?,
+        profile: String?,
+        service: AuthService,
+        accountIndex: Int = 0
+    ) async -> Int {
         ensureWebView()
         guard let webView else { return 0 }
         let accountIndex = max(0, accountIndex)
         let label = [browser, profile].compactMap { $0 }.joined(separator: " / ")
-        log("importing cookies from \(label.isEmpty ? "all browsers" : label)…")
+        log("importing \(service.displayName) cookies from \(label.isEmpty ? "all browsers" : label)…")
         let store = webView.configuration.websiteDataStore.httpCookieStore
-        let cookies = await CookieImporter.cookies(fromBrowser: browser, profile: profile)
+        let cookies = await CookieImporter.cookies(fromBrowser: browser, profile: profile, service: service)
         guard !cookies.isEmpty else {
-            log("import found no cookies; keeping existing login")
+            log("import found no \(service.displayName) cookies; keeping existing login")
+            if service == .soundCloud {
+                log("hint: rebuild the app so pomo-cookies supports --soundcloud (scripts/run-app.sh)")
+            }
             return 0
         }
+        let domains = Set(cookies.map(\.domain)).sorted().joined(separator: ", ")
+        log("imported \(service.displayName) cookie domains: \(domains)")
 
         if let restoreLoginTask {
             await restoreLoginTask.value
             self.restoreLoginTask = nil
         }
-        let cleared = await Self.clearAuthCookies(store)
+        let cleared = await Self.clearAuthCookies(store, service: service)
         for cookie in cookies { await store.setCookie(cookie) }
-        let acceptedCookies = (await store.allCookies()).filter(Self.isPersistableAuthCookie)
-        let persistedCookies = acceptedCookies.isEmpty ? cookies.filter(Self.isPersistableAuthCookie) : acceptedCookies
-        CookieJar.save(persistedCookies)
+        let acceptedCookies = (await store.allCookies()).filter { Self.isPersistableAuthCookie($0, service: service) }
+        let persistedCookies = acceptedCookies.isEmpty
+            ? cookies.filter { Self.isPersistableAuthCookie($0, service: service) }
+            : acceptedCookies
+        CookieJar.save(persistedCookies, for: service)
         restoredSavedLogin = true
-        persistedCookieSignature = Self.cookieSignature(persistedCookies)
+        persistedCookieSignatures[service] = Self.cookieSignature(persistedCookies)
         cookieSaveWork?.cancel()
-        authUser = accountIndex
-        log("cleared \(cleared), imported \(cookies.count) cookies for account \(accountIndex)")
-        let targetURL: URL
-        if !currentURL.isEmpty, let base = Self.watchURL(from: currentURL) {
-            targetURL = Self.withAuthUser(base, accountIndex)
-        } else if let url = URL(string: "https://www.youtube.com/") {
-            targetURL = Self.withAuthUser(url, accountIndex)
-        } else {
-            return cookies.count
+        if service == .youTube { authUser = accountIndex }
+        if service == .soundCloud {
+            soundCloudAccount.signedIn = true
+            soundCloudAccount.name = "SoundCloud"
         }
-        webView.load(URLRequest(url: Self.serviceLoginURL(continueURL: targetURL, accountIndex: accountIndex)))
+        log("cleared \(cleared), imported \(cookies.count) \(service.displayName) cookies")
+        reloadAfterAuthChange(service: service, accountIndex: accountIndex, webView: webView)
         return cookies.count
     }
 
-    /// Sign out: drop all Google/YouTube cookies and reload.
-    func clearLogin() {
+    func clearLogin() { clearLogin(for: .youTube) }
+
+    func clearSoundCloudLogin() { clearLogin(for: .soundCloud) }
+
+    func clearLogin(for service: AuthService) {
         ensureWebView()
         guard let webView else { return }
         Task { @MainActor in
@@ -1014,15 +1072,53 @@ final class WebAudioPlayer: NSObject {
                 await restoreLoginTask.value
                 self.restoreLoginTask = nil
             }
-            let cleared = await Self.clearAuthCookies(webView.configuration.websiteDataStore.httpCookieStore)
-            self.authUser = 0
+            let cleared = await Self.clearAuthCookies(
+                webView.configuration.websiteDataStore.httpCookieStore,
+                service: service
+            )
+            if service == .youTube { self.authUser = 0 }
             self.restoredSavedLogin = true
-            self.persistedCookieSignature = nil
-            CookieJar.save([])   // write-through so logout survives an immediate quit
-            self.log("logout — cleared \(cleared) cookies")
-            if !self.currentURL.isEmpty, let url = Self.watchURL(from: self.currentURL) {
-                webView.load(URLRequest(url: url))
+            self.persistedCookieSignatures[service] = nil
+            CookieJar.save([], for: service)
+            if service == .youTube {
+                self.account.signedIn = false
+                self.account.name = nil
+                self.account.avatar = nil
+            } else {
+                self.soundCloudAccount.signedIn = false
+                self.soundCloudAccount.name = nil
+                self.soundCloudAccount.avatar = nil
             }
+            self.log("\(service.displayName) logout — cleared \(cleared) cookies")
+            self.reloadAfterAuthChange(service: service, accountIndex: 0, webView: webView)
+        }
+    }
+
+    private func reloadAfterAuthChange(service: AuthService, accountIndex: Int, webView: WKWebView) {
+        switch service {
+        case .youTube:
+            let targetURL: URL
+            if !currentURL.isEmpty, PlaybackSource.detect(from: currentURL) == .youTube,
+               let base = Self.watchURL(from: currentURL) {
+                targetURL = Self.withAuthUser(base, accountIndex)
+            } else {
+                targetURL = Self.withAuthUser(AuthService.youTube.defaultContinueURL, accountIndex)
+            }
+            webView.load(URLRequest(url: Self.serviceLoginURL(continueURL: targetURL, accountIndex: accountIndex)))
+        case .soundCloud:
+            if !currentURL.isEmpty, PlaybackSource.detect(from: currentURL) == .soundCloud,
+               let url = Self.watchURL(from: currentURL, pageMode: drawerExpanded) {
+                webView.load(URLRequest(url: url))
+            } else {
+                webView.load(URLRequest(url: AuthService.soundCloud.defaultContinueURL))
+            }
+        }
+    }
+
+    private static func signInWindowTitle(for service: AuthService) -> String {
+        switch service {
+        case .youTube: return "Sign in to YouTube / YouTube Music"
+        case .soundCloud: return "Sign in to SoundCloud"
         }
     }
 
@@ -1037,19 +1133,11 @@ final class WebAudioPlayer: NSObject {
     }
 
     @discardableResult
-    private static func clearAuthCookies(_ store: WKHTTPCookieStore) async -> Int {
+    private static func clearAuthCookies(_ store: WKHTTPCookieStore, service: AuthService) async -> Int {
         let existing = await store.allCookies()
-        let auth = existing.filter { isAuthDomain($0.domain) }
+        let auth = existing.filter { service.matches(domain: $0.domain) }
         for cookie in auth { await store.deleteCookie(cookie) }
         return auth.count
-    }
-
-    private static func isAuthDomain(_ domain: String) -> Bool {
-        let d = domain
-            .trimmingCharacters(in: CharacterSet(charactersIn: "."))
-            .lowercased()
-        return d == "youtube.com" || d.hasSuffix(".youtube.com")
-            || d == "google.com" || d.hasSuffix(".google.com")
     }
 
     // MARK: - Login persistence (cookies on disk)
@@ -1066,12 +1154,20 @@ final class WebAudioPlayer: NSObject {
 
         let task = Task { @MainActor in
             defer { self.restoredSavedLogin = true }
-            let saved = CookieJar.load()
+            let saved = CookieJar.loadAll()
             guard !saved.isEmpty else { return }
             let store = self.webView?.configuration.websiteDataStore.httpCookieStore
                 ?? WKWebsiteDataStore.default().httpCookieStore
             for cookie in saved { await store.setCookie(cookie) }
-            self.persistedCookieSignature = Self.cookieSignature(saved)
+            for service in AuthService.allCases {
+                let serviceCookies = saved.filter { service.matches(domain: $0.domain) }
+                guard !serviceCookies.isEmpty else { continue }
+                self.persistedCookieSignatures[service] = Self.cookieSignature(serviceCookies)
+                if service == .soundCloud {
+                    self.soundCloudAccount.signedIn = true
+                    self.soundCloudAccount.name = "SoundCloud"
+                }
+            }
             self.log("restored \(saved.count) login cookies from disk")
         }
 
@@ -1105,18 +1201,24 @@ final class WebAudioPlayer: NSObject {
         let store = WKWebsiteDataStore.default().httpCookieStore
         Task { @MainActor in
             let all = await store.allCookies()
-            let cookies = all.filter(Self.isPersistableAuthCookie)
-            guard !cookies.isEmpty else { return }
-            let signature = Self.cookieSignature(cookies)
-            guard signature != self.persistedCookieSignature else { return }
-            CookieJar.save(cookies)
-            self.persistedCookieSignature = signature
-            self.log("persisted \(cookies.count) login cookies")
+            for service in AuthService.allCases {
+                let cookies = all.filter { Self.isPersistableAuthCookie($0, service: service) }
+                guard !cookies.isEmpty else { continue }
+                let signature = Self.cookieSignature(cookies)
+                guard signature != self.persistedCookieSignatures[service] else { continue }
+                CookieJar.save(cookies, for: service)
+                self.persistedCookieSignatures[service] = signature
+                if service == .soundCloud {
+                    self.soundCloudAccount.signedIn = true
+                    if self.soundCloudAccount.name == nil { self.soundCloudAccount.name = "SoundCloud" }
+                }
+                self.log("persisted \(cookies.count) \(service.displayName) login cookies")
+            }
         }
     }
 
-    private static func isPersistableAuthCookie(_ cookie: HTTPCookie) -> Bool {
-        guard isAuthDomain(cookie.domain), !cookie.value.isEmpty else { return false }
+    private static func isPersistableAuthCookie(_ cookie: HTTPCookie, service: AuthService) -> Bool {
+        guard service.matches(domain: cookie.domain), !cookie.value.isEmpty else { return false }
         if let expires = cookie.expiresDate, expires <= Date() { return false }
         return true
     }
@@ -1227,26 +1329,43 @@ final class WebAudioPlayer: NSObject {
     }
     @objc private func ctxSignIn() { signIn() }
     @objc private func ctxSignOut() { clearLogin() }
-    @objc private func ctxImportLogin() { showImportLogin() }
+    @objc private func ctxImportLogin() { showImportLogin(for: .youTube) }
+
+    func showImportLogin() { showImportLogin(for: .youTube) }
+
+    func showSoundCloudImportLogin() { showImportLogin(for: .soundCloud) }
 
     /// A tiny, guided window for importing a browser login (see `CookieImportPanel`).
-    func showImportLogin() {
+    func showImportLogin(for service: AuthService) {
         NSApp.setActivationPolicy(.regular)
+        if importLoginService != service, let staleImportWindow = importLoginWindow {
+            staleImportWindow.close()
+            self.importLoginWindow = nil
+        }
+        importLoginService = service
         if let importLoginWindow {
+            importLoginWindow.title = "Import \(service.displayName) Login"
             NSApp.activate(ignoringOtherApps: true)
             importLoginWindow.makeKeyAndOrderFront(nil)
             return
         }
+        let accountStatus = service == .youTube ? account : soundCloudAccount
         let view = CookieImportPanel(
-            account: account,
+            service: service,
+            account: accountStatus,
             profiles: CookieImporter.detectedProfiles(),
             onImport: { [weak self] browser, profile, accountIndex in
-                await self?.importLogin(fromBrowser: browser, profile: profile, accountIndex: accountIndex) ?? 0
+                await self?.importLogin(
+                    fromBrowser: browser,
+                    profile: profile,
+                    service: service,
+                    accountIndex: accountIndex
+                ) ?? 0
             },
             onClose: { [weak self] in self?.importLoginWindow?.close() }
         )
         let window = NSWindow(contentViewController: NSHostingController(rootView: view))
-        window.title = "Import YouTube Login"
+        window.title = "Import \(service.displayName) Login"
         window.styleMask = [.titled, .closable]
         // The panel draws its own titled header, so hide the window title (and
         // blend the titlebar into the content) to avoid showing it twice.
@@ -1942,10 +2061,20 @@ final class WebAudioPlayer: NSObject {
         })();
         """
         eval(js)
-        applyBare(!drawerExpanded)        // a fresh navigation re-asserts the bare default
-        eval(Self.accountJS)              // read the signed-in identity off the masthead
-        eval(Self.timestampKeyJS)
-        eval(Self.adSkipMonitorJS)
+        let source = PlaybackSource.detect(from: currentURL)
+        applyBare(shouldApplyBare())      // a fresh navigation re-asserts the bare default
+        if source == .soundCloud {
+            eval(PlaybackSource.playerAttachmentJS(
+                volume: volume,
+                restoreSeek: restoreSeekTime,
+                visualizerActive: visualizerActive,
+                scopeIntervalMs: audioScopeFrameIntervalMilliseconds
+            ))
+        } else {
+            eval(Self.accountJS)              // read the signed-in identity off the masthead
+            eval(Self.timestampKeyJS)
+            eval(Self.adSkipMonitorJS)
+        }
     }
 
     /// Reads the signed-in avatar (and best-effort name) from the YouTube /
@@ -2117,6 +2246,10 @@ final class WebAudioPlayer: NSObject {
             handleMediaTitle(String(message.dropFirst("title:".count)))
             return
         }
+        if message.hasPrefix("artwork:") {
+            handleMediaArtwork(String(message.dropFirst("artwork:".count)))
+            return
+        }
         if message == "scope:started" {
             log("scope started")
             return
@@ -2172,6 +2305,13 @@ final class WebAudioPlayer: NSObject {
         onStateChange?()
     }
 
+    private func handleMediaArtwork(_ encodedArtwork: String) {
+        let decoded = encodedArtwork.removingPercentEncoding ?? encodedArtwork
+        guard !decoded.isEmpty, decoded != currentArtworkURL else { return }
+        currentArtworkURL = decoded
+        onStateChange?()
+    }
+
     private static func cleanMediaTitle(_ raw: String) -> String {
         var title = raw
             .replacingOccurrences(of: "\n", with: " ")
@@ -2180,7 +2320,10 @@ final class WebAudioPlayer: NSObject {
         while title.contains("  ") {
             title = title.replacingOccurrences(of: "  ", with: " ")
         }
-        for suffix in [" - YouTube Music", " - YouTube", " | YouTube Music", " | YouTube"] {
+        for suffix in [
+            " - YouTube Music", " - YouTube", " | YouTube Music", " | YouTube",
+            " on SoundCloud", " | SoundCloud", " - SoundCloud",
+        ] {
             if title.lowercased().hasSuffix(suffix.lowercased()) {
                 title = String(title.dropLast(suffix.count)).trimmingCharacters(in: .whitespacesAndNewlines)
             }
@@ -2657,31 +2800,24 @@ final class WebAudioPlayer: NSObject {
     // MARK: - URL helpers
 
     /// Normalise to a playable URL. YouTube Music links load as-is (the YT Music
-    /// app, which has radio/next); plain YouTube/youtu.be/bare-id → watch URL.
+    /// app, which has radio/next); plain YouTube/youtu.be/bare-id → watch URL;
+    /// SoundCloud links load through the embed widget (or the full page in page mode).
     static func isPlayableSource(_ raw: String) -> Bool {
         watchURL(from: raw) != nil
     }
 
-    private static func watchURL(from raw: String) -> URL? {
-        let normalized = normalizedSource(raw)
-        let host = URLComponents(string: normalized)?.host ?? ""
-        if host.contains("music.youtube.com") { return URL(string: normalized) }
-        if let id = youTubeID(from: normalized) { return URL(string: "https://www.youtube.com/watch?v=\(id)") }
-        guard let url = URL(string: normalized), url.scheme != nil else { return nil }
-        return url
+    private static func watchURL(from raw: String, pageMode: Bool = false) -> URL? {
+        PlaybackSource.playbackURL(from: raw, pageMode: pageMode)
     }
 
-    private static func normalizedSource(_ raw: String) -> String {
-        let trimmed = raw.trimmingCharacters(in: .whitespacesAndNewlines)
-        let lower = trimmed.lowercased()
-        if lower.hasPrefix("youtube.com/")
-            || lower.hasPrefix("www.youtube.com/")
-            || lower.hasPrefix("m.youtube.com/")
-            || lower.hasPrefix("music.youtube.com/")
-            || lower.hasPrefix("youtu.be/") {
-            return "https://\(trimmed)"
-        }
-        return trimmed
+    private static func playbackRequestURL(_ base: URL, source raw: String, authUser: Int) -> URL {
+        PlaybackSource.detect(from: raw) == .youTube ? withAuthUser(base, authUser) : base
+    }
+
+    private func shouldApplyBare(shade: Bool = false) -> Bool {
+        if shade { return true }
+        guard PlaybackSource.detect(from: currentURL) == .youTube else { return false }
+        return !drawerExpanded
     }
 
     /// Append Google's `authuser=N` so multi-login picks the right account.
@@ -2695,25 +2831,7 @@ final class WebAudioPlayer: NSObject {
     }
 
     static func youTubeID(from string: String) -> String? {
-        let normalized = normalizedSource(string)
-        if let comps = URLComponents(string: normalized) {
-            let host = comps.host ?? ""
-            if host.contains("youtu.be") {
-                let id = comps.path.split(separator: "/").first.map(String.init)
-                if let id, isID(id) { return id }
-            }
-            if host.contains("youtube.com") {
-                if let v = comps.queryItems?.first(where: { $0.name == "v" })?.value, isID(v) { return v }
-                let parts = comps.path.split(separator: "/").map(String.init)
-                if let idx = parts.firstIndex(where: { ["embed", "live", "shorts", "v"].contains($0) }),
-                   idx + 1 < parts.count, isID(parts[idx + 1]) { return parts[idx + 1] }
-            }
-        }
-        return isID(normalized) ? normalized : nil
-    }
-
-    private static func isID(_ s: String) -> Bool {
-        s.range(of: "^[A-Za-z0-9_-]{11}$", options: .regularExpression) != nil
+        PlaybackSource.youTubeID(from: string)
     }
 
     /// JS that clicks the first matching selector (for next/prev across surfaces).
@@ -2727,12 +2845,20 @@ extension WebAudioPlayer: NSWindowDelegate {
     func windowWillClose(_ notification: Notification) {
         let window = notification.object as? NSWindow
         if window === signInWindow {
+            let service = signInService
             signInWindow = nil
             NSApp.setActivationPolicy(.accessory)
-            // The account is read off the *player's* page, not the sign-in
-            // window, so reload the player to pick up the freshly-signed-in
-            // session (otherwise a web sign-in never registers in the app).
-            reloadForLogin()
+            switch service {
+            case .youTube:
+                reloadForLogin()
+            case .soundCloud:
+                soundCloudAccount.signedIn = true
+                if soundCloudAccount.name == nil { soundCloudAccount.name = "SoundCloud" }
+                if let webView, !currentURL.isEmpty, PlaybackSource.detect(from: currentURL) == .soundCloud,
+                   let url = Self.watchURL(from: currentURL, pageMode: drawerExpanded) {
+                    webView.load(URLRequest(url: url))
+                }
+            }
         } else if window === importLoginWindow {
             importLoginWindow = nil
             NSApp.setActivationPolicy(.accessory)

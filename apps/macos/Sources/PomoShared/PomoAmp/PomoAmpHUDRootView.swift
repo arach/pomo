@@ -169,7 +169,7 @@ struct PomoAmpHUDRootView: View {
                     onHide?()
                 }
                 Spacer(minLength: 0)
-                chromeButton("doc.on.clipboard", help: "Paste YouTube URL") {
+                chromeButton("doc.on.clipboard", help: "Paste YouTube or SoundCloud URL") {
                     onPasteURL()
                 }
                 openPomoButton()
@@ -439,7 +439,7 @@ struct PomoAmpHUDRootView: View {
                 .font(HudFont.mono(HudTextSize.xs, weight: .black))
                 .tracking(2)
                 .foregroundStyle(accent)
-            Text("YouTube deck")
+            Text("Music deck")
                 .font(HudFont.mono(HudTextSize.micro, weight: .semibold))
                 .foregroundStyle(Color.white.opacity(0.48))
             Spacer(minLength: 0)
@@ -535,7 +535,7 @@ struct PomoAmpHUDRootView: View {
             }
             deckButton("forward.end.fill", help: "Next track") { playAdjacentTrack(1) }
             divider
-            deckButton("doc.on.clipboard", help: "Paste YouTube URL") { onPasteURL() }
+            deckButton("doc.on.clipboard", help: "Paste YouTube or SoundCloud URL") { onPasteURL() }
             deckButton(audio.videoOpen ? "rectangle.fill" : "play.rectangle", help: audio.videoOpen ? "Hide video" : "Show video") {
                 onToggleDrawer()
             }
@@ -603,7 +603,7 @@ struct PomoAmpHUDRootView: View {
             Button(audio.isPlaying ? "Pause" : "Play") { onToggleAudio() }
             Button("Previous Timestamp Section") { onPreviousSection() }
             Button("Next Timestamp Section") { onNextSection() }
-            Button("Paste YouTube URL") { onPasteURL() }
+            Button("Paste URL") { onPasteURL() }
             Button(audio.videoOpen ? "Hide Video" : "Show Video") { onToggleDrawer() }
             Button(audio.videoExpanded ? "Show Player" : "Show Page") {
                 if audio.videoExpanded {
@@ -762,7 +762,7 @@ struct PomoAmpHUDRootView: View {
         if !title.isEmpty {
             return title
         }
-        guard !activeURL.isEmpty else { return "Paste a YouTube URL" }
+        guard !activeURL.isEmpty else { return "Paste a YouTube or SoundCloud URL" }
         return Self.shortURL(activeURL)
     }
 
@@ -772,8 +772,7 @@ struct PomoAmpHUDRootView: View {
     }
 
     private var thumbnailURL: String {
-        guard let id = WebAudioPlayer.youTubeID(from: activeURL) else { return "" }
-        return "https://img.youtube.com/vi/\(id)/hqdefault.jpg"
+        PlaybackSource.artworkURL(for: activeURL, liveArtwork: audio.currentArtworkURL) ?? ""
     }
 
     private static func shortURL(_ raw: String) -> String {

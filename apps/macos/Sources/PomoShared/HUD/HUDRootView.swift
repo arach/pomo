@@ -964,14 +964,14 @@ private struct QuickEntryOverlay: View {
 
     private var title: String {
         switch field {
-        case .video:           return "PASTE A YOUTUBE OR AUDIO LINK"
+        case .video:           return "PASTE A YOUTUBE, SOUNDCLOUD, OR AUDIO LINK"
         case .intent, .none:   return "WHAT ARE YOU WORKING ON?"
         }
     }
 
     private var placeholder: String {
         switch field {
-        case .video:           return "https://youtube.com/watch?v=…"
+        case .video:           return "https://youtube.com/… or soundcloud.com/…"
         case .intent, .none:   return "e.g. Writing the launch post"
         }
     }

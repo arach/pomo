@@ -148,10 +148,8 @@ final class FavoritesStore {
         onChange?()
     }
 
-    /// A readable fallback title from the URL (YouTube id, or host).
+    /// A readable fallback title from the URL (source label, or host).
     private static func defaultTitle(for url: String) -> String {
-        if let id = WebAudioPlayer.youTubeID(from: url) { return "YouTube · \(id)" }
-        if let host = URLComponents(string: url)?.host { return host }
-        return url
+        PlaybackSource.shortLabel(for: url)
     }
 }

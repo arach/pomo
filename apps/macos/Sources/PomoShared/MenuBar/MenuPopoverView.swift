@@ -726,12 +726,15 @@ struct MenuPopoverView: View {
         height: CGFloat,
         iconSize: CGFloat = 15
     ) -> some View {
-        let id = WebAudioPlayer.youTubeID(from: urlString)
+        let artwork = PlaybackSource.artworkURL(
+            for: urlString,
+            liveArtwork: urlString == displayedAudioURL ? audio.currentArtworkURL : ""
+        )
         RoundedRectangle(cornerRadius: HudRadius.standard, style: .continuous)
             .fill(controlFill)
             .frame(width: width, height: height)
             .overlay {
-                if let id, let url = URL(string: "https://img.youtube.com/vi/\(id)/mqdefault.jpg") {
+                if let artwork, let url = URL(string: artwork) {
                     AsyncImage(url: url) { phase in
                         if let image = phase.image {
                             image.resizable().aspectRatio(contentMode: .fill)
@@ -763,8 +766,7 @@ struct MenuPopoverView: View {
     }
 
     private static func shortURL(_ string: String) -> String {
-        if let id = WebAudioPlayer.youTubeID(from: string) { return "youtube · \(id)" }
-        return URLComponents(string: string)?.host ?? string
+        PlaybackSource.shortLabel(for: string)
     }
 
     // MARK: - Footer

@@ -63,10 +63,29 @@ public enum PomoAmpSkinStore {
         }
         try? FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
         try? exampleManifest.write(to: manifestURL, atomically: true, encoding: .utf8)
-        try? PomoAmpDefaultSkinHTML.html.write(to: directory.appendingPathComponent("index.html"), atomically: true, encoding: .utf8)
+        installBundledDefaultSkin(to: directory)
     }
 
-    private static let exampleVersion = "1.1.10"
+    private static func installBundledDefaultSkin(to directory: URL) {
+        guard let sourceURL = Bundle.module.url(
+            forResource: "index",
+            withExtension: "html",
+            subdirectory: "PomoAmpDefaultSkin"
+        ) else {
+            PomoAmpDebugLog.write("bundled default skin index.html missing")
+            return
+        }
+
+        let targetURL = directory.appendingPathComponent("index.html")
+        try? FileManager.default.removeItem(at: targetURL)
+        do {
+            try FileManager.default.copyItem(at: sourceURL, to: targetURL)
+        } catch {
+            PomoAmpDebugLog.write("failed to install bundled default skin: \(error)")
+        }
+    }
+
+    private static let exampleVersion = "1.2.1"
 
     private static let exampleManifest = """
     {

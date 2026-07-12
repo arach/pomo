@@ -41,7 +41,7 @@ REVIEW YOUR ACTIVITY
 See today’s sessions, focus time, your current streak, a weekly chart, and recent task notes.
 
 ADJUST THE TIMER
-Set focus, planning, and break durations. You can also set a daily goal and choose whether breaks start automatically.
+Set focus, planning, and break defaults in Settings, or tap the session length beside the mode to choose an exact time for the current session. You can also set a daily goal and choose whether breaks start automatically.
 
 PRIVATE BY DEFAULT
 Pomo has no account and no advertising or analytics SDK. Your timer settings, session intentions, and activity history stay on your device.
@@ -76,6 +76,7 @@ Pomo is a standalone focus timer. No account, sign-in, network connection, purch
 
 - Tap the center play button to start or pause a timer.
 - Tap the session pill to choose Focus, Short Break, Long Break, or Planning.
+- Tap the session-length pill while stopped or paused to set the current session in minutes and seconds.
 - Tap a timer face for the face-only focus view; tap again to return.
 - Choose among seven faces in Settings, or long press the timer face for the visual picker.
 - Starting a timer can show an optional Live Activity on the Lock Screen and Dynamic Island.

@@ -55,6 +55,7 @@ final class TimerManager: ObservableObject {
 
     @Published var currentMode: FocusMode = .deepFocus
     @Published var timeRemaining: TimeInterval = 25 * 60
+    @Published private(set) var sessionDuration: TimeInterval = 25 * 60
     @Published var isActive = false
     @Published var completedPomodoros = 0
     @Published var showingCompletion = false
@@ -71,14 +72,17 @@ final class TimerManager: ObservableObject {
     private let activeEndDateKey = "activeTimerEndDate"
     private let activeModeKey = "activeTimerMode"
     private let activeIntentKey = "activeTimerIntent"
+    private let activeDurationKey = "activeTimerDuration"
 
     init() {
         completedPomodoros = defaults.integer(forKey: "completedPomodoros")
         timeRemaining = duration(for: currentMode)
+        sessionDuration = timeRemaining
 
         #if DEBUG
         if ProcessInfo.processInfo.arguments.contains("-appStorePreview") {
             timeRemaining = 19 * 60 + 10
+            sessionDuration = 25 * 60
             intent = "Finish the release checklist"
             completedPomodoros = 3
             return
@@ -124,7 +128,7 @@ final class TimerManager: ObservableObject {
             modeName: currentMode.label,
             intent: intent,
             remaining: timeRemaining,
-            total: duration(for: currentMode),
+            total: sessionDuration,
             accentHex: currentMode.liveActivityAccentHex
         )
         haptic(.medium)
@@ -139,14 +143,14 @@ final class TimerManager: ObservableObject {
         ticker = nil
         cancelCompletionNotification()
         clearActiveSessionPersistence()
-        liveActivity.pause(remaining: timeRemaining)
+        liveActivity.pause(remaining: timeRemaining, intent: intent)
         haptic(.light)
     }
 
     func resetTimer() {
         liveActivity.end(remaining: timeRemaining, immediate: true)
         stopClock()
-        timeRemaining = duration(for: currentMode)
+        timeRemaining = sessionDuration
         showingCompletion = false
         haptic(.light)
     }
@@ -156,15 +160,26 @@ final class TimerManager: ObservableObject {
     }
 
     func switchToMode(_ mode: FocusMode) {
+        liveActivity.end(remaining: timeRemaining, immediate: true)
         stopClock()
         currentMode = mode
-        timeRemaining = duration(for: mode)
+        sessionDuration = duration(for: mode)
+        timeRemaining = sessionDuration
         showingCompletion = false
     }
 
     func applyDurationSettings() {
         guard !isActive else { return }
-        timeRemaining = duration(for: currentMode)
+        sessionDuration = duration(for: currentMode)
+        timeRemaining = sessionDuration
+    }
+
+    func setSessionDuration(_ duration: TimeInterval) {
+        guard !isActive else { return }
+        sessionDuration = min(max(duration.rounded(), 1), 120 * 60 + 59)
+        timeRemaining = sessionDuration
+        showingCompletion = false
+        haptic(.light)
     }
 
     func handleScenePhase(_ phase: ScenePhase) {
@@ -173,7 +188,7 @@ final class TimerManager: ObservableObject {
     }
 
     var progress: Double {
-        let total = duration(for: currentMode)
+        let total = sessionDuration
         guard total > 0 else { return 0 }
         return min(max((total - timeRemaining) / total, 0), 1)
     }
@@ -181,6 +196,14 @@ final class TimerManager: ObservableObject {
     var formattedTime: String {
         let secondsRemaining = max(Int(timeRemaining.rounded(.up)), 0)
         return String(format: "%02d:%02d", secondsRemaining / 60, secondsRemaining % 60)
+    }
+
+    var sessionDurationLabel: String {
+        let seconds = max(Int(sessionDuration.rounded()), 1)
+        if seconds.isMultiple(of: 60) {
+            return "\(seconds / 60) MIN"
+        }
+        return String(format: "%d:%02d", seconds / 60, seconds % 60)
     }
 
     private func startTicker() {
@@ -202,7 +225,7 @@ final class TimerManager: ObservableObject {
 
     private func endSession(completed: Bool, showCelebration: Bool) {
         let finishedMode = currentMode
-        let finishedDuration = duration(for: finishedMode)
+        let finishedDuration = sessionDuration
         let finishedIntent = intent.trimmingCharacters(in: .whitespacesAndNewlines)
 
         liveActivity.end(remaining: completed ? 0 : timeRemaining, immediate: !completed)
@@ -220,7 +243,8 @@ final class TimerManager: ObservableObject {
         } else {
             currentMode = .deepFocus
         }
-        timeRemaining = duration(for: currentMode)
+        sessionDuration = duration(for: currentMode)
+        timeRemaining = sessionDuration
         intent = ""
 
         let shouldAutoStartBreak = defaults.bool(forKey: "autoStartBreaks") && currentMode != .deepFocus
@@ -251,12 +275,14 @@ final class TimerManager: ObservableObject {
         defaults.set(expectedEndDate, forKey: activeEndDateKey)
         defaults.set(currentMode.rawValue, forKey: activeModeKey)
         defaults.set(intent, forKey: activeIntentKey)
+        defaults.set(sessionDuration, forKey: activeDurationKey)
     }
 
     private func clearActiveSessionPersistence() {
         defaults.removeObject(forKey: activeEndDateKey)
         defaults.removeObject(forKey: activeModeKey)
         defaults.removeObject(forKey: activeIntentKey)
+        defaults.removeObject(forKey: activeDurationKey)
     }
 
     private func restoreActiveSession() {
@@ -278,6 +304,8 @@ final class TimerManager: ObservableObject {
 
         currentMode = mode
         timeRemaining = remaining
+        let storedDuration = defaults.double(forKey: activeDurationKey)
+        sessionDuration = storedDuration > 0 ? max(storedDuration, remaining) : duration(for: mode)
         isActive = true
         expectedEndDate = endDate
         intent = defaults.string(forKey: activeIntentKey) ?? ""
@@ -286,7 +314,7 @@ final class TimerManager: ObservableObject {
             modeName: mode.label,
             intent: intent,
             remaining: remaining,
-            total: duration(for: mode),
+            total: sessionDuration,
             accentHex: mode.liveActivityAccentHex
         )
     }

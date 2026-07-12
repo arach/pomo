@@ -7,6 +7,7 @@ struct TimerView: View {
     @AppStorage("focusFace") private var faceRaw = FocusFace.chronograph.rawValue
     @State private var showingFacePicker = false
     @State private var showingFocusMode = false
+    @State private var showingDurationPicker = false
 
     private var face: FocusFace {
         get { FocusFace(storedValue: faceRaw) }
@@ -39,6 +40,11 @@ struct TimerView: View {
             }
             .sheet(isPresented: $showingFacePicker) {
                 FocusFacePickerSheet(selection: Binding(get: { face }, set: { face = $0 }))
+            }
+            .sheet(isPresented: $showingDurationPicker) {
+                SessionDurationPicker(initialDuration: timerManager.sessionDuration) { duration in
+                    timerManager.setSessionDuration(duration)
+                }
             }
             .fullScreenCover(isPresented: $showingFocusMode) {
                 ZStack {
@@ -108,12 +114,30 @@ struct TimerView: View {
                 .background(Capsule().fill(PomoPalette.surface))
                 .overlay(Capsule().stroke(PomoPalette.border, lineWidth: 1))
             }
+            .disabled(timerManager.isActive)
+            .opacity(timerManager.isActive ? 0.62 : 1)
 
             Spacer()
-            Text("\(Int(timerManager.duration(for: timerManager.currentMode) / 60)) MIN")
+            Button {
+                showingDurationPicker = true
+            } label: {
+                HStack(spacing: 7) {
+                    Text(timerManager.sessionDurationLabel)
+                    Image(systemName: timerManager.isActive ? "lock.fill" : "slider.horizontal.3")
+                        .font(.system(size: 9, weight: .bold))
+                }
                 .font(.system(size: 10, weight: .bold, design: .monospaced))
-                .tracking(1.2)
-                .foregroundStyle(PomoPalette.dim)
+                .tracking(1.1)
+                .foregroundStyle(timerManager.isActive ? PomoPalette.dim : PomoPalette.muted)
+                .padding(.horizontal, 12)
+                .frame(height: 42)
+                .background(Capsule().fill(PomoPalette.surface))
+                .overlay(Capsule().stroke(PomoPalette.border, lineWidth: 1))
+            }
+            .buttonStyle(.plain)
+            .disabled(timerManager.isActive)
+            .accessibilityLabel("Session length, \(timerManager.sessionDurationLabel)")
+            .accessibilityHint(timerManager.isActive ? "Pause the timer to change it" : "Tap to set this session length")
         }
     }
 
@@ -233,6 +257,143 @@ struct TimerView: View {
                 }
             }
         }
+    }
+}
+
+private struct SessionDurationPicker: View {
+    @Environment(\.dismiss) private var dismiss
+
+    private let presets = [10, 15, 25, 45, 60]
+    private let onApply: (TimeInterval) -> Void
+
+    @State private var minutes: Int
+    @State private var seconds: Int
+
+    init(initialDuration: TimeInterval, onApply: @escaping (TimeInterval) -> Void) {
+        let totalSeconds = max(Int(initialDuration.rounded()), 1)
+        _minutes = State(initialValue: min(totalSeconds / 60, 120))
+        _seconds = State(initialValue: totalSeconds % 60)
+        self.onApply = onApply
+    }
+
+    private var totalSeconds: Int {
+        minutes * 60 + seconds
+    }
+
+    var body: some View {
+        VStack(spacing: 18) {
+            HStack {
+                VStack(alignment: .leading, spacing: 4) {
+                    Text("Session length")
+                        .font(.system(size: 20, weight: .semibold, design: .rounded))
+                        .foregroundStyle(PomoPalette.ink)
+                    Text("This session only. Your default stays the same.")
+                        .font(.system(size: 12, design: .rounded))
+                        .foregroundStyle(PomoPalette.muted)
+                }
+                Spacer()
+                Button {
+                    dismiss()
+                } label: {
+                    Image(systemName: "xmark")
+                        .font(.system(size: 12, weight: .bold))
+                        .foregroundStyle(PomoPalette.muted)
+                        .frame(width: 32, height: 32)
+                        .background(Circle().fill(PomoPalette.surfaceStrong))
+                }
+                .buttonStyle(.plain)
+                .accessibilityLabel("Close")
+            }
+
+            HStack(spacing: 12) {
+                durationColumn(label: "MIN") {
+                    Picker("Minutes", selection: $minutes) {
+                        ForEach(0...120, id: \.self) { value in
+                            Text("\(value)").tag(value)
+                        }
+                    }
+                }
+
+                Text(":")
+                    .font(.system(size: 30, weight: .medium, design: .monospaced))
+                    .foregroundStyle(PomoPalette.dim)
+                    .padding(.top, 4)
+
+                durationColumn(label: "SEC") {
+                    Picker("Seconds", selection: $seconds) {
+                        ForEach(0...59, id: \.self) { value in
+                            Text(String(format: "%02d", value)).tag(value)
+                        }
+                    }
+                }
+            }
+            .pickerStyle(.wheel)
+            .frame(height: 118)
+            .clipped()
+
+            HStack(spacing: 8) {
+                ForEach(presets, id: \.self) { preset in
+                    Button {
+                        minutes = preset
+                        seconds = 0
+                    } label: {
+                        Text("\(preset)m")
+                            .font(.system(size: 11, weight: .semibold, design: .monospaced))
+                            .foregroundStyle(minutes == preset && seconds == 0 ? PomoPalette.background : PomoPalette.muted)
+                            .frame(maxWidth: .infinity)
+                            .frame(height: 34)
+                            .background(
+                                Capsule().fill(minutes == preset && seconds == 0 ? PomoPalette.accent : PomoPalette.surface)
+                            )
+                            .overlay(Capsule().stroke(PomoPalette.border, lineWidth: 1))
+                    }
+                    .buttonStyle(.plain)
+                }
+            }
+
+            Button {
+                onApply(TimeInterval(totalSeconds))
+                dismiss()
+            } label: {
+                Text("Set session to \(formattedSelection)")
+                    .font(.system(size: 14, weight: .bold, design: .rounded))
+                    .foregroundStyle(PomoPalette.background)
+                    .frame(maxWidth: .infinity)
+                    .frame(height: 48)
+                    .background(RoundedRectangle(cornerRadius: 14, style: .continuous).fill(PomoPalette.accent))
+            }
+            .buttonStyle(.plain)
+            .disabled(totalSeconds == 0)
+            .opacity(totalSeconds == 0 ? 0.45 : 1)
+        }
+        .padding(.horizontal, 20)
+        .padding(.top, 22)
+        .padding(.bottom, 12)
+        .background(PomoPalette.background.ignoresSafeArea())
+        .presentationDetents([.height(410)])
+        .presentationDragIndicator(.visible)
+        .preferredColorScheme(.dark)
+    }
+
+    private var formattedSelection: String {
+        String(format: "%d:%02d", minutes, seconds)
+    }
+
+    private func durationColumn<Content: View>(
+        label: String,
+        @ViewBuilder content: () -> Content
+    ) -> some View {
+        VStack(spacing: 0) {
+            Text(label)
+                .font(.system(size: 9, weight: .bold, design: .monospaced))
+                .tracking(1.3)
+                .foregroundStyle(PomoPalette.dim)
+            content()
+                .font(.system(size: 24, weight: .medium, design: .monospaced))
+                .foregroundStyle(PomoPalette.ink)
+                .labelsHidden()
+        }
+        .frame(maxWidth: .infinity)
     }
 }
 

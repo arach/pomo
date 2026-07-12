@@ -4,9 +4,11 @@ import Foundation
 @MainActor
 final class PomoLiveActivityController {
     private var activity: Activity<PomoActivityAttributes>?
+    private var currentIntent = ""
 
     init() {
         activity = Activity<PomoActivityAttributes>.activities.first
+        currentIntent = activity?.content.state.intent ?? ""
     }
 
     func startOrResume(
@@ -16,7 +18,8 @@ final class PomoLiveActivityController {
         total: TimeInterval,
         accentHex: UInt32
     ) {
-        let state = contentState(remaining: remaining, paused: false)
+        currentIntent = intent
+        let state = contentState(remaining: remaining, paused: false, intent: intent)
         let content = ActivityContent(state: state, staleDate: state.endDate)
 
         if let current = activity ?? Activity<PomoActivityAttributes>.activities.first {
@@ -29,7 +32,6 @@ final class PomoLiveActivityController {
 
         let attributes = PomoActivityAttributes(
             modeName: modeName,
-            intent: intent,
             totalSeconds: max(Int(total.rounded()), 1),
             accentHex: accentHex
         )
@@ -42,10 +44,11 @@ final class PomoLiveActivityController {
         }
     }
 
-    func pause(remaining: TimeInterval) {
+    func pause(remaining: TimeInterval, intent: String) {
         guard let current = activity ?? Activity<PomoActivityAttributes>.activities.first else { return }
         activity = current
-        let state = contentState(remaining: remaining, paused: true)
+        currentIntent = intent
+        let state = contentState(remaining: remaining, paused: true, intent: intent)
         Task {
             await current.update(ActivityContent(state: state, staleDate: nil))
         }
@@ -54,19 +57,24 @@ final class PomoLiveActivityController {
     func end(remaining: TimeInterval = 0, immediate: Bool) {
         guard let current = activity ?? Activity<PomoActivityAttributes>.activities.first else { return }
         activity = nil
-        let state = contentState(remaining: remaining, paused: true)
+        let state = contentState(remaining: remaining, paused: true, intent: currentIntent)
         let policy: ActivityUIDismissalPolicy = immediate ? .immediate : .default
         Task {
             await current.end(ActivityContent(state: state, staleDate: nil), dismissalPolicy: policy)
         }
     }
 
-    private func contentState(remaining: TimeInterval, paused: Bool) -> PomoActivityAttributes.ContentState {
+    private func contentState(
+        remaining: TimeInterval,
+        paused: Bool,
+        intent: String
+    ) -> PomoActivityAttributes.ContentState {
         let seconds = max(Int(remaining.rounded(.up)), 0)
         return PomoActivityAttributes.ContentState(
             endDate: Date().addingTimeInterval(TimeInterval(seconds)),
             remainingSeconds: seconds,
-            isPaused: paused
+            isPaused: paused,
+            intent: intent
         )
     }
 }

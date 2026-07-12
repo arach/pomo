@@ -6,10 +6,10 @@ struct PomoActivityAttributes: ActivityAttributes {
         let endDate: Date
         let remainingSeconds: Int
         let isPaused: Bool
+        let intent: String
     }
 
     let modeName: String
-    let intent: String
     let totalSeconds: Int
     let accentHex: UInt32
 }

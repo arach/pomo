@@ -26,8 +26,8 @@ struct PomoLiveActivity: Widget {
                             .font(.system(size: 10, weight: .bold, design: .monospaced))
                             .tracking(1.5)
                             .foregroundStyle(context.attributes.accent)
-                        if !context.attributes.intent.isEmpty {
-                            Text(context.attributes.intent)
+                        if !context.state.intent.isEmpty {
+                            Text(context.state.intent)
                                 .font(.system(size: 13, design: .rounded))
                                 .foregroundStyle(PomoLivePalette.muted)
                                 .lineLimit(1)
@@ -67,7 +67,7 @@ struct PomoLiveActivity: Widget {
                     .font(.system(size: 10, weight: .bold, design: .monospaced))
                     .tracking(1.5)
                     .foregroundStyle(context.attributes.accent)
-                Text(context.attributes.intent.isEmpty ? "Pomo" : context.attributes.intent)
+                Text(context.state.intent.isEmpty ? "Pomo" : context.state.intent)
                     .font(.system(size: 14, weight: .medium, design: .rounded))
                     .foregroundStyle(PomoLivePalette.ink)
                     .lineLimit(1)

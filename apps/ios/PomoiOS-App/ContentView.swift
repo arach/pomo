@@ -1,38 +1,53 @@
 import SwiftUI
 
-struct ContentView: View {
-    @EnvironmentObject var timerManager: TimerManager
-    @EnvironmentObject var statsManager: StatsManager
-    @State private var selectedTab = 0
-    
-    var body: some View {
-        TabView(selection: $selectedTab) {
-            TimerView()
-                .tabItem {
-                    Label("Timer", systemImage: "timer")
-                }
-                .tag(0)
-            
-            StatsView()
-                .tabItem {
-                    Label("Stats", systemImage: "chart.bar.fill")
-                }
-                .tag(1)
-            
-            SettingsView()
-                .tabItem {
-                    Label("Settings", systemImage: "gear")
-                }
-                .tag(2)
+private enum AppTab: Int {
+    case timer, stats, settings
+
+    static var previewSelection: AppTab {
+        #if DEBUG
+        let arguments = ProcessInfo.processInfo.arguments
+        if let index = arguments.firstIndex(of: "-previewTab"), arguments.indices.contains(index + 1) {
+            switch arguments[index + 1] {
+            case "stats": return .stats
+            case "settings": return .settings
+            default: break
+            }
         }
-        .accentColor(.cyan)
+        #endif
+        return .timer
     }
 }
 
-struct ContentView_Previews: PreviewProvider {
-    static var previews: some View {
-        ContentView()
-            .environmentObject(TimerManager())
-            .environmentObject(StatsManager())
+struct ContentView: View {
+    @EnvironmentObject private var timerManager: TimerManager
+    @EnvironmentObject private var statsManager: StatsManager
+    @State private var selectedTab = AppTab.previewSelection
+
+    var body: some View {
+        TabView(selection: $selectedTab) {
+            TimerView()
+                .tabItem { Label("Timer", systemImage: "timer") }
+                .tag(AppTab.timer)
+
+            StatsView()
+                .tabItem { Label("Activity", systemImage: "chart.bar.xaxis") }
+                .tag(AppTab.stats)
+
+            SettingsView()
+                .tabItem { Label("Settings", systemImage: "slider.horizontal.3") }
+                .tag(AppTab.settings)
+        }
+        .tint(PomoPalette.accent)
+        .toolbarBackground(PomoPalette.elevated, for: .tabBar)
+        .toolbarBackground(.visible, for: .tabBar)
+        .onAppear {
+            timerManager.onSessionEnded = statsManager.addSession
+        }
     }
+}
+
+#Preview {
+    ContentView()
+        .environmentObject(TimerManager())
+        .environmentObject(StatsManager())
 }

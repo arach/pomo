@@ -1,4 +1,5 @@
 import React from "react";
+import Image from "next/image";
 
 const DOWNLOAD_URL =
   "https://github.com/arach/pomo/releases/latest/download/Pomo.dmg";
@@ -67,6 +68,7 @@ function Nav() {
   return (
     <header style={{ position: "relative", zIndex: 5, borderBottom: "1px solid rgba(255,255,255,0.06)" }}>
       <div
+        className="pomo-nav-inner"
         style={{
           maxWidth: 1180,
           margin: "0 auto",
@@ -82,14 +84,14 @@ function Nav() {
           <Mark />
           <b style={{ fontFamily: mono, fontWeight: 600, fontSize: 14, letterSpacing: "0.16em" }}>POMO</b>
         </a>
-        <nav style={{ display: "flex", gap: 26, fontFamily: mono, fontSize: 12, letterSpacing: "0.04em" }}>
+        <nav className="pomo-nav-links" style={{ display: "flex", gap: 26, fontFamily: mono, fontSize: 12, letterSpacing: "0.04em" }}>
           <a href="#features" className="pomo-link" style={link}><span style={{ color: "#6b6055" }}>:</span>features</a>
-          <a href="#inside" className="pomo-link" style={link}><span style={{ color: "#6b6055" }}>:</span>inside</a>
+          <a href="#iphone" className="pomo-link" style={link}><span style={{ color: "#6b6055" }}>:</span>iphone</a>
+          <a href="#rituals" className="pomo-link" style={link}><span style={{ color: "#6b6055" }}>:</span>rituals</a>
           <a href="#cli" className="pomo-link" style={link}><span style={{ color: "#6b6055" }}>:</span>cli</a>
-          <a href="#stats" className="pomo-link" style={link}><span style={{ color: "#6b6055" }}>:</span>stats</a>
         </nav>
         <div style={{ display: "flex", alignItems: "center", gap: 18 }}>
-          <span style={{ fontFamily: mono, fontSize: 11, color: "#6b6055", letterSpacing: "0.06em" }}>v0.2.8 · macOS</span>
+          <span className="pomo-nav-version" style={{ fontFamily: mono, fontSize: 11, color: "#6b6055", letterSpacing: "0.06em" }}>macOS · iPhone</span>
           <a
             href={DOWNLOAD_URL}
             className="pomo-btn-primary"
@@ -144,7 +146,8 @@ function TimerWindow() {
     );
   };
   const ctrlBtn = (children: React.ReactNode, primary = false) => (
-    <button
+    <span
+      aria-hidden="true"
       className={primary ? "pomo-ctrl-primary" : "pomo-ctrl"}
       style={{
         width: 40,
@@ -156,13 +159,12 @@ function TimerWindow() {
         display: "flex",
         alignItems: "center",
         justifyContent: "center",
-        cursor: "pointer",
         flex: "none",
         boxShadow: primary ? "0 8px 20px -10px var(--accent-glow)" : "none",
       }}
     >
       {children}
-    </button>
+    </span>
   );
 
   return (
@@ -246,6 +248,7 @@ function Hero() {
   return (
     <section id="top" style={{ position: "relative", zIndex: 3 }}>
       <div
+        className="pomo-hero-grid"
         style={{
           maxWidth: 1180,
           margin: "0 auto",
@@ -260,7 +263,7 @@ function Hero() {
         <div>
           <div style={{ display: "inline-flex", alignItems: "center", gap: 11, fontFamily: mono, fontSize: 11, letterSpacing: "0.2em", textTransform: "uppercase", color: "#7d7165" }}>
             <span style={{ width: 18, height: 1, background: "var(--accent)", display: "inline-block" }} />
-            Focus timer · macOS · menu bar
+            Focus timer · macOS + iPhone
           </div>
           <h1 style={{ fontFamily: sans, fontWeight: 400, fontSize: 38, lineHeight: 1.0, letterSpacing: "-0.02em", margin: "22px 0 0", color: "#f4eee6", textWrap: "balance" } as React.CSSProperties}>
             Twenty-five minutes,
@@ -268,7 +271,7 @@ function Hero() {
             <em style={{ fontStyle: "normal", color: "var(--accent)", fontWeight: 500 }}>focus mode</em>
           </h1>
           <p style={{ fontFamily: sans, fontWeight: 300, fontSize: 16.5, lineHeight: 1.65, color: "#bcae9e", maxWidth: "44ch", margin: "26px 0 0" }}>
-            Pomo is a Pomodoro timer that lives in your menu bar. Start a session, mute the noise, and let the clock keep score of your focus — one tomato at a time.
+            Pomo is a focus timer for Mac and iPhone. Add a note for the task, start the timer, and get back to work.
           </p>
           <div style={{ display: "flex", alignItems: "center", gap: 12, marginTop: 34, flexWrap: "wrap" }}>
             <a href={DOWNLOAD_URL} className="pomo-btn-primary" style={primaryBtn}>
@@ -276,7 +279,7 @@ function Hero() {
               Download for Mac
             </a>
             <a
-              href="#features"
+              href="#iphone"
               className="pomo-btn-ghost"
               style={{
                 display: "inline-flex",
@@ -293,11 +296,11 @@ function Hero() {
                 textDecoration: "none",
               }}
             >
-              See how it works
+              See the iPhone app
             </a>
           </div>
           <div style={{ fontFamily: mono, fontSize: 11, letterSpacing: "0.05em", color: "#6b6055", marginTop: 20 }}>
-            Free · macOS 13+ · Apple silicon
+            Free on Mac · iPhone 1.0 in preparation
           </div>
         </div>
 
@@ -321,6 +324,7 @@ function MetaStrip() {
   return (
     <div style={{ maxWidth: 1180, margin: "0 auto", padding: "0 40px" }}>
       <dl
+        className="pomo-meta-grid"
         style={{
           display: "grid",
           gridTemplateColumns: "repeat(4,1fr)",
@@ -369,7 +373,7 @@ function Features() {
         <h2 style={{ fontFamily: sans, fontWeight: 300, fontSize: "clamp(34px,3.6vw,48px)", lineHeight: 1.05, letterSpacing: "-0.02em", color: "#f4eee6", margin: "0 0 44px" }}>
           Small surface. The whole technique.
         </h2>
-        <div style={{ display: "grid", gridTemplateColumns: "repeat(3,1fr)", gap: 18 }}>
+        <div className="pomo-feature-grid" style={{ display: "grid", gridTemplateColumns: "repeat(3,1fr)", gap: 18 }}>
           {/* menu bar */}
           <div className="pomo-card" style={card}>
             <div style={{ height: 104, display: "flex", alignItems: "center", justifyContent: "center" }}>
@@ -384,7 +388,7 @@ function Features() {
               </div>
             </div>
             <div style={eyebrow}>01 · Menu bar</div>
-            <h3 style={title}>Always one glance away</h3>
+            <h3 style={title}>Visible in the menu bar</h3>
             <p style={body}>The time remaining sits in your menu bar. Click to start, pause, or skip — never a window in the way.</p>
           </div>
 
@@ -417,7 +421,7 @@ function Features() {
             </div>
             <div style={eyebrow}>03 · Intent</div>
             <h3 style={title}>Name what you&apos;re doing</h3>
-            <p style={body}>Give each session a single task. Pomo keeps it front and centre, so the next 25 minutes have exactly one job.</p>
+            <p style={body}>Add a task before the session starts. It stays visible while the timer is running.</p>
           </div>
         </div>
       </div>
@@ -425,94 +429,198 @@ function Features() {
   );
 }
 
-/* ───────────────────────── screenshots (brought from previous site) ───────────────────────── */
-function Screenshots() {
-  const shots: { src: string; title: string; caption: string }[] = [
-    { src: "/pomo-watchface.png", title: "Watchfaces", caption: "Minimal to Chronograph — pick your dial." },
-    { src: "/pomo-settings.png", title: "Settings", caption: "Tune durations, sounds, and themes." },
-    { src: "/pomo-keyboard.png", title: "Shortcuts", caption: "Full keyboard control for power users." },
-  ];
-  const highlights = [
-    "An intent field for the one thing you're focusing on",
-    "Focus · Break · Long session types",
-    "Seven watchfaces — Minimal to Chronograph",
-    "Ambient streaming audio + a slide-out HUD",
-  ];
-  const musicHighlights = [
-    "Any YouTube link — lofi streams, DJ sets, playlists",
-    "Plays in a slide-out drawer beside the timer",
-    "Pop it out to your browser anytime",
-  ];
-  const eyebrow = { fontFamily: mono, fontSize: 10, letterSpacing: "0.14em", textTransform: "uppercase", color: "var(--accent)", marginBottom: 12 } as React.CSSProperties;
-  const featTitle = { fontFamily: sans, fontWeight: 300, fontSize: "clamp(24px,2.4vw,32px)", lineHeight: 1.1, letterSpacing: "-0.01em", color: "#f4eee6", margin: "0 0 14px" } as React.CSSProperties;
-  const featBody = { fontFamily: sans, fontWeight: 300, fontSize: 15, lineHeight: 1.6, color: "#a89b8b", margin: "0 0 18px", maxWidth: "42ch" } as React.CSSProperties;
-  const featCard = { background: "#211a15", border: "1px solid rgba(255,255,255,0.07)", borderRadius: 16, padding: "30px 34px", marginBottom: 18 } as React.CSSProperties;
-  const bullets = (items: string[]) => (
-    <ul style={{ listStyle: "none", margin: 0, padding: 0, display: "flex", flexDirection: "column", gap: 10 }}>
-      {items.map((h, i) => (
-        <li key={i} style={{ display: "flex", gap: 10, alignItems: "flex-start" }}>
-          <span style={{ fontFamily: mono, color: "var(--accent)", fontSize: 13, lineHeight: 1.5 }}>→</span>
-          <span style={{ fontFamily: sans, fontWeight: 300, fontSize: 14, lineHeight: 1.5, color: "#bcae9e" }}>{h}</span>
-        </li>
-      ))}
-    </ul>
-  );
+type SegmentKind = "build" | "write" | "study" | "design";
+
+function SegmentGlyph({ kind }: { kind: SegmentKind }) {
+  const shared = {
+    fill: "none",
+    stroke: "currentColor",
+    strokeWidth: 1.6,
+    strokeLinecap: "round" as const,
+    strokeLinejoin: "round" as const,
+  };
 
   return (
-    <section id="inside" style={{ position: "relative", zIndex: 3 }}>
-      <div style={{ maxWidth: 1180, margin: "0 auto", padding: "60px 40px 20px" }}>
-        <SectionLabel>§ A look inside</SectionLabel>
-        <h2 style={{ fontFamily: sans, fontWeight: 300, fontSize: "clamp(30px,3.2vw,42px)", lineHeight: 1.05, letterSpacing: "-0.02em", color: "#f4eee6", margin: "0 0 36px" }}>
-          Built to stay out of the way.
-        </h2>
+    <svg viewBox="0 0 64 64" aria-hidden="true" focusable="false">
+      <path d="M8 17h48v34H8z" {...shared} opacity=".45" />
+      <path d="M8 25h48M15 21h.1M20 21h.1" {...shared} opacity=".65" />
+      {kind === "build" && (
+        <>
+          <path d="m25 33-6 5 6 5M39 33l6 5-6 5M35 31l-6 14" {...shared} />
+          <circle cx="49" cy="17" r="3" fill="var(--accent)" stroke="none" />
+        </>
+      )}
+      {kind === "write" && (
+        <>
+          <path d="M20 31h23M20 37h18M20 43h13" {...shared} />
+          <path d="M45 30v15" stroke="var(--accent)" strokeWidth="2" strokeLinecap="round" />
+          <path d="m40 13 4 4-7 7-5 1 1-5z" {...shared} />
+        </>
+      )}
+      {kind === "study" && (
+        <>
+          <path d="M16 33c6-2 11-1 16 3 5-4 10-5 16-3v14c-6-2-11-1-16 3-5-4-10-5-16-3zM32 36v14" {...shared} />
+          <path d="M21 29h7M36 29h7" stroke="var(--accent)" strokeWidth="2" strokeLinecap="round" />
+          <circle cx="49" cy="17" r="3" fill="#70b7ff" stroke="none" />
+        </>
+      )}
+      {kind === "design" && (
+        <>
+          <circle cx="22" cy="39" r="4" {...shared} />
+          <circle cx="43" cy="34" r="4" {...shared} />
+          <circle cx="39" cy="46" r="4" {...shared} />
+          <path d="m25 37 14-2M41 38l-1 4M25 42l10 3" {...shared} />
+          <path d="M18 29h29" stroke="var(--accent)" strokeWidth="2" strokeLinecap="round" />
+          <path d="M22 27v4M28 27v4M34 27v4M40 27v4" {...shared} opacity=".7" />
+        </>
+      )}
+    </svg>
+  );
+}
 
-        {/* featured: the whole app panel */}
-        <div className="pomo-panel" style={{ ...featCard, display: "grid", gridTemplateColumns: "minmax(0,0.95fr) minmax(0,1.05fr)", gap: 40, alignItems: "center" }}>
-          <div style={{ display: "flex", justifyContent: "center" }}>
-            {/* eslint-disable-next-line @next/next/no-img-element */}
-            <img src="/pomo-app.png" alt="The Pomo app panel" className="pomo-photo" style={{ width: "100%", maxWidth: 420, maxHeight: 360, objectFit: "contain", borderRadius: 14, border: "1px solid rgba(255,255,255,0.08)", boxShadow: "0 24px 48px -28px rgba(0,0,0,0.75)" }} />
-          </div>
-          <div>
-            <div style={eyebrow}>The whole app</div>
-            <h3 style={featTitle}>Everything on one surface.</h3>
-            <p style={featBody}>One small panel drops from the menu bar with everything a session needs — no windows, no tabs, no clutter.</p>
-            {bullets(highlights)}
-          </div>
-        </div>
+function Screenshots() {
+  const shots = [
+    {
+      src: "/marketing/iphone-focus.png",
+      index: "01",
+      label: "Intent",
+      title: "Focus on the task.",
+      caption: "Add a note and start the timer.",
+    },
+    {
+      src: "/marketing/iphone-blueprint.png",
+      index: "02",
+      label: "Instrument",
+      title: "Choose a timer face.",
+      caption: "Dial, Terminal, and Blueprint are included.",
+    },
+    {
+      src: "/marketing/iphone-activity.png",
+      index: "03",
+      label: "Momentum",
+      title: "Review your activity.",
+      caption: "See sessions, focus time, and streaks.",
+    },
+    {
+      src: "/marketing/iphone-settings.png",
+      index: "04",
+      label: "Rhythm",
+      title: "Adjust the timer.",
+      caption: "Set focus, break, and planning lengths.",
+    },
+  ];
 
-        {/* featured: music / the YouTube video drawer */}
-        <div className="pomo-panel" style={{ ...featCard, display: "grid", gridTemplateColumns: "minmax(0,1.1fr) minmax(0,0.9fr)", gap: 40, alignItems: "center" }}>
-          <div>
-            <div style={eyebrow}>Sound · your way</div>
-            <h3 style={featTitle}>Your playlist, in the same window.</h3>
-            <p style={featBody}>
-              Pomo&apos;s audio is really a tiny browser. Paste a YouTube link — a lofi stream, a live set, a whole playlist — and it rides along in a slide-out drawer right next to the timer. Your pomodoros and your soundtrack, managed in the most flexible place there is: the web.
+  const segments: { kind: SegmentKind; label: string; title: string; intent: string; body: string; metric: string }[] = [
+    {
+      kind: "build",
+      label: "Build",
+      title: "Work through a build.",
+      intent: "Resolve the sync edge case",
+      body: "Keep debugging, design, and compile work inside a timed session.",
+      metric: "25:00 / build",
+    },
+    {
+      kind: "write",
+      label: "Write",
+      title: "Draft without editing.",
+      intent: "Finish the opening scene",
+      body: "Give the blank page a beginning and an end before polishing either.",
+      metric: "1 scene / block",
+    },
+    {
+      kind: "study",
+      label: "Study",
+      title: "Study a chapter.",
+      intent: "Review cellular respiration",
+      body: "Alternate deliberate study with real breaks that protect recall.",
+      metric: "4 blocks / set",
+    },
+    {
+      kind: "design",
+      label: "Design",
+      title: "Choose a direction.",
+      intent: "Choose the onboarding direction",
+      body: "Separate open-ended exploration from the focused pass that ships.",
+      metric: "1 direction / block",
+    },
+  ];
+
+  return (
+    <>
+      <section id="iphone" className="pomo-iphone-section">
+        <div className="pomo-section-shell">
+          <div className="pomo-showcase-heading">
+            <div>
+              <SectionLabel>§ Pomo for iPhone · current screens</SectionLabel>
+              <h2>Pomo for iPhone.</h2>
+            </div>
+            <p>
+              The iPhone app includes task notes, three timer faces, adjustable sessions, and activity history stored on the device.
             </p>
-            {bullets(musicHighlights)}
           </div>
-          <div style={{ display: "flex", justifyContent: "center" }}>
-            {/* eslint-disable-next-line @next/next/no-img-element */}
-            <img src="/pomo-hud-video.png" alt="Pomo timer with the YouTube video drawer open" className="pomo-photo" style={{ width: "100%", maxWidth: 380, objectFit: "contain", borderRadius: 14, border: "1px solid rgba(255,255,255,0.08)", boxShadow: "0 24px 48px -28px rgba(0,0,0,0.75)" }} />
-          </div>
-        </div>
 
-        {/* supporting shots */}
-        <div style={{ display: "grid", gridTemplateColumns: "repeat(3,1fr)", gap: 18 }}>
-          {shots.map((s) => (
-            <figure key={s.title} className="pomo-shot" style={{ margin: 0, background: "#211a15", border: "1px solid rgba(255,255,255,0.07)", borderRadius: 13, overflow: "hidden", display: "flex", flexDirection: "column" }}>
-              <div style={{ background: "#17110d", borderBottom: "1px solid rgba(255,255,255,0.06)", padding: 16, display: "flex", alignItems: "center", justifyContent: "center", minHeight: 168 }}>
-                {/* eslint-disable-next-line @next/next/no-img-element */}
-                <img src={s.src} alt={s.title} style={{ maxWidth: "88%", maxHeight: 176, objectFit: "contain", borderRadius: 8, boxShadow: "0 14px 32px -22px rgba(0,0,0,0.75)" }} />
-              </div>
-              <figcaption style={{ padding: "16px 18px" }}>
-                <div style={{ fontFamily: mono, fontSize: 10, letterSpacing: "0.14em", textTransform: "uppercase", color: "var(--accent)", marginBottom: 6 }}>{s.title}</div>
-                <div style={{ fontFamily: sans, fontWeight: 300, fontSize: 14, color: "#a89b8b" }}>{s.caption}</div>
-              </figcaption>
-            </figure>
-          ))}
+          <div className="pomo-phone-deck" aria-label="Pomo for iPhone screenshot campaign" tabIndex={0}>
+            <div className="pomo-deck-grid" aria-hidden="true" />
+            {shots.map((shot) => (
+              <figure key={shot.index} className="pomo-phone-frame">
+                <div className="pomo-phone-meta">
+                  <span>{shot.index}</span>
+                  <span>{shot.label}</span>
+                </div>
+                <Image
+                  src={shot.src}
+                  width={1320}
+                  height={2868}
+                  sizes="(max-width: 720px) 70vw, (max-width: 1100px) 34vw, 244px"
+                  alt={`Pomo for iPhone — ${shot.title}`}
+                  className="pomo-phone-image"
+                  priority={shot.index === "01"}
+                />
+                <figcaption>
+                  <strong>{shot.title}</strong>
+                  <span>{shot.caption}</span>
+                </figcaption>
+              </figure>
+            ))}
+          </div>
+
+          <div className="pomo-campaign-footer">
+            <span>Real product UI · iPhone 16 Pro Max · no device mockup</span>
+            <span>Charcoal / warm white / signal yellow</span>
+          </div>
         </div>
-      </div>
-    </section>
+      </section>
+
+      <section id="rituals" className="pomo-segments-section">
+        <div className="pomo-section-shell">
+          <div className="pomo-segment-heading">
+            <div>
+              <SectionLabel>§ Examples</SectionLabel>
+              <h2>For focused work.</h2>
+            </div>
+            <p>A few ways to use a timed session during the day.</p>
+          </div>
+
+          <div className="pomo-segment-grid">
+            {segments.map((segment, index) => (
+              <article className="pomo-segment-card" key={segment.kind}>
+                <div className="pomo-segment-topline">
+                  <span>0{index + 1}</span>
+                  <span>{segment.metric}</span>
+                </div>
+                <div className={`pomo-segment-icon is-${segment.kind}`}>
+                  <SegmentGlyph kind={segment.kind} />
+                </div>
+                <div className="pomo-segment-label">{segment.label}</div>
+                <h3>{segment.title}</h3>
+                <div className="pomo-segment-intent"><i />{segment.intent}</div>
+                <p>{segment.body}</p>
+              </article>
+            ))}
+          </div>
+        </div>
+      </section>
+    </>
   );
 }
 
@@ -532,7 +640,7 @@ function CliSection() {
   return (
     <section id="cli" style={{ position: "relative", zIndex: 3 }}>
       <div style={{ maxWidth: 1180, margin: "0 auto", padding: "20px 40px 60px" }}>
-        <div className="pomo-panel" style={{ ...featCard, display: "grid", gridTemplateColumns: "minmax(0,1.05fr) minmax(0,0.95fr)", gap: 40, alignItems: "center" }}>
+        <div className="pomo-panel pomo-two-column-panel" style={{ ...featCard, display: "grid", gridTemplateColumns: "minmax(0,1.05fr) minmax(0,0.95fr)", gap: 40, alignItems: "center" }}>
           <div>
             <div style={eyebrow}>Shell · npm · agents</div>
             <h3 style={featTitle}>Same timer, from the terminal.</h3>
@@ -629,7 +737,7 @@ function Rhythm() {
           </div>
 
           {/* pro tips — brought from the previous landing page */}
-          <div style={{ display: "grid", gridTemplateColumns: "repeat(3,1fr)", gap: 14, marginTop: 22, borderTop: "1px solid rgba(255,255,255,0.08)", paddingTop: 22 }}>
+          <div className="pomo-tip-grid" style={{ display: "grid", gridTemplateColumns: "repeat(3,1fr)", gap: 14, marginTop: 22, borderTop: "1px solid rgba(255,255,255,0.08)", paddingTop: 22 }}>
             {tips.map((tip, i) => (
               <div key={i} style={{ display: "flex", gap: 10, alignItems: "flex-start" }}>
                 <span style={{ fontFamily: mono, color: "var(--accent)", fontSize: 13, lineHeight: 1.5 }}>→</span>
@@ -648,6 +756,7 @@ function Origin() {
   return (
     <section id="origin" style={{ position: "relative", zIndex: 3 }}>
       <div
+        className="pomo-origin-grid"
         style={{
           maxWidth: 1180,
           margin: "0 auto",
@@ -682,7 +791,7 @@ function Origin() {
             style={{ position: "absolute", inset: 0, width: "100%", height: "100%", border: 0 }}
             src="https://www.youtube.com/embed/dnt2lTdcn8g"
             title="Francesco Cirillo — Introduction to the Pomodoro Technique"
-            allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share"
+            allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
             allowFullScreen
           />
         </div>
@@ -712,6 +821,7 @@ function Stats() {
       }}
     >
       <div
+        className="pomo-stats-grid"
         style={{
           maxWidth: 1180,
           margin: "0 auto",

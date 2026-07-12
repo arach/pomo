@@ -20,14 +20,14 @@ const jetbrainsMono = JetBrains_Mono({
 
 export const metadata: Metadata = {
   metadataBase: new URL("https://pomo.arach.dev"),
-  title: "Pomo - Minimalist Pomodoro Timer for macOS",
+  title: "Pomo — Focus timer for Mac and iPhone",
   description:
-    "A beautifully crafted floating Pomodoro timer that lives in your menu bar. Focus on what matters with our distraction-free design.",
-  keywords: "pomodoro, timer, productivity, focus, macos, desktop app, time management",
-  authors: [{ name: "Pomo Team" }],
+    "Name the work, start the clock, and keep momentum visible with a focused timer for Mac and iPhone.",
+  keywords: "pomodoro, timer, productivity, focus, macos, iphone, deep work, study, writing",
+  authors: [{ name: "Arach" }],
   openGraph: {
-    title: "Pomo - Minimalist Pomodoro Timer for macOS",
-    description: "A beautifully crafted floating Pomodoro timer that lives in your menu bar.",
+    title: "Pomo for Mac and iPhone",
+    description: "A focus timer with task notes, adjustable sessions, timer faces, and private activity history.",
     type: "website",
     locale: "en_US",
     images: [
@@ -35,14 +35,14 @@ export const metadata: Metadata = {
         url: "/og-image.png",
         width: 1200,
         height: 630,
-        alt: "Pomo - Minimalist Pomodoro Timer",
+        alt: "Four views of the Pomo focus timer for iPhone",
       },
     ],
   },
   twitter: {
     card: "summary_large_image",
-    title: "Pomo - Minimalist Pomodoro Timer for macOS",
-    description: "A beautifully crafted floating Pomodoro timer that lives in your menu bar.",
+    title: "Pomo — Focus timer for Mac and iPhone",
+    description: "A focus timer with task notes, adjustable sessions, and private activity history.",
     images: ["/og-image.png"],
   },
   robots: {

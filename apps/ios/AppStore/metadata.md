@@ -17,7 +17,7 @@
 
 ## Promotional text
 
-Pomo includes task notes, several timer faces, adjustable session lengths, and private activity history stored on your iPhone.
+Pomo includes task notes, seven timer faces, a quiet full-screen focus mode, Live Activities, and private activity history stored on your iPhone.
 
 ## Description
 
@@ -29,7 +29,13 @@ ADD A TASK
 Write a short note before the timer starts. It stays visible during the session.
 
 CHOOSE A TIMER FACE
-Switch between Dial, Terminal, and Blueprint.
+Choose Minimal, Terminal, Neon, Retro Digital, Rolodex, Chronograph, or Blueprint in Settings. Long press the timer for a shortcut.
+
+FOCUS ON THE TIMER
+Tap the timer face for a quiet full-screen view. Tap again when you want the controls back.
+
+KEEP IT IN VIEW
+An optional Live Activity shows the running timer on the Lock Screen and Dynamic Island.
 
 REVIEW YOUR ACTIVITY
 See today’s sessions, focus time, your current streak, a weekly chart, and recent task notes.
@@ -60,7 +66,7 @@ Upload the finished files in `Promotional/`. The unframed simulator captures in
 `Screenshots/` are the source images used by the marketing renderer.
 
 1. **Focus on the task** — Add a note and start the timer.
-2. **Choose a timer face** — Dial, Terminal, and Blueprint are included.
+2. **Choose a timer face** — Seven desktop-inspired faces are included.
 3. **Review your activity** — See sessions, focus time, and streaks.
 4. **Adjust the timer** — Set focus, break, and planning lengths.
 
@@ -70,7 +76,9 @@ Pomo is a standalone focus timer. No account, sign-in, network connection, purch
 
 - Tap the center play button to start or pause a timer.
 - Tap the session pill to choose Focus, Short Break, Long Break, or Planning.
-- Tap the face pill to choose Dial, Terminal, or Blueprint.
+- Tap a timer face for the face-only focus view; tap again to return.
+- Choose among seven faces in Settings, or long press the timer face for the visual picker.
+- Starting a timer can show an optional Live Activity on the Lock Screen and Dynamic Island.
 - Notifications are optional and requested only when enabled in Settings.
 - All session data is stored locally in `UserDefaults`; the included privacy manifest declares reason `CA92.1`.
 
@@ -105,6 +113,7 @@ expected global rating is **4+**.
 - [x] Create the App Store Connect record using the final legal developer name.
 - [ ] Confirm the support and privacy URLs are deployed and publicly reachable.
 - [x] Archive with the App Store distribution profile and upload build 1.
+- [ ] Archive and upload build 2 with the expanded faces, focus mode, and Live Activity.
 - [ ] Upload 1–10 current iPhone screenshots; the proposed set uses four.
 - [x] Complete age rating (4+).
 - [ ] Complete App Privacy as “Data Not Collected.”

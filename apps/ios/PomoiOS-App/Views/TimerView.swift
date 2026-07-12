@@ -1,29 +1,16 @@
 import SwiftUI
 
-private enum FocusFace: String, CaseIterable, Identifiable {
-    case dial = "Dial"
-    case terminal = "Terminal"
-    case blueprint = "Blueprint"
-
-    var id: String { rawValue }
-
-    var icon: String {
-        switch self {
-        case .dial: "clock"
-        case .terminal: "terminal"
-        case .blueprint: "ruler"
-        }
-    }
-}
-
 struct TimerView: View {
     @EnvironmentObject private var timerManager: TimerManager
     @EnvironmentObject private var statsManager: StatsManager
     @AppStorage("dailyGoal") private var dailyGoal = 8
-    @AppStorage("focusFace") private var faceRaw = FocusFace.dial.rawValue
+    @AppStorage("focusFace") private var faceRaw = FocusFace.chronograph.rawValue
+    @State private var showingFacePicker = false
+    @State private var showingFocusMode = false
 
     private var face: FocusFace {
-        FocusFace(rawValue: faceRaw) ?? .dial
+        get { FocusFace(storedValue: faceRaw) }
+        nonmutating set { faceRaw = newValue.rawValue }
     }
 
     var body: some View {
@@ -43,6 +30,34 @@ struct TimerView: View {
             }
             .pomoScreen()
             .toolbar(.hidden, for: .navigationBar)
+            .onAppear {
+                // Normalize the original display-name values to the shared
+                // macOS identities without changing what existing users see.
+                if faceRaw != face.rawValue {
+                    faceRaw = face.rawValue
+                }
+            }
+            .sheet(isPresented: $showingFacePicker) {
+                FocusFacePickerSheet(selection: Binding(get: { face }, set: { face = $0 }))
+            }
+            .fullScreenCover(isPresented: $showingFocusMode) {
+                ZStack {
+                    PomoPalette.background.ignoresSafeArea()
+                    selectedFace
+                        .frame(maxWidth: .infinity, maxHeight: .infinity)
+                        .ignoresSafeArea()
+                }
+                .contentShape(Rectangle())
+                .onTapGesture {
+                    showingFocusMode = false
+                }
+                .accessibilityElement(children: .combine)
+                .accessibilityLabel("\(timerManager.currentMode.rawValue), \(timerManager.formattedTime) remaining")
+                .accessibilityHint("Tap to return to Pomo")
+                .statusBarHidden(true)
+                .persistentSystemOverlays(.hidden)
+                .preferredColorScheme(.dark)
+            }
             .alert("Session complete", isPresented: $timerManager.showingCompletion) {
                 Button("Continue", role: .cancel) {}
             } message: {
@@ -95,24 +110,10 @@ struct TimerView: View {
             }
 
             Spacer()
-
-            Menu {
-                ForEach(FocusFace.allCases) { option in
-                    Button {
-                        faceRaw = option.rawValue
-                    } label: {
-                        Label(option.rawValue, systemImage: option.icon)
-                    }
-                }
-            } label: {
-                Label(face.rawValue, systemImage: face.icon)
-                    .font(.system(size: 12, weight: .medium, design: .monospaced))
-                    .foregroundStyle(PomoPalette.muted)
-                    .padding(.horizontal, 13)
-                    .frame(height: 42)
-                    .background(Capsule().fill(PomoPalette.surface))
-                    .overlay(Capsule().stroke(PomoPalette.border, lineWidth: 1))
-            }
+            Text("\(Int(timerManager.duration(for: timerManager.currentMode) / 60)) MIN")
+                .font(.system(size: 10, weight: .bold, design: .monospaced))
+                .tracking(1.2)
+                .foregroundStyle(PomoPalette.dim)
         }
     }
 
@@ -143,30 +144,55 @@ struct TimerView: View {
     }
 
     private var faceCard: some View {
-        Group {
-            switch face {
-            case .dial:
-                DialFace()
-            case .terminal:
-                TerminalFace()
-            case .blueprint:
-                BlueprintFace()
-            }
-        }
+        selectedFace
         .environmentObject(timerManager)
         .frame(maxWidth: .infinity)
         .aspectRatio(1, contentMode: .fit)
         .background(
             RoundedRectangle(cornerRadius: 26, style: .continuous)
                 .fill(PomoPalette.elevated)
-                .overlay {
-                    RoundedRectangle(cornerRadius: 26, style: .continuous)
-                        .stroke(PomoPalette.border, lineWidth: 1)
-                }
         )
+        .clipShape(RoundedRectangle(cornerRadius: 26, style: .continuous))
+        .overlay {
+            RoundedRectangle(cornerRadius: 26, style: .continuous)
+                .stroke(PomoPalette.border, lineWidth: 1)
+        }
         .shadow(color: timerManager.currentMode.color.opacity(timerManager.isActive ? 0.14 : 0.05), radius: 30, y: 16)
+        .onLongPressGesture {
+            showingFacePicker = true
+        }
+        .onTapGesture {
+            showingFocusMode = true
+        }
         .accessibilityElement(children: .combine)
         .accessibilityLabel("\(timerManager.currentMode.rawValue), \(timerManager.formattedTime) remaining")
+        .accessibilityHint("Tap for focus mode. Long press to choose a timer face")
+        .accessibilityAction(named: "Open focus mode") {
+            showingFocusMode = true
+        }
+        .accessibilityAction(named: "Choose timer face") {
+            showingFacePicker = true
+        }
+    }
+
+    @ViewBuilder
+    private var selectedFace: some View {
+        switch face {
+        case .minimal:
+            MinimalTimerFace()
+        case .terminal:
+            TerminalTimerFace()
+        case .neon:
+            NeonTimerFace()
+        case .retroDigital:
+            RetroDigitalTimerFace()
+        case .rolodex:
+            RolodexTimerFace()
+        case .chronograph:
+            DialFace()
+        case .blueprint:
+            BlueprintTimerFace()
+        }
     }
 
     private var controls: some View {
@@ -242,16 +268,18 @@ private struct DialFace: View {
                             lineWidth: index == 0 ? 2.5 : (major ? 1.8 : 1)
                         )
                     }
-
-                    let handAngle = timer.progress * .pi * 2 - .pi / 2
-                    var hand = Path()
-                    hand.move(to: center)
-                    hand.addLine(to: CGPoint(
-                        x: center.x + cos(handAngle) * radius * 0.74,
-                        y: center.y + sin(handAngle) * radius * 0.74
-                    ))
-                    context.stroke(hand, with: .color(timer.currentMode.color), style: StrokeStyle(lineWidth: 2.6, lineCap: .round))
                 }
+
+                Circle()
+                    .trim(from: 0, to: max(timer.progress, 0.008))
+                    .stroke(
+                        timer.currentMode.color,
+                        style: StrokeStyle(lineWidth: 3, lineCap: .round)
+                    )
+                    .rotationEffect(.degrees(-90))
+                    .frame(width: size * 0.67, height: size * 0.67)
+                    .shadow(color: timer.currentMode.color.opacity(0.16), radius: 6)
+                    .animation(.linear(duration: 0.2), value: timer.progress)
 
                 Circle()
                     .fill(PomoPalette.elevated)
@@ -276,10 +304,6 @@ private struct DialFace: View {
                             .foregroundStyle(PomoPalette.muted)
                     }
                 }
-
-                Circle()
-                    .fill(timer.currentMode.color)
-                    .frame(width: 9, height: 9)
             }
         }
         .padding(14)

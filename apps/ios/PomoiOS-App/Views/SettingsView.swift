@@ -15,6 +15,7 @@ struct SettingsView: View {
     @AppStorage("shortBreakMinutes") private var shortBreakMinutes = 5
     @AppStorage("longBreakMinutes") private var longBreakMinutes = 15
     @AppStorage("planningMinutes") private var planningMinutes = 10
+    @AppStorage("focusFace") private var faceRaw = FocusFace.chronograph.rawValue
 
     @State private var showingResetAlert = false
     @State private var showingNotificationAlert = false
@@ -24,6 +25,7 @@ struct SettingsView: View {
             ScrollView(showsIndicators: false) {
                 VStack(spacing: 22) {
                     header
+                    appearance
                     durations
                     rhythm
                     feedback
@@ -60,7 +62,17 @@ struct SettingsView: View {
             .onChange(of: shortBreakMinutes) { _, _ in timerManager.applyDurationSettings() }
             .onChange(of: longBreakMinutes) { _, _ in timerManager.applyDurationSettings() }
             .onChange(of: planningMinutes) { _, _ in timerManager.applyDurationSettings() }
+            .onAppear {
+                if faceRaw != face.rawValue {
+                    faceRaw = face.rawValue
+                }
+            }
         }
+    }
+
+    private var face: FocusFace {
+        get { FocusFace(storedValue: faceRaw) }
+        nonmutating set { faceRaw = newValue.rawValue }
     }
 
     private var header: some View {
@@ -92,6 +104,11 @@ struct SettingsView: View {
             SettingStepper(label: "Planning", icon: "pencil.and.list.clipboard", value: $planningMinutes, range: 5...30, step: 5, tint: PomoPalette.orange)
         }
         .pomoPanel()
+    }
+
+    private var appearance: some View {
+        FocusFacePicker(selection: Binding(get: { face }, set: { face = $0 }))
+            .pomoPanel()
     }
 
     private var rhythm: some View {

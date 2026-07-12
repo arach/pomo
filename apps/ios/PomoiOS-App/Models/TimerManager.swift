@@ -38,6 +38,15 @@ enum FocusMode: String, CaseIterable, Codable, Identifiable {
         case .planning: "PLANNING"
         }
     }
+
+    var liveActivityAccentHex: UInt32 {
+        switch self {
+        case .deepFocus: 0xEAE434
+        case .shortBreak: 0x5ED69A
+        case .longBreak: 0x70B7FF
+        case .planning: 0xF2A65A
+        }
+    }
 }
 
 @MainActor
@@ -58,6 +67,10 @@ final class TimerManager: ObservableObject {
     private var expectedEndDate: Date?
     private var ticker: AnyCancellable?
     private let notificationIdentifier = "pomo.session.complete"
+    private let liveActivity = PomoLiveActivityController()
+    private let activeEndDateKey = "activeTimerEndDate"
+    private let activeModeKey = "activeTimerMode"
+    private let activeIntentKey = "activeTimerIntent"
 
     init() {
         completedPomodoros = defaults.integer(forKey: "completedPomodoros")
@@ -68,8 +81,11 @@ final class TimerManager: ObservableObject {
             timeRemaining = 19 * 60 + 10
             intent = "Finish the release checklist"
             completedPomodoros = 3
+            return
         }
         #endif
+
+        restoreActiveSession()
     }
 
     deinit {
@@ -103,6 +119,14 @@ final class TimerManager: ObservableObject {
         expectedEndDate = Date().addingTimeInterval(timeRemaining)
         startTicker()
         scheduleCompletionNotification()
+        persistActiveSession()
+        liveActivity.startOrResume(
+            modeName: currentMode.label,
+            intent: intent,
+            remaining: timeRemaining,
+            total: duration(for: currentMode),
+            accentHex: currentMode.liveActivityAccentHex
+        )
         haptic(.medium)
     }
 
@@ -114,10 +138,13 @@ final class TimerManager: ObservableObject {
         ticker?.cancel()
         ticker = nil
         cancelCompletionNotification()
+        clearActiveSessionPersistence()
+        liveActivity.pause(remaining: timeRemaining)
         haptic(.light)
     }
 
     func resetTimer() {
+        liveActivity.end(remaining: timeRemaining, immediate: true)
         stopClock()
         timeRemaining = duration(for: currentMode)
         showingCompletion = false
@@ -178,6 +205,7 @@ final class TimerManager: ObservableObject {
         let finishedDuration = duration(for: finishedMode)
         let finishedIntent = intent.trimmingCharacters(in: .whitespacesAndNewlines)
 
+        liveActivity.end(remaining: completed ? 0 : timeRemaining, immediate: !completed)
         stopClock()
 
         if completed, finishedMode == .deepFocus {
@@ -215,6 +243,52 @@ final class TimerManager: ObservableObject {
         ticker?.cancel()
         ticker = nil
         cancelCompletionNotification()
+        clearActiveSessionPersistence()
+    }
+
+    private func persistActiveSession() {
+        guard let expectedEndDate else { return }
+        defaults.set(expectedEndDate, forKey: activeEndDateKey)
+        defaults.set(currentMode.rawValue, forKey: activeModeKey)
+        defaults.set(intent, forKey: activeIntentKey)
+    }
+
+    private func clearActiveSessionPersistence() {
+        defaults.removeObject(forKey: activeEndDateKey)
+        defaults.removeObject(forKey: activeModeKey)
+        defaults.removeObject(forKey: activeIntentKey)
+    }
+
+    private func restoreActiveSession() {
+        guard
+            let endDate = defaults.object(forKey: activeEndDateKey) as? Date,
+            let modeRaw = defaults.string(forKey: activeModeKey),
+            let mode = FocusMode(rawValue: modeRaw)
+        else {
+            liveActivity.end(immediate: true)
+            return
+        }
+
+        let remaining = endDate.timeIntervalSinceNow
+        guard remaining > 0 else {
+            clearActiveSessionPersistence()
+            liveActivity.end(immediate: true)
+            return
+        }
+
+        currentMode = mode
+        timeRemaining = remaining
+        isActive = true
+        expectedEndDate = endDate
+        intent = defaults.string(forKey: activeIntentKey) ?? ""
+        startTicker()
+        liveActivity.startOrResume(
+            modeName: mode.label,
+            intent: intent,
+            remaining: remaining,
+            total: duration(for: mode),
+            accentHex: mode.liveActivityAccentHex
+        )
     }
 
     private func scheduleCompletionNotification() {

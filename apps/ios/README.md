@@ -1,9 +1,9 @@
 # Pomo — iPhone
 
-A native SwiftUI focus timer that brings Pomo’s strongest desktop ideas to
-iPhone: intention-led sessions, Dial / Terminal / Blueprint timer faces,
-drift-resistant timing, local completion notifications, activity charts, and
-private on-device history.
+A native SwiftUI focus timer that brings Pomo’s desktop faces to iPhone:
+intention-led sessions, seven timer faces, a face-only focus mode, Live
+Activities, drift-resistant timing, activity charts, and private on-device
+history.
 
 ## Build
 
@@ -33,6 +33,7 @@ release checklist live in [`AppStore/metadata.md`](AppStore/metadata.md).
 The target includes:
 
 - a 1024 × 1024 opaque App Store icon adapted from the macOS Pomo icon;
+- a WidgetKit extension for Lock Screen and Dynamic Island Live Activities;
 - `PrivacyInfo.xcprivacy`, declaring local `UserDefaults` use with `CA92.1`;
 - the production bundle identifier `dev.arach.pomo`;
 - export-compliance and Productivity category Info.plist values.

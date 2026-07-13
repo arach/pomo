@@ -120,6 +120,7 @@ expected global rating is **4+**.
 - [x] Upload the six current 6.9-inch iPhone screenshots from `PromotionalV2/`.
 - [x] Complete age rating (4+).
 - [ ] Complete App Privacy as “Data Not Collected.”
-- [ ] Confirm pricing/availability, DSA trader status, and the latest agreements.
+- [x] Confirm the app is free and available in current and new territories.
+- [ ] Confirm DSA trader status and the latest agreements in App Store Connect.
 - [x] Add App Review contact information and review notes.
 - [ ] Submit the selected build for review after the remaining checks pass.

@@ -249,6 +249,8 @@ struct TimerView: View {
             DialFace()
         case .blueprint:
             BlueprintTimerFace()
+        case .photo:
+            PhotoTimerFace()
         }
     }
 
@@ -632,4 +634,5 @@ private struct BlueprintFace: View {
     TimerView()
         .environmentObject(TimerManager())
         .environmentObject(StatsManager())
+        .environmentObject(PhotoFaceStore())
 }

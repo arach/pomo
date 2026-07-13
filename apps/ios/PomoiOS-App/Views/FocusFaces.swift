@@ -1,4 +1,5 @@
 import SwiftUI
+import UIKit
 
 enum FocusFace: String, CaseIterable, Identifiable {
     case minimal
@@ -8,6 +9,7 @@ enum FocusFace: String, CaseIterable, Identifiable {
     case rolodex
     case chronograph
     case blueprint
+    case photo
 
     var id: String { rawValue }
 
@@ -31,6 +33,7 @@ enum FocusFace: String, CaseIterable, Identifiable {
         case .rolodex: "Rolodex"
         case .chronograph: "Chronograph"
         case .blueprint: "Blueprint"
+        case .photo: "Photo"
         }
     }
 
@@ -42,11 +45,13 @@ enum FocusFace: String, CaseIterable, Identifiable {
         case .retroDigital: Color(red: 1, green: 0.78, blue: 0.18)
         case .rolodex: Color.white.opacity(0.86)
         case .blueprint: PomoPalette.blue
+        case .photo: Color.white
         }
     }
 }
 
 struct FocusFacePicker: View {
+    @EnvironmentObject private var photoFaceStore: PhotoFaceStore
     @Binding var selection: FocusFace
     @State private var centeredFace: FocusFace?
 
@@ -63,7 +68,7 @@ struct FocusFacePicker: View {
                             }
                         } label: {
                             VStack(spacing: 7) {
-                                FaceThumbnail(face: face, selected: face == selection)
+                                FaceThumbnail(face: face, selected: face == selection, photo: photoFaceStore.image)
                                     .frame(width: 66, height: 50)
 
                                 Text(face.displayName)
@@ -143,16 +148,22 @@ struct FocusFacePickerSheet: View {
 private struct FaceThumbnail: View {
     let face: FocusFace
     let selected: Bool
+    let photo: UIImage?
 
     var body: some View {
         ZStack {
             RoundedRectangle(cornerRadius: 12, style: .continuous)
                 .fill(background)
 
-            motif
-                .foregroundStyle(face.accent)
-                .padding(8)
+            if face == .photo {
+                photoMotif
+            } else {
+                motif
+                    .foregroundStyle(face.accent)
+                    .padding(8)
+            }
         }
+        .clipShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
         .overlay {
             RoundedRectangle(cornerRadius: 12, style: .continuous)
                 .stroke(selected ? face.accent : PomoPalette.border, lineWidth: selected ? 1.5 : 1)
@@ -213,6 +224,35 @@ private struct FaceThumbnail: View {
                 Circle().stroke(style: StrokeStyle(lineWidth: 1, dash: [2, 2])).padding(2)
                 Text("25:00").font(.system(size: 8, weight: .bold, design: .monospaced))
             }
+        case .photo:
+            EmptyView()
+        }
+    }
+
+    @ViewBuilder
+    private var photoMotif: some View {
+        if let photo {
+            Image(uiImage: photo)
+                .resizable()
+                .scaledToFill()
+                .overlay {
+                    LinearGradient(colors: [.clear, .black.opacity(0.52)], startPoint: .top, endPoint: .bottom)
+                }
+                .overlay(alignment: .bottomTrailing) {
+                    Image(systemName: "photo.fill")
+                        .font(.system(size: 9, weight: .semibold))
+                        .foregroundStyle(.white)
+                        .padding(7)
+                }
+        } else {
+            VStack(spacing: 4) {
+                Image(systemName: "photo.badge.plus")
+                    .font(.system(size: 15, weight: .medium))
+                Text("ADD")
+                    .font(.system(size: 7, weight: .bold, design: .monospaced))
+                    .tracking(1)
+            }
+            .foregroundStyle(PomoPalette.muted)
         }
     }
 
@@ -223,6 +263,7 @@ private struct FaceThumbnail: View {
         case .retroDigital: Color(red: 0.08, green: 0.06, blue: 0.03)
         case .rolodex: Color(red: 0.08, green: 0.08, blue: 0.10)
         case .blueprint: Color(red: 0.063, green: 0.078, blue: 0.098)
+        case .photo: Color.black.opacity(0.82)
         case .minimal, .chronograph: PomoPalette.surface
         }
     }
@@ -246,6 +287,86 @@ private struct BlueprintMiniGrid: View {
 }
 
 // MARK: - macOS face identities, adapted to the iPhone canvas
+
+struct PhotoTimerFace: View {
+    @EnvironmentObject private var timer: TimerManager
+    @EnvironmentObject private var photoFaceStore: PhotoFaceStore
+
+    var body: some View {
+        GeometryReader { proxy in
+            ZStack {
+                background(size: proxy.size)
+
+                Color.black.opacity(photoFaceStore.image == nil ? 0.16 : 0.20)
+
+                LinearGradient(
+                    colors: [.black.opacity(0.54), .clear, .black.opacity(0.62)],
+                    startPoint: .top,
+                    endPoint: .bottom
+                )
+
+                Circle()
+                    .stroke(Color.white.opacity(0.24), lineWidth: 7)
+                    .padding(42)
+
+                Circle()
+                    .trim(from: 0, to: max(timer.progress, 0.008))
+                    .stroke(timer.currentMode.color, style: StrokeStyle(lineWidth: 6, lineCap: .round))
+                    .rotationEffect(.degrees(-90))
+                    .padding(42)
+                    .shadow(color: timer.currentMode.color.opacity(0.34), radius: 10)
+
+                VStack(spacing: 12) {
+                    Text(timer.currentMode.label)
+                        .font(.system(size: 10, weight: .bold, design: .monospaced))
+                        .tracking(3)
+
+                    Text(timer.formattedTime)
+                        .font(.system(size: min(proxy.size.width * 0.15, 58), weight: .semibold, design: .monospaced))
+                        .monospacedDigit()
+                        .contentTransition(.numericText())
+
+                    Text(timer.intent.isEmpty ? (timer.isActive ? "IN SESSION" : "READY") : timer.intent)
+                        .font(.system(size: 10, weight: .semibold, design: .monospaced))
+                        .tracking(timer.intent.isEmpty ? 1.6 : 0.4)
+                        .lineLimit(1)
+                        .padding(.horizontal, 34)
+                }
+                .foregroundStyle(.white)
+                .shadow(color: .black.opacity(0.86), radius: 8, y: 2)
+            }
+            .frame(width: proxy.size.width, height: proxy.size.height)
+            .clipped()
+        }
+    }
+
+    @ViewBuilder
+    private func background(size: CGSize) -> some View {
+        if let image = photoFaceStore.image {
+            Image(uiImage: image)
+                .resizable()
+                .scaledToFill()
+                .frame(width: size.width, height: size.height)
+                .clipped()
+        } else {
+            ZStack {
+                LinearGradient(
+                    colors: [PomoPalette.surfaceStrong, PomoPalette.background],
+                    startPoint: .topLeading,
+                    endPoint: .bottomTrailing
+                )
+                VStack(spacing: 10) {
+                    Image(systemName: "photo.badge.plus")
+                        .font(.system(size: 32, weight: .light))
+                    Text("Choose a photo in Settings")
+                        .font(.system(size: 10, weight: .semibold, design: .monospaced))
+                }
+                .foregroundStyle(PomoPalette.muted)
+                .offset(y: size.height * 0.26)
+            }
+        }
+    }
+}
 
 struct MinimalTimerFace: View {
     @EnvironmentObject private var timer: TimerManager

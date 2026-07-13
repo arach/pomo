@@ -1,3 +1,4 @@
+import PhotosUI
 import SwiftUI
 import UIKit
 import UserNotifications
@@ -5,6 +6,7 @@ import UserNotifications
 struct SettingsView: View {
     @EnvironmentObject private var timerManager: TimerManager
     @EnvironmentObject private var statsManager: StatsManager
+    @EnvironmentObject private var photoFaceStore: PhotoFaceStore
 
     @AppStorage("notificationsEnabled") private var notificationsEnabled = false
     @AppStorage("soundEnabled") private var soundEnabled = true
@@ -19,6 +21,8 @@ struct SettingsView: View {
 
     @State private var showingResetAlert = false
     @State private var showingNotificationAlert = false
+    @State private var selectedPhotoItem: PhotosPickerItem?
+    @State private var photoErrorMessage: String?
 
     var body: some View {
         NavigationStack {
@@ -58,10 +62,22 @@ struct SettingsView: View {
             } message: {
                 Text("This permanently removes your session history from this device.")
             }
+            .alert("Couldn’t use that photo", isPresented: Binding(
+                get: { photoErrorMessage != nil },
+                set: { if !$0 { photoErrorMessage = nil } }
+            )) {
+                Button("OK", role: .cancel) { photoErrorMessage = nil }
+            } message: {
+                Text(photoErrorMessage ?? "Try choosing another image.")
+            }
             .onChange(of: focusMinutes) { _, _ in timerManager.applyDurationSettings() }
             .onChange(of: shortBreakMinutes) { _, _ in timerManager.applyDurationSettings() }
             .onChange(of: longBreakMinutes) { _, _ in timerManager.applyDurationSettings() }
             .onChange(of: planningMinutes) { _, _ in timerManager.applyDurationSettings() }
+            .onChange(of: selectedPhotoItem) { _, item in
+                guard let item else { return }
+                Task { await importPhoto(item) }
+            }
             .onAppear {
                 #if DEBUG
                 let arguments = ProcessInfo.processInfo.arguments
@@ -115,8 +131,30 @@ struct SettingsView: View {
     }
 
     private var appearance: some View {
-        FocusFacePicker(selection: Binding(get: { face }, set: { face = $0 }))
-            .pomoPanel()
+        VStack(spacing: 0) {
+            FocusFacePicker(selection: Binding(get: { face }, set: { face = $0 }))
+            divider
+                .padding(.top, 4)
+            PhotosPicker(selection: $selectedPhotoItem, matching: .images) {
+                HStack(spacing: 12) {
+                    SettingsLabel(
+                        title: photoFaceStore.image == nil ? "Choose a photo" : "Change photo",
+                        detail: "Used only on the Photo face",
+                        icon: "photo.fill",
+                        tint: PomoPalette.blue
+                    )
+                    Spacer()
+                    Image(systemName: "chevron.right")
+                        .font(.system(size: 11, weight: .semibold))
+                        .foregroundStyle(PomoPalette.dim)
+                }
+                .padding(.vertical, 12)
+                .contentShape(Rectangle())
+            }
+            .buttonStyle(.plain)
+            .accessibilityHint("Opens the photo library. The selected image stays on this device.")
+        }
+        .pomoPanel()
     }
 
     private var rhythm: some View {
@@ -251,6 +289,22 @@ struct SettingsView: View {
             }
         }
     }
+
+    @MainActor
+    private func importPhoto(_ item: PhotosPickerItem) async {
+        defer { selectedPhotoItem = nil }
+        do {
+            guard let data = try await item.loadTransferable(type: Data.self) else {
+                throw PhotoFaceStoreError.unreadableImage
+            }
+            try photoFaceStore.save(data: data)
+            withAnimation(.snappy(duration: 0.22, extraBounce: 0)) {
+                face = .photo
+            }
+        } catch {
+            photoErrorMessage = error.localizedDescription
+        }
+    }
 }
 
 private struct SettingsLabel: View {
@@ -327,4 +381,5 @@ private struct SettingStepper: View {
     SettingsView()
         .environmentObject(TimerManager())
         .environmentObject(StatsManager())
+        .environmentObject(PhotoFaceStore())
 }

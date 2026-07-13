@@ -50,4 +50,5 @@ struct ContentView: View {
     ContentView()
         .environmentObject(TimerManager())
         .environmentObject(StatsManager())
+        .environmentObject(PhotoFaceStore())
 }

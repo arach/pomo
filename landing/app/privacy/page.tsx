@@ -3,13 +3,13 @@ import Link from "next/link";
 
 export const metadata: Metadata = {
   title: "Privacy Policy — Pomo",
-  description: "How Pomo handles timer settings, session history, and website analytics.",
+  description: "How Pomo handles timer settings, session history, Photo face images, and website analytics.",
 };
 
 const sections = [
   {
     title: "The Pomo app",
-    body: "Pomo does not require an account and does not include advertising or analytics SDKs. Timer settings, session intentions, and activity history are stored locally on your device. The app does not send that information to us or to third parties.",
+    body: "Pomo does not require an account and does not include advertising or analytics SDKs. Timer settings, session intentions, activity history, and any image you choose for the Photo face are stored locally on your device. The app does not send that information to us or to third parties.",
   },
   {
     title: "Notifications",

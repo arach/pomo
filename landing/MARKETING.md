@@ -14,6 +14,8 @@ generic device renders and no generated product UI.
 | 05 · Activity | See your rhythm. | `public/marketing/iphone-activity-v2.png` |
 
 All five product screenshots are 1320 × 2868 iPhone 16 Pro Max captures.
+The Photo face example uses original generated washi artwork preserved at
+`../apps/ios/AppStore/SourceAssets/photo-face-washi.png`.
 
 ## App Store promotional set
 

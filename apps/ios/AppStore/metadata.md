@@ -116,9 +116,10 @@ expected global rating is **4+**.
 - [x] Create the App Store Connect record using the final legal developer name.
 - [ ] Confirm the support and privacy URLs are deployed and publicly reachable.
 - [x] Archive with the App Store distribution profile and upload build 1.
-- [ ] Archive and upload build 2 with the expanded faces, personal Photo face, focus mode, and Live Activity.
+- [x] Archive and upload build 2 with the expanded faces, personal Photo face, focus mode, and Live Activity.
 - [x] Upload the six current 6.9-inch iPhone screenshots from `PromotionalV2/`.
 - [x] Complete age rating (4+).
 - [ ] Complete App Privacy as “Data Not Collected.”
 - [ ] Confirm pricing/availability, DSA trader status, and the latest agreements.
-- [ ] Add review contact information, then submit the selected build for review.
+- [x] Add App Review contact information and review notes.
+- [ ] Submit the selected build for review after the remaining checks pass.

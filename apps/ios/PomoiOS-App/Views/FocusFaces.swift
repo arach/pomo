@@ -383,6 +383,7 @@ struct NeonTimerFace: View {
                     .foregroundStyle(timer.isActive ? magenta : Color.white.opacity(0.5))
             }
         }
+        .frame(maxWidth: .infinity, maxHeight: .infinity)
         .background(Color(red: 0.04, green: 0.02, blue: 0.08))
     }
 

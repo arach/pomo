@@ -683,8 +683,8 @@
   overflow: hidden;
   color: #f4eee6;
   background:
-    radial-gradient(900px 900px at 50% 55%, color-mix(in srgb, var(--promo-accent) 10%, transparent), transparent 72%),
-    linear-gradient(180deg, #17120f 0%, #120f0c 100%);
+    radial-gradient(900px 900px at 50% 51%, color-mix(in srgb, var(--promo-accent) 13%, transparent), transparent 70%),
+    linear-gradient(160deg, #1a1511 0%, #110e0c 72%);
   font-family: var(--font-space-grotesk, ui-sans-serif), sans-serif;
 }
 
@@ -696,13 +696,14 @@
     linear-gradient(rgba(112,183,255,.045) 1px, transparent 1px),
     linear-gradient(90deg, rgba(112,183,255,.045) 1px, transparent 1px);
   background-size: 44px 44px;
-  mask-image: linear-gradient(to bottom, black 0%, transparent 38%);
+  opacity: .7;
+  mask-image: linear-gradient(to bottom, black 0%, transparent 30%);
 }
 
 .app-store-copy {
   position: relative;
   z-index: 2;
-  padding: 118px 112px 0;
+  padding: 108px 104px 0;
 }
 
 .app-store-meta,
@@ -717,8 +718,8 @@
 }
 
 .app-store-meta {
-  color: #7d7165;
-  font-size: 23px;
+  color: #8d8073;
+  font-size: 21px;
 }
 
 .app-store-wordmark {
@@ -727,69 +728,108 @@
   gap: 18px;
   color: #f4eee6;
   letter-spacing: .24em;
+  white-space: nowrap;
+}
+
+.app-store-wordmark em {
+  color: #f4eee6;
+  font-style: normal;
 }
 
 .app-store-wordmark i {
-  width: 38px;
+  width: 42px;
   height: 6px;
   border-radius: 3px;
   background: var(--promo-accent);
 }
 
-.app-store-rule {
-  height: 1px;
-  margin-top: 30px;
-  background: rgba(255,255,255,.10);
+.app-store-wordmark b {
+  color: #8d8073;
+  font-weight: 500;
+  letter-spacing: .08em;
 }
 
 .app-store-label {
-  margin-top: 72px;
+  margin-top: 68px;
   color: var(--promo-accent);
   font-family: var(--font-jetbrains-mono, ui-monospace), monospace;
-  font-size: 24px;
+  font-size: 22px;
   font-weight: 600;
   letter-spacing: .18em;
   text-transform: uppercase;
 }
 
 .app-store-copy h1 {
-  margin: 22px 0 0;
+  margin: 18px 0 0;
   color: #f4eee6;
-  font-size: 100px;
+  font-size: 104px;
   font-weight: 400;
   line-height: 1.02;
   letter-spacing: -.035em;
 }
 
 .app-store-copy p {
-  margin: 30px 0 0;
-  color: #bcae9e;
-  font-size: 40px;
+  margin: 24px 0 0;
+  color: #b8ab9d;
+  font-size: 38px;
   font-weight: 300;
   line-height: 1.35;
   letter-spacing: -.01em;
 }
 
-.app-store-device {
+.app-store-stage {
   position: absolute;
   z-index: 1;
-  top: 660px;
-  left: 175px;
-  width: 970px;
+  top: 620px;
+  left: 96px;
+  width: 1128px;
 }
 
-.app-store-device::before,
-.app-store-device::after {
-  content: "";
+.app-store-orbit {
   position: absolute;
-  top: 54px;
-  bottom: 0;
-  width: 1px;
-  background: color-mix(in srgb, var(--promo-accent) 22%, transparent);
+  z-index: -1;
+  top: 180px;
+  left: -180px;
+  width: 1480px;
+  height: 1480px;
+  border: 1px solid color-mix(in srgb, var(--promo-accent) 18%, transparent);
+  border-radius: 50%;
+  box-shadow: 0 0 180px color-mix(in srgb, var(--promo-accent) 8%, transparent);
 }
 
-.app-store-device::before { left: -44px; }
-.app-store-device::after { right: -44px; }
+.app-store-detail {
+  position: absolute;
+  z-index: 3;
+  top: -22px;
+  right: 28px;
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  height: 54px;
+  padding: 0 22px;
+  border: 1px solid color-mix(in srgb, var(--promo-accent) 38%, transparent);
+  border-radius: 27px;
+  color: #d9cfc4;
+  background: rgba(24,19,15,.88);
+  font-family: var(--font-jetbrains-mono, ui-monospace), monospace;
+  font-size: 18px;
+  font-weight: 600;
+  letter-spacing: .1em;
+  text-transform: uppercase;
+  backdrop-filter: blur(18px);
+}
+
+.app-store-detail i {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: var(--promo-accent);
+  box-shadow: 0 0 14px var(--promo-accent);
+}
+
+.app-store-device {
+  width: 100%;
+}
 
 .app-store-device-label {
   height: 54px;
@@ -799,19 +839,28 @@
 
 .app-store-device-frame {
   width: 100%;
-  padding: 9px;
+  padding: 10px;
   overflow: hidden;
   border: 1px solid rgba(255,255,255,.14);
-  border-radius: 76px 76px 0 0;
+  border-radius: 92px 92px 0 0;
   background: #080706;
   box-shadow:
     0 0 0 1px color-mix(in srgb, var(--promo-accent) 8%, transparent),
-    0 42px 90px -34px rgba(0,0,0,.95);
+    0 54px 120px -36px rgba(0,0,0,.95);
 }
 
 .app-store-device-frame img {
   display: block;
   width: 100%;
   height: auto;
-  border-radius: 66px 66px 0 0;
+  border-radius: 81px 81px 0 0;
+}
+
+.app-store-artboard.is-immersive .app-store-stage {
+  top: 600px;
+}
+
+.app-store-artboard.is-immersive .app-store-device-frame {
+  border-color: color-mix(in srgb, var(--promo-accent) 30%, transparent);
+  box-shadow: 0 54px 140px -30px rgba(0,0,0,.95), 0 0 90px color-mix(in srgb, var(--promo-accent) 9%, transparent);
 }

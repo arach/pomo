@@ -3,33 +3,35 @@
 The landing-page campaign uses the shipping iPhone interface directly—no
 generic device renders and no generated product UI.
 
-## Campaign set 01–04
+## Campaign set 01–05
 
 | Asset | Message | Source |
 | --- | --- | --- |
-| 01 · Focus | Focus on the task. | `public/marketing/iphone-focus.png` |
-| 02 · Faces | Choose a timer face. | `public/marketing/iphone-blueprint.png` |
-| 03 · Activity | Review your activity. | `public/marketing/iphone-activity.png` |
-| 04 · Settings | Adjust the timer. | `public/marketing/iphone-settings.png` |
+| 01 · Timer | Set an intention. | `public/marketing/iphone-timer-v2.png` |
+| 02 · Faces | Choose your face. | `public/marketing/iphone-faces-v2.png` |
+| 03 · Focus view | Just the timer. | `public/marketing/iphone-immersive-v2.png` |
+| 04 · Session length | Set the time. | `public/marketing/iphone-duration-v2.png` |
+| 05 · Activity | See your rhythm. | `public/marketing/iphone-activity-v2.png` |
 
-All four product screenshots are 1320 × 2868 iPhone 16 Pro Max captures.
+All five product screenshots are 1320 × 2868 iPhone 16 Pro Max captures.
 
 ## App Store promotional set
 
 The upload-ready 6.9-inch product-page images live in
-`../apps/ios/AppStore/Promotional/`:
+`../apps/ios/AppStore/PromotionalV2/`:
 
 | File | Copy |
 | --- | --- |
-| `01-focus.png` | Focus on the task. |
-| `02-faces.png` | Choose a timer face. |
-| `03-activity.png` | Review your activity. |
-| `04-settings.png` | Adjust the timer. |
+| `01-timer.png` | Set an intention. |
+| `02-faces.png` | Choose your face. |
+| `03-immersive.png` | Just the timer. |
+| `04-duration.png` | Set the time. |
+| `05-activity.png` | See your rhythm. |
 
 Each image is 1320 × 2868. The reusable renderer lives in
 `components/app-store-promo.tsx`; its export routes are
-`/app-store/focus`, `/app-store/faces`, `/app-store/activity`, and
-`/app-store/settings`.
+`/app-store/timer`, `/app-store/faces`, `/app-store/immersive`,
+`/app-store/duration`, and `/app-store/activity`.
 
 ## Social / Open Graph
 

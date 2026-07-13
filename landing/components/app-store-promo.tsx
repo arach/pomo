@@ -1,37 +1,50 @@
 import Image from "next/image";
 
 export const appStorePromos = {
-  focus: {
+  timer: {
     order: "01",
-    label: "Focus timer",
-    title: "Focus on the task.",
-    description: "Add a note and start the timer.",
-    src: "/marketing/iphone-focus.png",
+    label: "Timer",
+    title: "Set an intention.",
+    description: "Name the task. Start the timer.",
+    detail: "Focus · 25 min",
+    src: "/marketing/iphone-timer-v2.png",
     accent: "#eae434",
   },
   faces: {
     order: "02",
-    label: "Timer faces",
-    title: "Choose a timer face.",
-    description: "Dial, Terminal, and Blueprint are included.",
-    src: "/marketing/iphone-blueprint.png",
-    accent: "#70b7ff",
+    label: "Faces",
+    title: "Choose your face.",
+    description: "Seven distinct faces, ready in Settings.",
+    detail: "7 included",
+    src: "/marketing/iphone-faces-v2.png",
+    accent: "#c39aff",
+  },
+  immersive: {
+    order: "03",
+    label: "Focus view",
+    title: "Just the timer.",
+    description: "Tap the face for a quieter view.",
+    detail: "Tap to return",
+    src: "/marketing/iphone-immersive-v2.png",
+    accent: "#55e8f5",
+  },
+  duration: {
+    order: "04",
+    label: "Session length",
+    title: "Set the time.",
+    description: "Use a preset or choose it precisely.",
+    detail: "Minutes · seconds",
+    src: "/marketing/iphone-duration-v2.png",
+    accent: "#f2a65a",
   },
   activity: {
-    order: "03",
+    order: "05",
     label: "Activity",
-    title: "Review your activity.",
-    description: "See sessions, focus time, and streaks.",
-    src: "/marketing/iphone-activity.png",
+    title: "See your rhythm.",
+    description: "Sessions, focus time, and streaks.",
+    detail: "Private · on device",
+    src: "/marketing/iphone-activity-v2.png",
     accent: "#5ed69a",
-  },
-  settings: {
-    order: "04",
-    label: "Settings",
-    title: "Adjust the timer.",
-    description: "Set focus, break, and planning lengths.",
-    src: "/marketing/iphone-settings.png",
-    accent: "#f2a65a",
   },
 } as const;
 
@@ -49,20 +62,18 @@ export function AppStorePromo({ shot }: { shot: AppStorePromoKey }) {
 
       <header className="app-store-copy">
         <div className="app-store-meta">
-          <span className="app-store-wordmark"><i />POMO</span>
-          <span>{promo.order} / 04</span>
+          <span className="app-store-wordmark"><i /><em>POMO</em><b>for iPhone</b></span>
+          <span>{promo.order} — 05</span>
         </div>
-        <div className="app-store-rule" />
         <div className="app-store-label">{promo.label}</div>
         <h1>{promo.title}</h1>
         <p>{promo.description}</p>
       </header>
 
-      <div className="app-store-device" aria-label={`Pomo for iPhone — ${promo.title}`}>
-        <div className="app-store-device-label" aria-hidden="true">
-          <span>iPhone · 6.9 inch</span>
-          <span>UI / 1:1</span>
-        </div>
+      <div className="app-store-stage" aria-label={`Pomo for iPhone — ${promo.title}`}>
+        <div className="app-store-orbit" aria-hidden="true" />
+        <div className="app-store-detail" aria-hidden="true"><i />{promo.detail}</div>
+        <div className="app-store-device">
         <div className="app-store-device-frame">
           <Image
             src={promo.src}
@@ -72,6 +83,7 @@ export function AppStorePromo({ shot }: { shot: AppStorePromoKey }) {
             alt={`Pomo for iPhone showing ${promo.label.toLowerCase()}`}
             priority
           />
+        </div>
         </div>
       </div>
 

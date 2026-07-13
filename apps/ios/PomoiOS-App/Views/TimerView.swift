@@ -1,13 +1,43 @@
 import SwiftUI
 
+private enum TimerPreviewConfiguration {
+    static let arguments = ProcessInfo.processInfo.arguments
+
+    static var showsFocusMode: Bool {
+        #if DEBUG
+        arguments.contains("-previewFocusMode")
+        #else
+        false
+        #endif
+    }
+
+    static var showsDurationPicker: Bool {
+        #if DEBUG
+        arguments.contains("-previewDurationPicker")
+        #else
+        false
+        #endif
+    }
+
+    static var face: FocusFace? {
+        #if DEBUG
+        guard let index = arguments.firstIndex(of: "-previewFace"),
+              arguments.indices.contains(index + 1) else { return nil }
+        return FocusFace(rawValue: arguments[index + 1])
+        #else
+        nil
+        #endif
+    }
+}
+
 struct TimerView: View {
     @EnvironmentObject private var timerManager: TimerManager
     @EnvironmentObject private var statsManager: StatsManager
     @AppStorage("dailyGoal") private var dailyGoal = 8
     @AppStorage("focusFace") private var faceRaw = FocusFace.chronograph.rawValue
     @State private var showingFacePicker = false
-    @State private var showingFocusMode = false
-    @State private var showingDurationPicker = false
+    @State private var showingFocusMode = TimerPreviewConfiguration.showsFocusMode
+    @State private var showingDurationPicker = TimerPreviewConfiguration.showsDurationPicker
 
     private var face: FocusFace {
         get { FocusFace(storedValue: faceRaw) }
@@ -32,6 +62,9 @@ struct TimerView: View {
             .pomoScreen()
             .toolbar(.hidden, for: .navigationBar)
             .onAppear {
+                if let previewFace = TimerPreviewConfiguration.face {
+                    faceRaw = previewFace.rawValue
+                }
                 // Normalize the original display-name values to the shared
                 // macOS identities without changing what existing users see.
                 if faceRaw != face.rawValue {

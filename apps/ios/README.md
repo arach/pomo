@@ -44,6 +44,9 @@ For deterministic marketing captures, Debug builds accept:
 ```text
 -appStorePreview
 -previewTab timer|stats|settings
+-previewFace minimal|terminal|neon|retroDigital|rolodex|chronograph|blueprint
+-previewFocusMode
+-previewDurationPicker
 ```
 
 `-appStorePreview` uses in-memory sample activity and does not write that sample

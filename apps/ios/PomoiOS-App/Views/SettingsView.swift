@@ -63,6 +63,14 @@ struct SettingsView: View {
             .onChange(of: longBreakMinutes) { _, _ in timerManager.applyDurationSettings() }
             .onChange(of: planningMinutes) { _, _ in timerManager.applyDurationSettings() }
             .onAppear {
+                #if DEBUG
+                let arguments = ProcessInfo.processInfo.arguments
+                if let index = arguments.firstIndex(of: "-previewFace"),
+                   arguments.indices.contains(index + 1),
+                   let previewFace = FocusFace(rawValue: arguments[index + 1]) {
+                    faceRaw = previewFace.rawValue
+                }
+                #endif
                 if faceRaw != face.rawValue {
                     faceRaw = face.rawValue
                 }

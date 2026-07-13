@@ -5,8 +5,8 @@ export const appStorePromos = {
     order: "01",
     label: "Timer faces",
     title: "Pick a face. Begin.",
-    description: "Seven designs, ready when you are.",
-    detail: "7 faces included",
+    description: "Eight faces, including one for your own photos.",
+    detail: "8 faces included",
     src: "/marketing/iphone-timer-v2.png",
     accent: "#eae434",
   },
@@ -21,11 +21,11 @@ export const appStorePromos = {
   },
   faces: {
     order: "03",
-    label: "Faces",
-    title: "Choose your face.",
-    description: "Seven distinct faces, ready in Settings.",
-    detail: "7 included",
-    src: "/marketing/iphone-faces-v2.png",
+    label: "Photo face",
+    title: "Use your own photo.",
+    description: "Choose one in Settings. Change it anytime.",
+    detail: "Stored on device",
+    src: "/marketing/iphone-photo-v2.png",
     accent: "#c39aff",
   },
   immersive: {
@@ -80,16 +80,16 @@ export function AppStorePromo({ shot }: { shot: AppStorePromoKey }) {
       </header>
 
       {shot === "hero" ? (
-        <div className="app-store-hero-stage" aria-label="Three Pomo timer faces for iPhone">
+        <div className="app-store-hero-stage" aria-label="Three Pomo timer views for iPhone">
           <div className="app-store-orbit" aria-hidden="true" />
           <div className="app-store-detail" aria-hidden="true"><i />{promo.detail}</div>
           <div className="app-store-hero-device is-picker">
             <Image
-              src="/marketing/iphone-faces-v2.png"
+              src="/marketing/iphone-photo-v2.png"
               width={1320}
               height={2868}
               sizes="560px"
-              alt="Pomo timer face picker"
+              alt="Pomo Photo face settings"
               priority
             />
           </div>

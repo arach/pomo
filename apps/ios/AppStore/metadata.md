@@ -17,7 +17,7 @@
 
 ## Promotional text
 
-Pomo includes task notes, seven timer faces, a quiet full-screen focus mode, Live Activities, and private activity history stored on your iPhone.
+Pomo includes task notes, eight timer faces—including one for your own photos—a quiet full-screen focus mode, Live Activities, and private activity history.
 
 ## Description
 
@@ -29,7 +29,7 @@ ADD A TASK
 Write a short note before the timer starts. It stays visible during the session.
 
 CHOOSE A TIMER FACE
-Choose Minimal, Terminal, Neon, Retro Digital, Rolodex, Chronograph, or Blueprint in Settings. Long press the timer for a shortcut.
+Choose from seven designed faces, or use one of your own photos. Change it any time in Settings. Long press the timer for a shortcut.
 
 FOCUS ON THE TIMER
 Tap the timer face for a quiet full-screen view. Tap again when you want the controls back.
@@ -44,7 +44,7 @@ ADJUST THE TIMER
 Set focus, planning, and break defaults in Settings, or tap the session length beside the mode to choose an exact time for the current session. You can also set a daily goal and choose whether breaks start automatically.
 
 PRIVATE BY DEFAULT
-Pomo has no account and no advertising or analytics SDK. Your timer settings, session intentions, and activity history stay on your device.
+Pomo has no account and no advertising or analytics SDK. Your timer settings, session intentions, activity history, and selected Photo face image stay on your device.
 
 Pomo is an independent, open-source app for focused work.
 
@@ -65,9 +65,9 @@ Use 6.9-inch portrait screenshots at `1320 × 2868`.
 Upload the finished files in `PromotionalV2/`. The unframed simulator captures in
 `Screenshots/` are the source images used by the marketing renderer.
 
-1. **Pick a face. Begin.** — Seven timer designs, shown in the app.
+1. **Pick a face. Begin.** — Eight faces, including one for your own photos.
 2. **Set an intention.** — Name the task and start the timer.
-3. **Choose your face.** — Seven desktop-inspired faces are included.
+3. **Use your own photo.** — Choose or change it in Settings.
 4. **Just the timer.** — Tap the face for a quieter focus view.
 5. **Set the time.** — Use a preset or choose the session precisely.
 6. **See your rhythm.** — Review sessions, focus time, and streaks.
@@ -80,7 +80,7 @@ Pomo is a standalone focus timer. No account, sign-in, network connection, purch
 - Tap the session pill to choose Focus, Short Break, Long Break, or Planning.
 - Tap the session-length pill while stopped or paused to set the current session in minutes and seconds.
 - Tap a timer face for the face-only focus view; tap again to return.
-- Choose among seven faces in Settings, or long press the timer face for the visual picker.
+- Choose among eight faces in Settings, including a Photo face. Use “Choose a photo” to select an image with the system picker, or long press the timer face for the visual picker.
 - Starting a timer can show an optional Live Activity on the Lock Screen and Dynamic Island.
 - Notifications are optional and requested only when enabled in Settings.
 - All session data is stored locally in `UserDefaults`; the included privacy manifest declares reason `CA92.1`.
@@ -92,7 +92,7 @@ Pomo is a standalone focus timer. No account, sign-in, network connection, purch
 - **Data not linked to you:** No
 - **Data collected:** None
 
-The app stores settings, intentions, and session history locally and does not transmit them.
+The app stores settings, intentions, session history, and any image selected for the Photo face locally and does not transmit them.
 
 ## Age rating answers
 
@@ -116,7 +116,7 @@ expected global rating is **4+**.
 - [x] Create the App Store Connect record using the final legal developer name.
 - [ ] Confirm the support and privacy URLs are deployed and publicly reachable.
 - [x] Archive with the App Store distribution profile and upload build 1.
-- [ ] Archive and upload build 2 with the expanded faces, focus mode, and Live Activity.
+- [ ] Archive and upload build 2 with the expanded faces, personal Photo face, focus mode, and Live Activity.
 - [x] Upload the six current 6.9-inch iPhone screenshots from `PromotionalV2/`.
 - [x] Complete age rating (4+).
 - [ ] Complete App Privacy as “Data Not Collected.”

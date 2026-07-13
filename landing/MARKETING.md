@@ -8,7 +8,7 @@ generic device renders and no generated product UI.
 | Asset | Message | Source |
 | --- | --- | --- |
 | 01 · Timer | Set an intention. | `public/marketing/iphone-timer-v2.png` |
-| 02 · Faces | Choose your face. | `public/marketing/iphone-faces-v2.png` |
+| 02 · Photo face | Use your own photo. | `public/marketing/iphone-photo-v2.png` |
 | 03 · Focus view | Just the timer. | `public/marketing/iphone-immersive-v2.png` |
 | 04 · Session length | Set the time. | `public/marketing/iphone-duration-v2.png` |
 | 05 · Activity | See your rhythm. | `public/marketing/iphone-activity-v2.png` |
@@ -22,9 +22,9 @@ The upload-ready 6.9-inch product-page images live in
 
 | File | Copy |
 | --- | --- |
-| `01-hero.png` | Pick a face. Begin. |
+| `01-hero.png` | Pick a face. Begin. — eight faces, including your photos. |
 | `02-timer.png` | Set an intention. |
-| `03-faces.png` | Choose your face. |
+| `03-faces.png` | Use your own photo. |
 | `04-immersive.png` | Just the timer. |
 | `05-duration.png` | Set the time. |
 | `06-activity.png` | See your rhythm. |

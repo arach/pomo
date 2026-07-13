@@ -488,11 +488,11 @@ function Screenshots() {
       caption: "Add a note and start the timer.",
     },
     {
-      src: "/marketing/iphone-blueprint.png",
+      src: "/marketing/iphone-photo-v2.png",
       index: "02",
-      label: "Instrument",
-      title: "Choose a timer face.",
-      caption: "Dial, Terminal, and Blueprint are included.",
+      label: "Personal",
+      title: "Use your own photo.",
+      caption: "Choose it in Settings. Change it anytime.",
     },
     {
       src: "/marketing/iphone-activity.png",
@@ -555,7 +555,7 @@ function Screenshots() {
               <h2>Pomo for iPhone.</h2>
             </div>
             <p>
-              The iPhone app includes task notes, three timer faces, adjustable sessions, and activity history stored on the device.
+              The iPhone app includes task notes, eight timer faces—including one for your own photos—adjustable sessions, and activity history stored on the device.
             </p>
           </div>
 

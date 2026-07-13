@@ -1,7 +1,7 @@
 # Pomo — iPhone
 
 A native SwiftUI focus timer that brings Pomo’s desktop faces to iPhone:
-intention-led sessions, seven timer faces, a face-only focus mode, Live
+intention-led sessions, eight timer faces—including a personal Photo face—a face-only focus mode, Live
 Activities, drift-resistant timing, activity charts, and private on-device
 history. Mode defaults live in Settings, while each individual session can be
 set precisely in minutes and seconds from the timer screen.

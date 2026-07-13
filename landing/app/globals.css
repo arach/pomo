@@ -867,15 +867,22 @@
 
 .app-store-artboard.is-hero {
   background:
-    radial-gradient(720px 860px at 72% 48%, rgba(85,232,245,.12), transparent 68%),
-    radial-gradient(820px 900px at 26% 56%, rgba(195,154,255,.10), transparent 70%),
-    radial-gradient(900px 900px at 50% 55%, color-mix(in srgb, var(--promo-accent) 12%, transparent), transparent 72%),
-    linear-gradient(160deg, #1a1511 0%, #0d0a0c 78%);
+    radial-gradient(760px 920px at 78% 50%, rgba(85,232,245,.24), transparent 64%),
+    radial-gradient(820px 940px at 20% 54%, rgba(195,154,255,.20), transparent 66%),
+    radial-gradient(980px 1080px at 50% 58%, rgba(234,228,52,.17), transparent 70%),
+    linear-gradient(160deg, #201812 0%, #0a080a 78%);
 }
 
 .app-store-artboard.is-hero .app-store-copy h1 {
   max-width: 1050px;
+  color: #fffaf4;
   font-size: 112px;
+  text-shadow: 0 4px 42px rgba(255,250,244,.09);
+}
+
+.app-store-artboard.is-hero .app-store-copy p {
+  color: #d8ccbf;
+  font-weight: 350;
 }
 
 .app-store-hero-stage {
@@ -885,6 +892,19 @@
   left: 0;
   width: 1320px;
   height: 2238px;
+}
+
+.app-store-hero-stage::before {
+  position: absolute;
+  z-index: 0;
+  top: 90px;
+  left: 150px;
+  width: 1020px;
+  height: 1810px;
+  border-radius: 45%;
+  background: radial-gradient(ellipse at 50% 42%, rgba(234,228,52,.18), rgba(234,228,52,.045) 46%, transparent 70%);
+  filter: blur(12px);
+  content: "";
 }
 
 .app-store-hero-stage .app-store-orbit {
@@ -897,17 +917,22 @@
 .app-store-hero-stage .app-store-detail {
   top: -20px;
   right: 102px;
+  border-color: rgba(234,228,52,.62);
+  color: #fff8e8;
+  background: rgba(13,10,8,.96);
+  box-shadow: 0 0 36px rgba(234,228,52,.11);
 }
 
 .app-store-hero-device {
+  z-index: 1;
   position: absolute;
   overflow: hidden;
-  border: 1px solid rgba(255,255,255,.16);
+  border: 2px solid color-mix(in srgb, var(--device-accent) 40%, rgba(255,255,255,.18));
   background: #080706;
   box-shadow:
-    0 0 0 1px color-mix(in srgb, var(--device-accent) 13%, transparent),
+    0 0 0 1px color-mix(in srgb, var(--device-accent) 28%, transparent),
     0 70px 150px -42px rgba(0,0,0,.98),
-    0 0 100px color-mix(in srgb, var(--device-accent) 10%, transparent);
+    0 0 130px color-mix(in srgb, var(--device-accent) 22%, transparent);
 }
 
 .app-store-hero-device img {
@@ -922,6 +947,7 @@
   left: -145px;
   width: 590px;
   border-radius: 68px;
+  filter: brightness(1.10) saturate(1.08);
   transform: rotate(-4deg);
 }
 
@@ -931,6 +957,7 @@
   right: -150px;
   width: 590px;
   border-radius: 68px;
+  filter: brightness(1.12) saturate(1.12);
   transform: rotate(4deg);
 }
 
@@ -941,8 +968,9 @@
   left: 220px;
   width: 880px;
   border-radius: 82px 82px 0 0;
+  border-color: rgba(234,228,52,.42);
   box-shadow:
-    0 0 0 1px rgba(234,228,52,.16),
+    0 0 0 1px rgba(234,228,52,.32),
     0 80px 170px -44px rgba(0,0,0,.98),
-    0 0 120px rgba(234,228,52,.07);
+    0 0 150px rgba(234,228,52,.18);
 }

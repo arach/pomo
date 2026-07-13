@@ -22,15 +22,16 @@ The upload-ready 6.9-inch product-page images live in
 
 | File | Copy |
 | --- | --- |
-| `01-timer.png` | Set an intention. |
-| `02-faces.png` | Choose your face. |
-| `03-immersive.png` | Just the timer. |
-| `04-duration.png` | Set the time. |
-| `05-activity.png` | See your rhythm. |
+| `01-hero.png` | Pick a face. Begin. |
+| `02-timer.png` | Set an intention. |
+| `03-faces.png` | Choose your face. |
+| `04-immersive.png` | Just the timer. |
+| `05-duration.png` | Set the time. |
+| `06-activity.png` | See your rhythm. |
 
 Each image is 1320 × 2868. The reusable renderer lives in
 `components/app-store-promo.tsx`; its export routes are
-`/app-store/timer`, `/app-store/faces`, `/app-store/immersive`,
+`/app-store/hero`, `/app-store/timer`, `/app-store/faces`, `/app-store/immersive`,
 `/app-store/duration`, and `/app-store/activity`.
 
 ## Social / Open Graph

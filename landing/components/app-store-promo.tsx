@@ -1,8 +1,17 @@
 import Image from "next/image";
 
 export const appStorePromos = {
-  timer: {
+  hero: {
     order: "01",
+    label: "Timer faces",
+    title: "Pick a face. Begin.",
+    description: "Seven designs, ready when you are.",
+    detail: "7 faces included",
+    src: "/marketing/iphone-timer-v2.png",
+    accent: "#eae434",
+  },
+  timer: {
+    order: "02",
     label: "Timer",
     title: "Set an intention.",
     description: "Name the task. Start the timer.",
@@ -11,7 +20,7 @@ export const appStorePromos = {
     accent: "#eae434",
   },
   faces: {
-    order: "02",
+    order: "03",
     label: "Faces",
     title: "Choose your face.",
     description: "Seven distinct faces, ready in Settings.",
@@ -20,7 +29,7 @@ export const appStorePromos = {
     accent: "#c39aff",
   },
   immersive: {
-    order: "03",
+    order: "04",
     label: "Focus view",
     title: "Just the timer.",
     description: "Tap the face for a quieter view.",
@@ -29,7 +38,7 @@ export const appStorePromos = {
     accent: "#55e8f5",
   },
   duration: {
-    order: "04",
+    order: "05",
     label: "Session length",
     title: "Set the time.",
     description: "Use a preset or choose it precisely.",
@@ -38,7 +47,7 @@ export const appStorePromos = {
     accent: "#f2a65a",
   },
   activity: {
-    order: "05",
+    order: "06",
     label: "Activity",
     title: "See your rhythm.",
     description: "Sessions, focus time, and streaks.",
@@ -63,29 +72,66 @@ export function AppStorePromo({ shot }: { shot: AppStorePromoKey }) {
       <header className="app-store-copy">
         <div className="app-store-meta">
           <span className="app-store-wordmark"><i /><em>POMO</em><b>for iPhone</b></span>
-          <span>{promo.order} — 05</span>
+          <span>{promo.order} — 06</span>
         </div>
         <div className="app-store-label">{promo.label}</div>
         <h1>{promo.title}</h1>
         <p>{promo.description}</p>
       </header>
 
-      <div className="app-store-stage" aria-label={`Pomo for iPhone — ${promo.title}`}>
-        <div className="app-store-orbit" aria-hidden="true" />
-        <div className="app-store-detail" aria-hidden="true"><i />{promo.detail}</div>
-        <div className="app-store-device">
-        <div className="app-store-device-frame">
-          <Image
-            src={promo.src}
-            width={1320}
-            height={2868}
-            sizes="980px"
-            alt={`Pomo for iPhone showing ${promo.label.toLowerCase()}`}
-            priority
-          />
+      {shot === "hero" ? (
+        <div className="app-store-hero-stage" aria-label="Three Pomo timer faces for iPhone">
+          <div className="app-store-orbit" aria-hidden="true" />
+          <div className="app-store-detail" aria-hidden="true"><i />{promo.detail}</div>
+          <div className="app-store-hero-device is-picker">
+            <Image
+              src="/marketing/iphone-faces-v2.png"
+              width={1320}
+              height={2868}
+              sizes="560px"
+              alt="Pomo timer face picker"
+              priority
+            />
+          </div>
+          <div className="app-store-hero-device is-neon">
+            <Image
+              src="/marketing/iphone-immersive-v2.png"
+              width={1320}
+              height={2868}
+              sizes="560px"
+              alt="Pomo Neon focus timer"
+              priority
+            />
+          </div>
+          <div className="app-store-hero-device is-timer">
+            <Image
+              src={promo.src}
+              width={1320}
+              height={2868}
+              sizes="760px"
+              alt="Pomo Chronograph focus timer"
+              priority
+            />
+          </div>
         </div>
+      ) : (
+        <div className="app-store-stage" aria-label={`Pomo for iPhone — ${promo.title}`}>
+          <div className="app-store-orbit" aria-hidden="true" />
+          <div className="app-store-detail" aria-hidden="true"><i />{promo.detail}</div>
+          <div className="app-store-device">
+            <div className="app-store-device-frame">
+              <Image
+                src={promo.src}
+                width={1320}
+                height={2868}
+                sizes="980px"
+                alt={`Pomo for iPhone showing ${promo.label.toLowerCase()}`}
+                priority
+              />
+            </div>
+          </div>
         </div>
-      </div>
+      )}
 
     </main>
   );

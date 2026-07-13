@@ -62,13 +62,15 @@ Pomo is an independent, open-source app for focused work.
 
 Use 6.9-inch portrait screenshots at `1320 × 2868`.
 
-Upload the finished files in `Promotional/`. The unframed simulator captures in
+Upload the finished files in `PromotionalV2/`. The unframed simulator captures in
 `Screenshots/` are the source images used by the marketing renderer.
 
-1. **Focus on the task** — Add a note and start the timer.
-2. **Choose a timer face** — Seven desktop-inspired faces are included.
-3. **Review your activity** — See sessions, focus time, and streaks.
-4. **Adjust the timer** — Set focus, break, and planning lengths.
+1. **Pick a face. Begin.** — Seven timer designs, shown in the app.
+2. **Set an intention.** — Name the task and start the timer.
+3. **Choose your face.** — Seven desktop-inspired faces are included.
+4. **Just the timer.** — Tap the face for a quieter focus view.
+5. **Set the time.** — Use a preset or choose the session precisely.
+6. **See your rhythm.** — Review sessions, focus time, and streaks.
 
 ## App Review notes
 
@@ -115,7 +117,7 @@ expected global rating is **4+**.
 - [ ] Confirm the support and privacy URLs are deployed and publicly reachable.
 - [x] Archive with the App Store distribution profile and upload build 1.
 - [ ] Archive and upload build 2 with the expanded faces, focus mode, and Live Activity.
-- [ ] Upload 1–10 current iPhone screenshots; the proposed set uses four.
+- [ ] Upload the six current 6.9-inch iPhone screenshots from `PromotionalV2/`.
 - [x] Complete age rating (4+).
 - [ ] Complete App Privacy as “Data Not Collected.”
 - [ ] Confirm pricing/availability, DSA trader status, and the latest agreements.

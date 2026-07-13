@@ -117,7 +117,7 @@ expected global rating is **4+**.
 - [ ] Confirm the support and privacy URLs are deployed and publicly reachable.
 - [x] Archive with the App Store distribution profile and upload build 1.
 - [ ] Archive and upload build 2 with the expanded faces, focus mode, and Live Activity.
-- [ ] Upload the six current 6.9-inch iPhone screenshots from `PromotionalV2/`.
+- [x] Upload the six current 6.9-inch iPhone screenshots from `PromotionalV2/`.
 - [x] Complete age rating (4+).
 - [ ] Complete App Privacy as “Data Not Collected.”
 - [ ] Confirm pricing/availability, DSA trader status, and the latest agreements.

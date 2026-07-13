@@ -114,7 +114,7 @@ expected global rating is **4+**.
 
 - [x] Register `dev.arach.pomo` in Certificates, Identifiers & Profiles.
 - [x] Create the App Store Connect record using the final legal developer name.
-- [ ] Confirm the support and privacy URLs are deployed and publicly reachable.
+- [x] Confirm the support and privacy URLs are deployed and publicly reachable.
 - [x] Archive with the App Store distribution profile and upload build 1.
 - [x] Archive and upload build 2 with the expanded faces, personal Photo face, focus mode, and Live Activity.
 - [x] Upload the six current 6.9-inch iPhone screenshots from `PromotionalV2/`.

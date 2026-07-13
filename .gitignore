@@ -53,3 +53,6 @@ landing/.next/
 landing/out/
 landing/next-env.d.ts
 landing/*.tsbuildinfo
+
+# Local App Store archives and exported IPAs
+apps/ios/AppStore/Build/

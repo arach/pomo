@@ -1,199 +1,638 @@
 import SwiftUI
 
-struct TimerView: View {
-    @EnvironmentObject var timerManager: TimerManager
-    @State private var showingModeSelection = false
-    
-    var body: some View {
-        NavigationView {
-            ZStack {
-                // Gradient background
-                LinearGradient(
-                    colors: [
-                        timerManager.currentMode.color.opacity(0.3),
-                        timerManager.currentMode.color.opacity(0.1)
-                    ],
-                    startPoint: .topLeading,
-                    endPoint: .bottomTrailing
-                )
-                .ignoresSafeArea()
-                
-                VStack(spacing: 40) {
-                    // Mode selector
-                    Button(action: { showingModeSelection = true }) {
-                        HStack {
-                            Image(systemName: timerManager.currentMode.icon)
-                            Text(timerManager.currentMode.rawValue)
-                                .font(.title2)
-                                .fontWeight(.semibold)
-                            Image(systemName: "chevron.down")
-                                .font(.caption)
-                        }
-                        .foregroundColor(timerManager.currentMode.color)
-                        .padding(.horizontal, 20)
-                        .padding(.vertical, 10)
-                        .background(
-                            Capsule()
-                                .fill(timerManager.currentMode.color.opacity(0.2))
-                        )
-                    }
-                    
-                    // Timer display
-                    ZStack {
-                        // Progress ring
-                        Circle()
-                            .stroke(
-                                timerManager.currentMode.color.opacity(0.2),
-                                lineWidth: 20
-                            )
-                            .frame(width: 280, height: 280)
-                        
-                        Circle()
-                            .trim(from: 0, to: timerManager.progress)
-                            .stroke(
-                                timerManager.currentMode.color,
-                                style: StrokeStyle(
-                                    lineWidth: 20,
-                                    lineCap: .round
-                                )
-                            )
-                            .frame(width: 280, height: 280)
-                            .rotationEffect(.degrees(-90))
-                            .animation(.linear(duration: 1), value: timerManager.progress)
-                        
-                        VStack(spacing: 10) {
-                            Text(timerManager.formattedTime)
-                                .font(.system(size: 60, weight: .light, design: .rounded))
-                                .monospacedDigit()
-                            
-                            if timerManager.completedPomodoros > 0 {
-                                HStack(spacing: 4) {
-                                    ForEach(0..<min(timerManager.completedPomodoros, 8), id: \.self) { _ in
-                                        Circle()
-                                            .fill(timerManager.currentMode.color)
-                                            .frame(width: 8, height: 8)
-                                    }
-                                    if timerManager.completedPomodoros > 8 {
-                                        Text("+\(timerManager.completedPomodoros - 8)")
-                                            .font(.caption)
-                                            .foregroundColor(.secondary)
-                                    }
-                                }
-                            }
-                        }
-                    }
-                    
-                    // Control buttons
-                    HStack(spacing: 30) {
-                        // Reset button
-                        Button(action: { timerManager.resetTimer() }) {
-                            Image(systemName: "arrow.clockwise")
-                                .font(.title2)
-                                .foregroundColor(.secondary)
-                                .frame(width: 60, height: 60)
-                                .background(
-                                    Circle()
-                                        .fill(Color(.systemGray6))
-                                )
-                        }
-                        
-                        // Play/Pause button
-                        Button(action: {
-                            if timerManager.isActive {
-                                timerManager.pauseTimer()
-                            } else {
-                                timerManager.startTimer()
-                            }
-                        }) {
-                            Image(systemName: timerManager.isActive ? "pause.fill" : "play.fill")
-                                .font(.title)
-                                .foregroundColor(.white)
-                                .frame(width: 80, height: 80)
-                                .background(
-                                    Circle()
-                                        .fill(timerManager.currentMode.color)
-                                )
-                        }
-                        
-                        // Skip button
-                        Button(action: { timerManager.skipToNext() }) {
-                            Image(systemName: "forward.end.fill")
-                                .font(.title2)
-                                .foregroundColor(.secondary)
-                                .frame(width: 60, height: 60)
-                                .background(
-                                    Circle()
-                                        .fill(Color(.systemGray6))
-                                )
-                        }
-                    }
-                    
-                    Spacer()
-                }
-                .padding(.top, 40)
-            }
-            .navigationBarHidden(true)
-            .sheet(isPresented: $showingModeSelection) {
-                ModeSelectionView()
-            }
-            .alert("Session Complete!", isPresented: $timerManager.showingCompletion) {
-                Button("Continue") {
-                    timerManager.showingCompletion = false
-                }
-            } message: {
-                Text("Great work! Time for a \(timerManager.currentMode.rawValue)")
-            }
-        }
+private enum TimerPreviewConfiguration {
+    static let arguments = ProcessInfo.processInfo.arguments
+
+    static var showsFocusMode: Bool {
+        #if DEBUG
+        arguments.contains("-previewFocusMode")
+        #else
+        false
+        #endif
+    }
+
+    static var showsDurationPicker: Bool {
+        #if DEBUG
+        arguments.contains("-previewDurationPicker")
+        #else
+        false
+        #endif
+    }
+
+    static var face: FocusFace? {
+        #if DEBUG
+        guard let index = arguments.firstIndex(of: "-previewFace"),
+              arguments.indices.contains(index + 1) else { return nil }
+        return FocusFace(rawValue: arguments[index + 1])
+        #else
+        nil
+        #endif
     }
 }
 
-struct ModeSelectionView: View {
-    @EnvironmentObject var timerManager: TimerManager
-    @Environment(\.dismiss) var dismiss
-    
+struct TimerView: View {
+    @EnvironmentObject private var timerManager: TimerManager
+    @EnvironmentObject private var statsManager: StatsManager
+    @AppStorage("dailyGoal") private var dailyGoal = 8
+    @AppStorage("focusFace") private var faceRaw = FocusFace.chronograph.rawValue
+    @State private var showingFacePicker = false
+    @State private var showingFocusMode = TimerPreviewConfiguration.showsFocusMode
+    @State private var showingDurationPicker = TimerPreviewConfiguration.showsDurationPicker
+
+    private var face: FocusFace {
+        get { FocusFace(storedValue: faceRaw) }
+        nonmutating set { faceRaw = newValue.rawValue }
+    }
+
     var body: some View {
-        NavigationView {
-            List(FocusMode.allCases, id: \.self) { mode in
-                Button(action: {
-                    timerManager.switchToMode(mode)
-                    dismiss()
-                }) {
-                    HStack {
-                        Image(systemName: mode.icon)
-                            .font(.title2)
-                            .foregroundColor(mode.color)
-                            .frame(width: 40)
-                        
-                        VStack(alignment: .leading, spacing: 4) {
-                            Text(mode.rawValue)
-                                .font(.headline)
-                            Text("\(Int(mode.duration / 60)) minutes")
-                                .font(.caption)
-                                .foregroundColor(.secondary)
-                        }
-                        
-                        Spacer()
-                        
-                        if mode == timerManager.currentMode {
-                            Image(systemName: "checkmark")
-                                .foregroundColor(mode.color)
-                        }
-                    }
-                    .padding(.vertical, 8)
+        NavigationStack {
+            ScrollView(showsIndicators: false) {
+                VStack(spacing: 22) {
+                    header
+                    modeAndFaceRow
+                    intentField
+                    faceCard
+                    controls
+                    cadence
                 }
-                .buttonStyle(PlainButtonStyle())
+                .padding(.horizontal, 20)
+                .padding(.top, 18)
+                .padding(.bottom, 28)
             }
-            .navigationTitle("Select Mode")
-            .navigationBarItems(
-                trailing: Button("Done") { dismiss() }
+            .pomoScreen()
+            .toolbar(.hidden, for: .navigationBar)
+            .onAppear {
+                if let previewFace = TimerPreviewConfiguration.face {
+                    faceRaw = previewFace.rawValue
+                }
+                // Normalize the original display-name values to the shared
+                // macOS identities without changing what existing users see.
+                if faceRaw != face.rawValue {
+                    faceRaw = face.rawValue
+                }
+            }
+            .sheet(isPresented: $showingFacePicker) {
+                FocusFacePickerSheet(selection: Binding(get: { face }, set: { face = $0 }))
+            }
+            .sheet(isPresented: $showingDurationPicker) {
+                SessionDurationPicker(initialDuration: timerManager.sessionDuration) { duration in
+                    timerManager.setSessionDuration(duration)
+                }
+            }
+            .fullScreenCover(isPresented: $showingFocusMode) {
+                ZStack {
+                    PomoPalette.background.ignoresSafeArea()
+                    selectedFace
+                        .frame(maxWidth: .infinity, maxHeight: .infinity)
+                        .ignoresSafeArea()
+                }
+                .contentShape(Rectangle())
+                .onTapGesture {
+                    showingFocusMode = false
+                }
+                .accessibilityElement(children: .combine)
+                .accessibilityLabel("\(timerManager.currentMode.rawValue), \(timerManager.formattedTime) remaining")
+                .accessibilityHint("Tap to return to Pomo")
+                .statusBarHidden(true)
+                .persistentSystemOverlays(.hidden)
+                .preferredColorScheme(.dark)
+            }
+            .alert("Session complete", isPresented: $timerManager.showingCompletion) {
+                Button("Continue", role: .cancel) {}
+            } message: {
+                Text(timerManager.completionMessage)
+            }
+        }
+    }
+
+    private var header: some View {
+        HStack(alignment: .center) {
+            PomoWordmark()
+            Spacer()
+            VStack(alignment: .trailing, spacing: 3) {
+                Text("TODAY")
+                    .font(.system(size: 9, weight: .bold, design: .monospaced))
+                    .tracking(1.4)
+                    .foregroundStyle(PomoPalette.dim)
+                Text("\(statsManager.todaySessions) / \(dailyGoal)")
+                    .font(.system(size: 15, weight: .semibold, design: .monospaced))
+                    .foregroundStyle(statsManager.todaySessions >= dailyGoal ? PomoPalette.green : PomoPalette.ink)
+            }
+        }
+    }
+
+    private var modeAndFaceRow: some View {
+        HStack(spacing: 10) {
+            Menu {
+                ForEach(FocusMode.allCases) { mode in
+                    Button {
+                        timerManager.switchToMode(mode)
+                    } label: {
+                        Label("\(mode.rawValue) · \(Int(timerManager.duration(for: mode) / 60)) min", systemImage: mode.icon)
+                    }
+                }
+            } label: {
+                HStack(spacing: 9) {
+                    Circle()
+                        .fill(timerManager.currentMode.color)
+                        .frame(width: 7, height: 7)
+                    Text(timerManager.currentMode.rawValue)
+                    Image(systemName: "chevron.down")
+                        .font(.caption2)
+                }
+                .font(.system(size: 13, weight: .semibold, design: .monospaced))
+                .foregroundStyle(PomoPalette.ink)
+                .padding(.horizontal, 14)
+                .frame(height: 42)
+                .background(Capsule().fill(PomoPalette.surface))
+                .overlay(Capsule().stroke(PomoPalette.border, lineWidth: 1))
+            }
+            .disabled(timerManager.isActive)
+            .opacity(timerManager.isActive ? 0.62 : 1)
+
+            Spacer()
+            Button {
+                showingDurationPicker = true
+            } label: {
+                HStack(spacing: 7) {
+                    Text(timerManager.sessionDurationLabel)
+                    Image(systemName: timerManager.isActive ? "lock.fill" : "slider.horizontal.3")
+                        .font(.system(size: 9, weight: .bold))
+                }
+                .font(.system(size: 10, weight: .bold, design: .monospaced))
+                .tracking(1.1)
+                .foregroundStyle(timerManager.isActive ? PomoPalette.dim : PomoPalette.muted)
+                .padding(.horizontal, 12)
+                .frame(height: 42)
+                .background(Capsule().fill(PomoPalette.surface))
+                .overlay(Capsule().stroke(PomoPalette.border, lineWidth: 1))
+            }
+            .buttonStyle(.plain)
+            .disabled(timerManager.isActive)
+            .accessibilityLabel("Session length, \(timerManager.sessionDurationLabel)")
+            .accessibilityHint(timerManager.isActive ? "Pause the timer to change it" : "Tap to set this session length")
+        }
+    }
+
+    private var intentField: some View {
+        VStack(alignment: .leading, spacing: 9) {
+            PomoSectionLabel(title: "Intent", trailing: timerManager.isActive ? "locked in" : nil)
+            HStack(spacing: 10) {
+                Image(systemName: "scope")
+                    .font(.system(size: 14, weight: .medium))
+                    .foregroundStyle(PomoPalette.accent)
+                TextField("What are you focusing on?", text: $timerManager.intent)
+                    .font(.system(size: 14, weight: .regular, design: .monospaced))
+                    .foregroundStyle(PomoPalette.ink)
+                    .submitLabel(.done)
+                    .disabled(timerManager.isActive)
+            }
+            .padding(.horizontal, 14)
+            .frame(height: 48)
+            .background(
+                RoundedRectangle(cornerRadius: 12, style: .continuous)
+                    .fill(PomoPalette.surface)
+                    .overlay {
+                        RoundedRectangle(cornerRadius: 12, style: .continuous)
+                            .stroke(timerManager.isActive ? PomoPalette.accent.opacity(0.25) : PomoPalette.border, lineWidth: 1)
+                    }
             )
         }
     }
+
+    private var faceCard: some View {
+        selectedFace
+        .environmentObject(timerManager)
+        .frame(maxWidth: .infinity)
+        .aspectRatio(1, contentMode: .fit)
+        .background(
+            RoundedRectangle(cornerRadius: 26, style: .continuous)
+                .fill(PomoPalette.elevated)
+        )
+        .clipShape(RoundedRectangle(cornerRadius: 26, style: .continuous))
+        .overlay {
+            RoundedRectangle(cornerRadius: 26, style: .continuous)
+                .stroke(PomoPalette.border, lineWidth: 1)
+        }
+        .shadow(color: timerManager.currentMode.color.opacity(timerManager.isActive ? 0.14 : 0.05), radius: 30, y: 16)
+        .onLongPressGesture {
+            showingFacePicker = true
+        }
+        .onTapGesture {
+            showingFocusMode = true
+        }
+        .accessibilityElement(children: .combine)
+        .accessibilityLabel("\(timerManager.currentMode.rawValue), \(timerManager.formattedTime) remaining")
+        .accessibilityHint("Tap for focus mode. Long press to choose a timer face")
+        .accessibilityAction(named: "Open focus mode") {
+            showingFocusMode = true
+        }
+        .accessibilityAction(named: "Choose timer face") {
+            showingFacePicker = true
+        }
+    }
+
+    @ViewBuilder
+    private var selectedFace: some View {
+        switch face {
+        case .minimal:
+            MinimalTimerFace()
+        case .terminal:
+            TerminalTimerFace()
+        case .neon:
+            NeonTimerFace()
+        case .retroDigital:
+            RetroDigitalTimerFace()
+        case .rolodex:
+            RolodexTimerFace()
+        case .chronograph:
+            DialFace()
+        case .blueprint:
+            BlueprintTimerFace()
+        case .photo:
+            PhotoTimerFace()
+        }
+    }
+
+    private var controls: some View {
+        HStack(spacing: 22) {
+            PomoIconButton(systemName: "arrow.counterclockwise", label: "Reset timer") {
+                timerManager.resetTimer()
+            }
+
+            PomoIconButton(
+                systemName: timerManager.isActive ? "pause.fill" : "play.fill",
+                label: timerManager.isActive ? "Pause timer" : "Start timer",
+                primary: true
+            ) {
+                if timerManager.isActive {
+                    timerManager.pauseTimer()
+                } else {
+                    timerManager.startTimer()
+                }
+            }
+
+            PomoIconButton(systemName: "forward.end.fill", label: "Skip session") {
+                timerManager.skipToNext()
+            }
+        }
+        .frame(maxWidth: .infinity)
+        .padding(.vertical, 2)
+    }
+
+    private var cadence: some View {
+        VStack(spacing: 12) {
+            PomoSectionLabel(title: "Cadence", trailing: "long break after four")
+            HStack(spacing: 8) {
+                ForEach(0..<4, id: \.self) { index in
+                    Capsule()
+                        .fill(index < timerManager.completedPomodoros % 4 ? PomoPalette.accent : PomoPalette.surfaceStrong)
+                        .frame(maxWidth: .infinity)
+                        .frame(height: 5)
+                }
+            }
+        }
+    }
 }
 
-struct TimerView_Previews: PreviewProvider {
-    static var previews: some View {
-        TimerView()
-            .environmentObject(TimerManager())
+private struct SessionDurationPicker: View {
+    @Environment(\.dismiss) private var dismiss
+
+    private let presets = [10, 15, 25, 45, 60]
+    private let onApply: (TimeInterval) -> Void
+
+    @State private var minutes: Int
+    @State private var seconds: Int
+
+    init(initialDuration: TimeInterval, onApply: @escaping (TimeInterval) -> Void) {
+        let totalSeconds = max(Int(initialDuration.rounded()), 1)
+        _minutes = State(initialValue: min(totalSeconds / 60, 120))
+        _seconds = State(initialValue: totalSeconds % 60)
+        self.onApply = onApply
     }
+
+    private var totalSeconds: Int {
+        minutes * 60 + seconds
+    }
+
+    var body: some View {
+        VStack(spacing: 18) {
+            HStack {
+                VStack(alignment: .leading, spacing: 4) {
+                    Text("Session length")
+                        .font(.system(size: 20, weight: .semibold, design: .rounded))
+                        .foregroundStyle(PomoPalette.ink)
+                    Text("This session only. Your default stays the same.")
+                        .font(.system(size: 12, design: .rounded))
+                        .foregroundStyle(PomoPalette.muted)
+                }
+                Spacer()
+                Button {
+                    dismiss()
+                } label: {
+                    Image(systemName: "xmark")
+                        .font(.system(size: 12, weight: .bold))
+                        .foregroundStyle(PomoPalette.muted)
+                        .frame(width: 32, height: 32)
+                        .background(Circle().fill(PomoPalette.surfaceStrong))
+                }
+                .buttonStyle(.plain)
+                .accessibilityLabel("Close")
+            }
+
+            HStack(spacing: 12) {
+                durationColumn(label: "MIN") {
+                    Picker("Minutes", selection: $minutes) {
+                        ForEach(0...120, id: \.self) { value in
+                            Text("\(value)").tag(value)
+                        }
+                    }
+                }
+
+                Text(":")
+                    .font(.system(size: 30, weight: .medium, design: .monospaced))
+                    .foregroundStyle(PomoPalette.dim)
+                    .padding(.top, 4)
+
+                durationColumn(label: "SEC") {
+                    Picker("Seconds", selection: $seconds) {
+                        ForEach(0...59, id: \.self) { value in
+                            Text(String(format: "%02d", value)).tag(value)
+                        }
+                    }
+                }
+            }
+            .pickerStyle(.wheel)
+            .frame(height: 118)
+            .clipped()
+
+            HStack(spacing: 8) {
+                ForEach(presets, id: \.self) { preset in
+                    Button {
+                        minutes = preset
+                        seconds = 0
+                    } label: {
+                        Text("\(preset)m")
+                            .font(.system(size: 11, weight: .semibold, design: .monospaced))
+                            .foregroundStyle(minutes == preset && seconds == 0 ? PomoPalette.background : PomoPalette.muted)
+                            .frame(maxWidth: .infinity)
+                            .frame(height: 34)
+                            .background(
+                                Capsule().fill(minutes == preset && seconds == 0 ? PomoPalette.accent : PomoPalette.surface)
+                            )
+                            .overlay(Capsule().stroke(PomoPalette.border, lineWidth: 1))
+                    }
+                    .buttonStyle(.plain)
+                }
+            }
+
+            Button {
+                onApply(TimeInterval(totalSeconds))
+                dismiss()
+            } label: {
+                Text("Set session to \(formattedSelection)")
+                    .font(.system(size: 14, weight: .bold, design: .rounded))
+                    .foregroundStyle(PomoPalette.background)
+                    .frame(maxWidth: .infinity)
+                    .frame(height: 48)
+                    .background(RoundedRectangle(cornerRadius: 14, style: .continuous).fill(PomoPalette.accent))
+            }
+            .buttonStyle(.plain)
+            .disabled(totalSeconds == 0)
+            .opacity(totalSeconds == 0 ? 0.45 : 1)
+        }
+        .padding(.horizontal, 20)
+        .padding(.top, 22)
+        .padding(.bottom, 12)
+        .background(PomoPalette.background.ignoresSafeArea())
+        .presentationDetents([.height(410)])
+        .presentationDragIndicator(.visible)
+        .preferredColorScheme(.dark)
+    }
+
+    private var formattedSelection: String {
+        String(format: "%d:%02d", minutes, seconds)
+    }
+
+    private func durationColumn<Content: View>(
+        label: String,
+        @ViewBuilder content: () -> Content
+    ) -> some View {
+        VStack(spacing: 0) {
+            Text(label)
+                .font(.system(size: 9, weight: .bold, design: .monospaced))
+                .tracking(1.3)
+                .foregroundStyle(PomoPalette.dim)
+            content()
+                .font(.system(size: 24, weight: .medium, design: .monospaced))
+                .foregroundStyle(PomoPalette.ink)
+                .labelsHidden()
+        }
+        .frame(maxWidth: .infinity)
+    }
+}
+
+private struct DialFace: View {
+    @EnvironmentObject private var timer: TimerManager
+
+    var body: some View {
+        GeometryReader { proxy in
+            let size = min(proxy.size.width, proxy.size.height)
+            let center = CGPoint(x: proxy.size.width / 2, y: proxy.size.height / 2)
+            let radius = size * 0.39
+
+            ZStack {
+                Canvas { context, _ in
+                    for index in 0..<60 {
+                        let angle = Double(index) / 60 * .pi * 2 - .pi / 2
+                        let major = index % 5 == 0
+                        let outer = CGPoint(
+                            x: center.x + cos(angle) * radius,
+                            y: center.y + sin(angle) * radius
+                        )
+                        let innerRadius = radius - (major ? 14 : 7)
+                        let inner = CGPoint(
+                            x: center.x + cos(angle) * innerRadius,
+                            y: center.y + sin(angle) * innerRadius
+                        )
+                        var path = Path()
+                        path.move(to: inner)
+                        path.addLine(to: outer)
+                        context.stroke(
+                            path,
+                            with: .color(index == 0 ? timer.currentMode.color : PomoPalette.ink.opacity(major ? 0.38 : 0.12)),
+                            lineWidth: index == 0 ? 2.5 : (major ? 1.8 : 1)
+                        )
+                    }
+                }
+
+                Circle()
+                    .trim(from: 0, to: max(timer.progress, 0.008))
+                    .stroke(
+                        timer.currentMode.color,
+                        style: StrokeStyle(lineWidth: 3, lineCap: .round)
+                    )
+                    .rotationEffect(.degrees(-90))
+                    .frame(width: size * 0.67, height: size * 0.67)
+                    .shadow(color: timer.currentMode.color.opacity(0.16), radius: 6)
+                    .animation(.linear(duration: 0.2), value: timer.progress)
+
+                Circle()
+                    .fill(PomoPalette.elevated)
+                    .frame(width: size * 0.47, height: size * 0.47)
+
+                VStack(spacing: 14) {
+                    Text(timer.currentMode.label)
+                        .font(.system(size: 11, weight: .bold, design: .monospaced))
+                        .tracking(3)
+                        .foregroundStyle(PomoPalette.dim)
+                    Text(timer.formattedTime)
+                        .font(.system(size: size * 0.145, weight: .medium, design: .monospaced))
+                        .monospacedDigit()
+                        .foregroundStyle(PomoPalette.ink)
+                    HStack(spacing: 6) {
+                        Circle()
+                            .fill(timer.isActive ? PomoPalette.green : PomoPalette.dim)
+                            .frame(width: 6, height: 6)
+                        Text(timer.isActive ? "IN SESSION" : "READY")
+                            .font(.system(size: 9, weight: .bold, design: .monospaced))
+                            .tracking(1.2)
+                            .foregroundStyle(PomoPalette.muted)
+                    }
+                }
+            }
+        }
+        .padding(14)
+    }
+}
+
+private struct TerminalFace: View {
+    @EnvironmentObject private var timer: TimerManager
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 0) {
+            HStack {
+                Text("POMO / SESSION")
+                Spacer()
+                Text(timer.isActive ? "RUNNING" : "IDLE")
+                    .foregroundStyle(timer.isActive ? PomoPalette.green : PomoPalette.dim)
+            }
+            .font(.system(size: 10, weight: .bold, design: .monospaced))
+            .tracking(1.1)
+            .foregroundStyle(PomoPalette.dim)
+
+            Spacer()
+
+            Text("> \(timer.currentMode.label.lowercased().replacingOccurrences(of: " ", with: "_"))")
+                .font(.system(size: 13, weight: .medium, design: .monospaced))
+                .foregroundStyle(timer.currentMode.color)
+
+            Text(timer.formattedTime)
+                .font(.system(size: 58, weight: .medium, design: .monospaced))
+                .monospacedDigit()
+                .foregroundStyle(PomoPalette.ink)
+                .minimumScaleFactor(0.7)
+
+            GeometryReader { proxy in
+                ZStack(alignment: .leading) {
+                    Capsule().fill(PomoPalette.surfaceStrong)
+                    Capsule()
+                        .fill(timer.currentMode.color)
+                        .frame(width: max(proxy.size.width * timer.progress, 4))
+                }
+            }
+            .frame(height: 4)
+            .padding(.top, 10)
+
+            Spacer()
+
+            Text(timer.intent.isEmpty ? "awaiting intent_" : timer.intent + (timer.isActive ? "" : "_"))
+                .font(.system(size: 12, weight: .regular, design: .monospaced))
+                .foregroundStyle(PomoPalette.muted)
+                .lineLimit(1)
+        }
+        .padding(26)
+    }
+}
+
+private struct BlueprintFace: View {
+    @EnvironmentObject private var timer: TimerManager
+
+    var body: some View {
+        GeometryReader { proxy in
+            ZStack {
+                Canvas { context, size in
+                    let step: CGFloat = 22
+                    var grid = Path()
+                    stride(from: CGFloat.zero, through: size.width, by: step).forEach { x in
+                        grid.move(to: CGPoint(x: x, y: 0))
+                        grid.addLine(to: CGPoint(x: x, y: size.height))
+                    }
+                    stride(from: CGFloat.zero, through: size.height, by: step).forEach { y in
+                        grid.move(to: CGPoint(x: 0, y: y))
+                        grid.addLine(to: CGPoint(x: size.width, y: y))
+                    }
+                    context.stroke(grid, with: .color(PomoPalette.blue.opacity(0.09)), lineWidth: 0.7)
+
+                    var crosshair = Path()
+                    crosshair.move(to: CGPoint(x: size.width / 2, y: 18))
+                    crosshair.addLine(to: CGPoint(x: size.width / 2, y: size.height - 18))
+                    crosshair.move(to: CGPoint(x: 18, y: size.height / 2))
+                    crosshair.addLine(to: CGPoint(x: size.width - 18, y: size.height / 2))
+                    context.stroke(crosshair, with: .color(PomoPalette.blue.opacity(0.22)), lineWidth: 1)
+                }
+
+                Circle()
+                    .stroke(PomoPalette.blue.opacity(0.30), style: StrokeStyle(lineWidth: 1, dash: [5, 5]))
+                    .padding(42)
+
+                Circle()
+                    .trim(from: 0, to: max(timer.progress, 0.01))
+                    .stroke(timer.currentMode.color, style: StrokeStyle(lineWidth: 3, lineCap: .square))
+                    .rotationEffect(.degrees(-90))
+                    .padding(42)
+
+                VStack(spacing: 10) {
+                    Text("DWG · 25.001")
+                        .font(.system(size: 9, weight: .bold, design: .monospaced))
+                        .tracking(1.5)
+                        .foregroundStyle(PomoPalette.blue.opacity(0.75))
+                    Text(timer.formattedTime)
+                        .font(.system(size: min(proxy.size.width * 0.16, 58), weight: .medium, design: .monospaced))
+                        .monospacedDigit()
+                        .foregroundStyle(PomoPalette.ink)
+                    Text(timer.currentMode.label + " / 1:1")
+                        .font(.system(size: 10, weight: .bold, design: .monospaced))
+                        .tracking(1.2)
+                        .foregroundStyle(timer.currentMode.color)
+                }
+
+                VStack {
+                    HStack {
+                        Text("POMO FOCUS INSTRUMENT")
+                        Spacer()
+                        Text("REV A")
+                    }
+                    Spacer()
+                    HStack {
+                        Text("ELAPSED \(Int(timer.progress * 100))%")
+                        Spacer()
+                        Text(timer.isActive ? "ACTIVE" : "STANDBY")
+                    }
+                }
+                .font(.system(size: 8, weight: .bold, design: .monospaced))
+                .tracking(0.8)
+                .foregroundStyle(PomoPalette.blue.opacity(0.62))
+                .padding(20)
+            }
+        }
+        .clipShape(RoundedRectangle(cornerRadius: 26, style: .continuous))
+    }
+}
+
+#Preview {
+    TimerView()
+        .environmentObject(TimerManager())
+        .environmentObject(StatsManager())
+        .environmentObject(PhotoFaceStore())
 }

@@ -119,6 +119,11 @@ public final class AppDelegate: NSObject, NSApplicationDelegate {
         // so refresh the state file whenever it does.
         audio.onStateChange = { [weak self] in self?.writeState() }
 
+        // Position only proves playback if it's fresh on disk. `writeState()` is
+        // otherwise purely event-driven, so while the timer is idle an advancing
+        // track would leave a frozen position in the file.
+        audio.onPlaybackProgress = { [weak self] in self?.writeState() }
+
         // Let the video menu's "Change Track" submenu list favorites.
         audio.bindFavorites(favorites)
         favorites.onChange = { [weak self] in
@@ -394,6 +399,12 @@ public final class AppDelegate: NSObject, NSApplicationDelegate {
             audioPlaying: audio.isPlaying,
             audioURL: preferredAudioURL(),
             audioEngine: audio.engineName,
+            audioPositionSeconds: audio.reportedMediaTime,
+            audioPositionReportedAt: audio.mediaClockReportedAt?.pomoAgentTimestamp ?? "",
+            audioPlayerPaused: audio.playerPaused,
+            audioDurationSeconds: audio.mediaDuration,
+            audioTitle: audio.currentTitle,
+            audioAccountStatus: audio.accountStatusName,
             sessionAudioURLs: settings.sessionAudioURLs,
             favorites: favorites.items,
             focusToday: history.focusCountToday(),

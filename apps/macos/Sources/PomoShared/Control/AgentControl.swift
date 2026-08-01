@@ -1,4 +1,5 @@
 import Foundation
+import os
 
 /// Commands an external agent can send via the `pomo://` URL scheme, e.g.
 /// `open "pomo://start"`, `open "pomo://face/neon"`,
@@ -234,6 +235,57 @@ extension Watchface {
     }
 }
 
+extension Date {
+    /// UTC ISO8601 with fractional seconds **and** the `Z` designator.
+    ///
+    /// `ISO8601Format(.iso8601(timeZone: .gmt, …))` emits UTC but omits the
+    /// designator, leaving a bare timestamp that most parsers read as *local*
+    /// time — hours off, which would silently break the freshness checks these
+    /// timestamps exist for.
+    var pomoAgentTimestamp: String { Self.pomoAgentFormatter.string(from: self) }
+
+    private static let pomoAgentFormatter: ISO8601DateFormatter = {
+        let formatter = ISO8601DateFormatter()
+        formatter.formatOptions = [.withInternetDateTime, .withFractionalSeconds]
+        return formatter
+    }()
+}
+
+/// Identity of the process that wrote a state snapshot.
+///
+/// Every Pomo bundle shares one `state.json` — `dev.pomo.hud.dev` (dev build),
+/// `dev.pomo.hud` (release), legacy ids, and Pomo Amp — and the last writer wins.
+/// Without this an agent cannot know *which* app it just observed, so nothing read
+/// from the file is attributable while more than one instance is alive.
+///
+/// `bundlePath` and `launchId` are here because a bundle id is not an installation
+/// identity: `/Applications/Pomo.app`, a mounted DMG, and a cached build can all
+/// claim the same id. See `docs/agentic-play.md` (G1, G8).
+struct PomoStateWriter: Codable {
+    var bundleId: String
+    var bundlePath: String      // canonical path of the running .app
+    var appName: String
+    var pid: Int32
+    var launchId: String        // unique to this process lifetime
+    var version: String
+
+    /// Resolved once per process, so `launchId` *is* the launch identity.
+    static let current: PomoStateWriter = {
+        let bundle = Bundle.main
+        let info = bundle.infoDictionary ?? [:]
+        let short = info["CFBundleShortVersionString"] as? String ?? "0"
+        let build = info["CFBundleVersion"] as? String ?? "0"
+        return PomoStateWriter(
+            bundleId: bundle.bundleIdentifier ?? "unknown",
+            bundlePath: bundle.bundleURL.resolvingSymlinksInPath().path,
+            appName: (info["CFBundleName"] as? String) ?? ProcessInfo.processInfo.processName,
+            pid: ProcessInfo.processInfo.processIdentifier,
+            launchId: UUID().uuidString,
+            version: "\(short) (\(build))"
+        )
+    }()
+}
+
 /// A snapshot of timer + audio state written to disk so agents can read status
 /// (the URL scheme is fire-and-forget; this is the read-back channel).
 struct PomoState: Codable {
@@ -251,12 +303,36 @@ struct PomoState: Codable {
     var audioPlaying: Bool
     var audioURL: String
     var audioEngine: String   // "web" | "none"
+    /// Position last **reported by the player**, and when that report arrived
+    /// (ISO8601; empty while the player has reported nothing for this track).
+    ///
+    /// `audioPlaying` alone cannot prove playback began — it stays true for a page
+    /// that loads and then buffers forever. Proof is `audioPositionSeconds`
+    /// strictly advancing across two samples *with* `audioPositionReportedAt`
+    /// advancing too; a stalled player leaves the timestamp frozen. This is
+    /// deliberately not the extrapolated `estimatedMediaTime(at:)`.
+    var audioPositionSeconds: Double
+    var audioPositionReportedAt: String
+    /// The player's own paused flag, distinct from `audioPlaying` (Pomo's intent).
+    /// A live stream reports `duration: Infinity` (written here as 0) and a
+    /// position pinned near 0, so for live media the honest liveness signal is
+    /// `audioPlayerPaused == false` with `audioPositionReportedAt` advancing.
+    var audioPlayerPaused: Bool
+    var audioDurationSeconds: Double
+    var audioTitle: String
+    var audioAccountStatus: String   // signedIn | signedOut | unknown
     var sessionAudioURLs: [String: String]
     var favorites: [Favorite]
     // Focus history (see SessionHistoryStore).
     var focusToday: Int
     var focusTotal: Int
     var streakDays: Int
+
+    // Stamped by `write()`, never by callers — a snapshot that claims to be fresh
+    // must be fresh. `seq` disambiguates writes that land in the same instant.
+    var writer = PomoStateWriter.current
+    var updatedAt = ""
+    var seq = 0
 
     static let fileURL: URL = {
         let base = FileManager.default
@@ -265,10 +341,27 @@ struct PomoState: Codable {
         return base.appendingPathComponent("Pomo/state.json")
     }()
 
+    /// Monotonic per process. A reader that sees `seq` stop advancing knows the
+    /// writer stopped writing, even if wall-clock timestamps are equal or the
+    /// system clock moves.
+    private static let seqCounter = OSAllocatedUnfairLock(initialState: 0)
+
+    private static func nextSeq() -> Int {
+        seqCounter.withLock { value in
+            value += 1
+            return value
+        }
+    }
+
     func write() {
+        var snapshot = self
+        snapshot.writer = .current
+        snapshot.updatedAt = Date().pomoAgentTimestamp
+        snapshot.seq = Self.nextSeq()
+
         let encoder = JSONEncoder()
         encoder.outputFormatting = [.prettyPrinted, .sortedKeys]
-        guard let data = try? encoder.encode(self) else { return }
+        guard let data = try? encoder.encode(snapshot) else { return }
         try? data.write(to: Self.fileURL, options: .atomic)
     }
 }

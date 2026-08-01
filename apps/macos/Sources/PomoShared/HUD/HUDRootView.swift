@@ -881,6 +881,8 @@ private struct QuickEntryOverlay: View {
     var onEditingChange: ((Bool) -> Void)? = nil
 
     @State private var draft: String = ""
+    @State private var hoveringCancel = false
+    @State private var hoveringPrimary = false
     @FocusState private var fieldFocused: Bool
 
     private var field: TimerModel.QuickField { model.quickField }
@@ -889,17 +891,21 @@ private struct QuickEntryOverlay: View {
     var body: some View {
         ZStack {
             if field != .none {
-                // Scrim — tap anywhere outside the card to cancel. Near-opaque so
-                // the face (and desktop) don't read through behind the editor.
+                // Scrim — tap anywhere outside the card to cancel. The face stays
+                // faintly visible so this feels like a focused layer of the HUD,
+                // not an unrelated utility alert dropped on top of it.
                 Rectangle()
-                    .fill(Color.black.opacity(0.82))
+                    .fill(Color.black.opacity(0.72))
                     .contentShape(Rectangle())
                     .onTapGesture { model.cancelEditing() }
 
-                card.padding(.horizontal, HudSpacing.xxl)
+                card
+                    .frame(maxWidth: 320)
+                    .padding(.horizontal, HudSpacing.lg)
+                    .transition(.scale(scale: 0.97).combined(with: .opacity))
             }
         }
-        .animation(.easeOut(duration: 0.15), value: field)
+        .animation(.easeOut(duration: 0.18), value: field)
         .onChange(of: field) { _, newField in
             // Drive the panel opaque while editing so the card is crisp.
             onEditingChange?(newField != .none)
@@ -921,58 +927,127 @@ private struct QuickEntryOverlay: View {
     }
 
     private var card: some View {
-        VStack(alignment: .leading, spacing: HudSpacing.md) {
-            Text(title)
-                .font(HudFont.mono(HudTextSize.micro, weight: .bold))
-                .tracking(1.5)
-                .foregroundStyle(HudPalette.dim)
+        VStack(alignment: .leading, spacing: 0) {
+            HStack(alignment: .top, spacing: HudSpacing.md) {
+                Image(systemName: iconName)
+                    .font(.system(size: 12, weight: .semibold))
+                    .foregroundStyle(accent)
+                    .frame(width: 30, height: 30)
+                    .background(
+                        Circle()
+                            .fill(accent.opacity(0.12))
+                    )
 
-            TextField(placeholder, text: $draft)
-                .textFieldStyle(.plain)
-                .font(HudFont.mono(15, weight: .medium))
-                .foregroundStyle(HudPalette.ink)
-                .tint(accent)
-                .lineLimit(1)
-                .focused($fieldFocused)
-                .onSubmit(commit)
-                .onExitCommand { model.cancelEditing() }
+                VStack(alignment: .leading, spacing: 3) {
+                    Text(title)
+                        .font(.system(size: 15, weight: .semibold))
+                        .foregroundStyle(HudPalette.ink)
 
-            Rectangle().fill(HudPalette.border).frame(height: 1)
-
-            // Cancel on the left, the commit action on the right. Return also
-            // commits (the field is focused) and Escape cancels.
-            HStack(spacing: HudSpacing.sm) {
-                pillButton("Cancel", fill: HudSurface.inset, stroke: HudPalette.border, text: HudPalette.muted) {
-                    model.cancelEditing()
+                    Text(helper)
+                        .font(.system(size: 11, weight: .regular))
+                        .foregroundStyle(Color.white.opacity(0.58))
+                        .lineLimit(1)
                 }
+
                 Spacer(minLength: 0)
-                pillButton(primaryLabel, fill: accent, stroke: .clear, text: .black.opacity(0.85), action: commit)
+            }
+            .padding(.bottom, 16)
+
+            HStack(spacing: HudSpacing.sm) {
+                ZStack(alignment: .leading) {
+                    if draft.isEmpty {
+                        Text(placeholder)
+                            .font(.system(size: 14, weight: .medium))
+                            .foregroundStyle(Color.white.opacity(0.50))
+                            .allowsHitTesting(false)
+                    }
+
+                    TextField("", text: $draft)
+                        .textFieldStyle(.plain)
+                        .font(.system(size: 14, weight: .medium))
+                        .foregroundStyle(HudPalette.ink)
+                        .tint(accent)
+                        .lineLimit(1)
+                        .focused($fieldFocused)
+                        .onSubmit(commit)
+                        .onExitCommand { model.cancelEditing() }
+                        .accessibilityLabel(title)
+                }
+
+                if !draft.isEmpty {
+                    Button {
+                        draft = ""
+                        fieldFocused = true
+                    } label: {
+                        Image(systemName: "xmark.circle.fill")
+                            .font(.system(size: 12, weight: .medium))
+                            .foregroundStyle(Color.white.opacity(0.34))
+                    }
+                    .buttonStyle(.plain)
+                    .help("Clear")
+                }
+            }
+            .padding(.horizontal, 12)
+            .frame(height: 40)
+            .background(
+                RoundedRectangle(cornerRadius: HudRadius.tight, style: .continuous)
+                    .fill(Color.black.opacity(0.28))
+            )
+            .overlay(
+                RoundedRectangle(cornerRadius: HudRadius.tight, style: .continuous)
+                    .stroke(fieldFocused ? accent.opacity(0.72) : Color.white.opacity(0.10), lineWidth: 1)
+            )
+            .padding(.bottom, 14)
+
+            // Return commits, Escape cancels; the buttons make the same actions
+            // discoverable without turning the editor into a standard alert.
+            HStack(spacing: HudSpacing.sm) {
+                cancelButton
+                Spacer(minLength: 0)
+                primaryButton
             }
         }
-        .padding(HudSpacing.xl)
+        .padding(18)
         .background(
             RoundedRectangle(cornerRadius: HudRadius.standard, style: .continuous)
-                .fill(Color(white: 0.13))   // solid, not the frosted inset
+                .fill(
+                    LinearGradient(
+                        colors: [Color(white: 0.16), Color(white: 0.105)],
+                        startPoint: .top,
+                        endPoint: .bottom
+                    )
+                )
         )
-        .overlay(
-            RoundedRectangle(cornerRadius: HudRadius.standard, style: .continuous)
-                .stroke(HudPalette.border, lineWidth: 1)
-        )
+        .shadow(color: .black.opacity(0.58), radius: 20, x: 0, y: 10)
     }
 
     // MARK: - Per-mode copy + behaviour
 
     private var title: String {
         switch field {
-        case .video:           return "PASTE A YOUTUBE, SOUNDCLOUD, OR AUDIO LINK"
-        case .intent, .none:   return "WHAT ARE YOU WORKING ON?"
+        case .video:           return "Play from a link"
+        case .intent, .none:   return "Set your intention"
+        }
+    }
+
+    private var helper: String {
+        switch field {
+        case .video:           return "YouTube, SoundCloud, or direct audio"
+        case .intent, .none:   return "Give this focus session a short name"
+        }
+    }
+
+    private var iconName: String {
+        switch field {
+        case .video:           return "play.rectangle.fill"
+        case .intent, .none:   return "scope"
         }
     }
 
     private var placeholder: String {
         switch field {
-        case .video:           return "https://youtube.com/… or soundcloud.com/…"
-        case .intent, .none:   return "e.g. Writing the launch post"
+        case .video:           return "Paste a URL"
+        case .intent, .none:   return "Writing the launch post"
         }
     }
 
@@ -985,12 +1060,11 @@ private struct QuickEntryOverlay: View {
 
     private func commit() {
         let text = draft.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !text.isEmpty else { return }
         switch field {
         case .intent:
-            // Empty submit keeps the current intent (clear it from the menu).
-            if !text.isEmpty { model.setIntent(text) }
+            model.setIntent(text)
         case .video:
-            if text.isEmpty { break }
             settings.audioURL = text
             settings.saveNow()
             favorites.add(url: text, title: nil)   // remember it (deduped, auto-titled)
@@ -1002,17 +1076,46 @@ private struct QuickEntryOverlay: View {
         model.cancelEditing()
     }
 
-    private func pillButton(_ title: String, fill: Color, stroke: Color, text: Color, action: @escaping () -> Void) -> some View {
-        Button(action: action) {
-            Text(title)
-                .font(HudFont.mono(HudTextSize.xs, weight: .semibold))
-                .foregroundStyle(text)
-                .padding(.horizontal, HudSpacing.md)
-                .padding(.vertical, HudSpacing.xs)
-                .background(RoundedRectangle(cornerRadius: HudRadius.tight, style: .continuous).fill(fill))
-                .overlay(RoundedRectangle(cornerRadius: HudRadius.tight, style: .continuous).stroke(stroke, lineWidth: 1))
+    private var cancelButton: some View {
+        Button {
+            model.cancelEditing()
+        } label: {
+            Text("Cancel")
+                .font(.system(size: 12, weight: .medium))
+                .foregroundStyle(Color.white.opacity(hoveringCancel ? 0.86 : 0.58))
+                .padding(.horizontal, 10)
+                .frame(height: 30)
+                .contentShape(RoundedRectangle(cornerRadius: HudRadius.tight, style: .continuous))
         }
         .buttonStyle(.plain)
+        .keyboardShortcut(.cancelAction)
+        .onHover { hoveringCancel = $0 }
+    }
+
+    private var primaryButton: some View {
+        Button(action: commit) {
+            HStack(spacing: 6) {
+                Text(primaryLabel)
+                Image(systemName: "arrow.turn.down.left")
+                    .font(.system(size: 9, weight: .bold))
+            }
+            .font(.system(size: 12, weight: .semibold))
+            .foregroundStyle(Color.black.opacity(canCommit ? 0.82 : 0.38))
+            .padding(.horizontal, 13)
+            .frame(height: 30)
+            .background(
+                RoundedRectangle(cornerRadius: HudRadius.tight, style: .continuous)
+                    .fill(accent.opacity(canCommit ? (hoveringPrimary ? 0.88 : 1) : 0.34))
+            )
+        }
+        .buttonStyle(.plain)
+        .keyboardShortcut(.defaultAction)
+        .disabled(!canCommit)
+        .onHover { hoveringPrimary = $0 }
+    }
+
+    private var canCommit: Bool {
+        !draft.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
     }
 
     private func clipboardURL() -> String? {

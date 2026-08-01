@@ -4,7 +4,7 @@ name: Publish CLI to npm
 #
 # The CLI versions independently of the macOS app (which ships via `v*` tags in
 # release-app-macos.yml), so this rides its own `cli-v*` tag namespace — e.g.
-# `cli-v0.1.0`. Also runnable on demand via the Actions tab.
+# `cli-v0.1.0`. Manual runs validate the package without publishing it.
 #
 # After a successful publish, creates a matching GitHub Release on the `cli-v*`
 # tag (npm-only; no assets). macOS app releases stay on `v*` in
@@ -18,11 +18,6 @@ on:
     tags:
       - "cli-v*"
   workflow_dispatch:
-    inputs:
-      dry_run:
-        description: "Pack and validate only; do not publish."
-        type: boolean
-        default: false
 
 permissions:
   contents: write
@@ -36,13 +31,20 @@ jobs:
         working-directory: apps/cli
     steps:
       - name: Checkout
-        uses: actions/checkout@v4
+        uses: actions/checkout@v7
 
       - name: Setup Node
-        uses: actions/setup-node@v4
+        uses: actions/setup-node@v7
         with:
-          node-version: 20
+          node-version: 24
           registry-url: https://registry.npmjs.org
+
+      - name: Validate package
+        shell: bash
+        run: |
+          set -euo pipefail
+          node bin/pomo.js help >/dev/null
+          npm pack --dry-run
 
       - name: Check tag matches package version
         if: github.ref_type == 'tag'
@@ -57,19 +59,16 @@ jobs:
           fi
 
       - name: Publish
+        if: github.ref_type == 'tag'
         env:
           NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
         shell: bash
         run: |
           set -euo pipefail
-          if [[ "${{ inputs.dry_run || false }}" == "true" ]]; then
-            npm publish --dry-run --access public
-          else
-            npm publish --access public
-          fi
+          npm publish --access public
 
       - name: Create GitHub release
-        if: github.ref_type == 'tag' && inputs.dry_run != true
+        if: github.ref_type == 'tag'
         env:
           GH_TOKEN: ${{ github.token }}
         shell: bash

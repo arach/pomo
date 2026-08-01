@@ -1,4 +1,5 @@
 import SwiftUI
+import UIKit
 
 enum PomoPalette {
     static let background = Color(hex: 0x17120F)
@@ -8,7 +9,9 @@ enum PomoPalette {
     static let border = Color.white.opacity(0.09)
     static let ink = Color(hex: 0xF4EEE6)
     static let muted = Color(hex: 0xBCAE9E)
-    static let dim = Color(hex: 0x7D7165)
+    // Secondary copy still clears WCAG AA against every branded dark surface.
+    // Keep lower-contrast values for decorative strokes, not readable text.
+    static let dim = Color(hex: 0x96897D)
     static let accent = Color(hex: 0xEAE434)
     static let green = Color(hex: 0x5ED69A)
     static let blue = Color(hex: 0x70B7FF)
@@ -53,6 +56,38 @@ extension View {
         background(PomoPalette.background.ignoresSafeArea())
             .preferredColorScheme(.dark)
     }
+
+    func pomoAnimation<Value: Equatable>(
+        _ animation: Animation,
+        value: Value
+    ) -> some View {
+        modifier(PomoMotion(animation: animation, value: value))
+    }
+}
+
+private struct PomoMotion<Value: Equatable>: ViewModifier {
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
+
+    let animation: Animation
+    let value: Value
+
+    func body(content: Content) -> some View {
+        content.animation(reduceMotion ? nil : animation, value: value)
+    }
+}
+
+@MainActor
+@discardableResult
+func pomoWithAnimation<Result>(
+    _ animation: Animation,
+    _ body: () throws -> Result
+) rethrows -> Result {
+    if UIAccessibility.isReduceMotionEnabled {
+        var transaction = Transaction()
+        transaction.disablesAnimations = true
+        return try withTransaction(transaction, body)
+    }
+    return try withAnimation(animation, body)
 }
 
 struct PomoSectionLabel: View {
@@ -62,13 +97,13 @@ struct PomoSectionLabel: View {
     var body: some View {
         HStack {
             Text(title.uppercased())
-                .font(.system(size: 11, weight: .bold, design: .monospaced))
+                .font(.system(.caption, design: .monospaced, weight: .bold))
                 .tracking(1.5)
                 .foregroundStyle(PomoPalette.dim)
             Spacer()
             if let trailing {
                 Text(trailing)
-                    .font(.system(size: 11, weight: .medium, design: .monospaced))
+                    .font(.system(.caption, design: .monospaced, weight: .medium))
                     .foregroundStyle(PomoPalette.muted)
             }
         }
@@ -141,6 +176,6 @@ struct PomoToggleStyle: ToggleStyle {
             }
         }
         .buttonStyle(.plain)
-        .animation(.snappy(duration: 0.2), value: configuration.isOn)
+        .pomoAnimation(.snappy(duration: 0.2), value: configuration.isOn)
     }
 }

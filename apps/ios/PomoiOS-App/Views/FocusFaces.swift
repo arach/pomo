@@ -63,7 +63,7 @@ struct FocusFacePicker: View {
                 LazyHStack(spacing: 10) {
                     ForEach(FocusFace.allCases) { face in
                         Button {
-                            withAnimation(.snappy(duration: 0.22, extraBounce: 0)) {
+                            pomoWithAnimation(.snappy(duration: 0.22, extraBounce: 0)) {
                                 selection = face
                             }
                         } label: {
@@ -72,7 +72,7 @@ struct FocusFacePicker: View {
                                     .frame(width: 66, height: 50)
 
                                 Text(face.displayName)
-                                    .font(.system(size: 9, weight: face == selection ? .bold : .medium, design: .monospaced))
+                                    .font(.system(.caption2, design: .monospaced, weight: face == selection ? .bold : .medium))
                                     .foregroundStyle(face == selection ? PomoPalette.ink : PomoPalette.muted)
                                     .lineLimit(1)
                                     .minimumScaleFactor(0.72)
@@ -96,7 +96,7 @@ struct FocusFacePicker: View {
                 centeredFace = selection
             }
             .onChange(of: selection) { _, face in
-                withAnimation(.snappy(duration: 0.22, extraBounce: 0)) {
+                pomoWithAnimation(.snappy(duration: 0.22, extraBounce: 0)) {
                     centeredFace = face
                 }
             }
@@ -113,10 +113,10 @@ struct FocusFacePickerSheet: View {
             HStack {
                 VStack(alignment: .leading, spacing: 4) {
                     Text("Timer face")
-                        .font(.system(size: 20, weight: .semibold, design: .rounded))
+                        .font(.system(.title3, design: .rounded, weight: .semibold))
                         .foregroundStyle(PomoPalette.ink)
                     Text("Choose a look for the timer.")
-                        .font(.system(size: 12, design: .rounded))
+                        .font(.system(.footnote, design: .rounded))
                         .foregroundStyle(PomoPalette.muted)
                 }
                 Spacer()
@@ -128,6 +128,8 @@ struct FocusFacePickerSheet: View {
                         .foregroundStyle(PomoPalette.muted)
                         .frame(width: 32, height: 32)
                         .background(Circle().fill(PomoPalette.surfaceStrong))
+                        .frame(width: 44, height: 44)
+                        .contentShape(Rectangle())
                 }
                 .buttonStyle(.plain)
                 .accessibilityLabel("Close")
@@ -646,7 +648,7 @@ private struct FlipTimerDigit: View {
         .clipShape(RoundedRectangle(cornerRadius: 8, style: .continuous))
         .overlay(RoundedRectangle(cornerRadius: 8, style: .continuous).stroke(.white.opacity(0.08)))
         .shadow(color: .black.opacity(0.4), radius: 4, y: 2)
-        .animation(.snappy(duration: 0.16, extraBounce: 0), value: value)
+        .pomoAnimation(.snappy(duration: 0.16, extraBounce: 0), value: value)
     }
 }
 

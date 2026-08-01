@@ -3,7 +3,6 @@ import SwiftUI
 
 struct StatsView: View {
     @EnvironmentObject private var stats: StatsManager
-    @State private var heatmapPulse = false
 
     var body: some View {
         NavigationStack {
@@ -29,12 +28,12 @@ struct StatsView: View {
             VStack(alignment: .leading, spacing: 8) {
                 PomoWordmark()
                 Text("Activity")
-                    .font(.system(size: 26, weight: .medium, design: .rounded))
+                    .font(.system(.title, design: .rounded, weight: .medium))
                     .foregroundStyle(PomoPalette.ink)
             }
             Spacer()
             Text("ACTIVITY")
-                .font(.system(size: 10, weight: .bold, design: .monospaced))
+                .font(.system(.caption, design: .monospaced, weight: .bold))
                 .tracking(1.6)
                 .foregroundStyle(PomoPalette.dim)
         }
@@ -56,16 +55,16 @@ struct StatsView: View {
     private func metric(_ title: String, _ value: String, _ detail: String, tint: Color = PomoPalette.ink) -> some View {
         VStack(alignment: .leading, spacing: 7) {
             Text(title.uppercased())
-                .font(.system(size: 9, weight: .bold, design: .monospaced))
+                .font(.system(.caption2, design: .monospaced, weight: .bold))
                 .tracking(1.3)
                 .foregroundStyle(PomoPalette.dim)
             Text(value)
-                .font(.system(size: 28, weight: .medium, design: .monospaced))
+                .font(.system(.title, design: .monospaced, weight: .medium))
                 .foregroundStyle(tint)
                 .lineLimit(1)
                 .minimumScaleFactor(0.65)
             Text(detail)
-                .font(.system(size: 11, weight: .regular, design: .monospaced))
+                .font(.system(.caption, design: .monospaced, weight: .regular))
                 .foregroundStyle(PomoPalette.muted)
         }
         .frame(maxWidth: .infinity, alignment: .leading)
@@ -128,8 +127,9 @@ struct StatsView: View {
                                         }
                                     }
                                     .shadow(
-                                        color: isToday ? PomoPalette.accent.opacity(heatmapPulse ? 0.35 : 0.08) : .clear,
-                                        radius: heatmapPulse ? 5 : 1
+                                        color: isToday ? PomoPalette.accent.opacity(0.18) : .clear,
+                                        radius: isToday ? 3 : 1,
+                                        y: isToday ? 1 : 0
                                     )
                                     .frame(width: size, height: size)
                                     .accessibilityLabel("\(day.date.formatted(date: .abbreviated, time: .omitted)), \(day.sessions) sessions")
@@ -142,11 +142,6 @@ struct StatsView: View {
             .frame(height: 7 * 34 + 6 * 6)
         }
         .pomoPanel()
-        .onAppear {
-            withAnimation(.easeInOut(duration: 1.4).repeatForever(autoreverses: true)) {
-                heatmapPulse = true
-            }
-        }
     }
 
     private var recentSessions: some View {
@@ -155,7 +150,7 @@ struct StatsView: View {
 
             if stats.recentFocusSessions.isEmpty {
                 Text("Finish a focus block and it will show up here.")
-                    .font(.system(size: 14, design: .rounded))
+                    .font(.system(.body, design: .rounded))
                     .foregroundStyle(PomoPalette.muted)
                     .frame(maxWidth: .infinity, alignment: .leading)
                     .padding(.vertical, 10)
@@ -167,16 +162,16 @@ struct StatsView: View {
                             .frame(width: 6, height: 6)
                         VStack(alignment: .leading, spacing: 3) {
                             Text(session.intent ?? "Focus session")
-                                .font(.system(size: 13, weight: .medium, design: .rounded))
+                                .font(.system(.subheadline, design: .rounded, weight: .medium))
                                 .foregroundStyle(PomoPalette.ink)
                                 .lineLimit(1)
                             Text(session.date.formatted(.dateTime.weekday(.abbreviated).hour().minute()))
-                                .font(.system(size: 10, design: .monospaced))
+                                .font(.system(.caption2, design: .monospaced))
                                 .foregroundStyle(PomoPalette.dim)
                         }
                         Spacer()
                         Text("\(Int(session.duration / 60))m")
-                            .font(.system(size: 11, weight: .medium, design: .monospaced))
+                            .font(.system(.caption, design: .monospaced, weight: .medium))
                             .foregroundStyle(PomoPalette.muted)
                     }
                     .padding(.vertical, 8)
@@ -191,7 +186,7 @@ struct StatsView: View {
     }
 
     private func activityOpacity(_ count: Int, isToday: Bool) -> Double {
-        if isToday && count == 0 { return heatmapPulse ? 0.55 : 0.16 }
+        if isToday && count == 0 { return 0.42 }
         switch count {
         case 0: return 0.07
         case 1: return 0.28

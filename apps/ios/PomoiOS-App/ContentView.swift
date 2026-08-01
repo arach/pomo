@@ -24,22 +24,31 @@ struct ContentView: View {
     @State private var selectedTab = AppTab.previewSelection
 
     var body: some View {
-        TabView(selection: $selectedTab) {
-            TimerView()
-                .tabItem { Label("Timer", systemImage: "timer") }
-                .tag(AppTab.timer)
+        ZStack {
+            TabView(selection: $selectedTab) {
+                TimerView()
+                    .tabItem { Label("Timer", systemImage: "timer") }
+                    .tag(AppTab.timer)
 
-            StatsView()
-                .tabItem { Label("Activity", systemImage: "chart.bar.xaxis") }
-                .tag(AppTab.stats)
+                StatsView()
+                    .tabItem { Label("Activity", systemImage: "chart.bar.xaxis") }
+                    .tag(AppTab.stats)
 
-            SettingsView()
-                .tabItem { Label("Settings", systemImage: "slider.horizontal.3") }
-                .tag(AppTab.settings)
+                SettingsView()
+                    .tabItem { Label("Settings", systemImage: "slider.horizontal.3") }
+                    .tag(AppTab.settings)
+            }
+            .tint(PomoPalette.accent)
+            .toolbarBackground(PomoPalette.elevated, for: .tabBar)
+            .toolbarBackground(.visible, for: .tabBar)
+
+            if let outcome = timerManager.outcome {
+                SessionCompletionView(outcome: outcome)
+                    .transition(.opacity)
+                    .zIndex(1)
+            }
         }
-        .tint(PomoPalette.accent)
-        .toolbarBackground(PomoPalette.elevated, for: .tabBar)
-        .toolbarBackground(.visible, for: .tabBar)
+        .pomoAnimation(.easeOut(duration: 0.24), value: timerManager.outcome?.id)
         .onAppear {
             timerManager.onSessionEnded = statsManager.addSession
         }

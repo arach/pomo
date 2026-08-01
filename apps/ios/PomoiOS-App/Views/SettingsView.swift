@@ -11,6 +11,7 @@ struct SettingsView: View {
     @AppStorage("notificationsEnabled") private var notificationsEnabled = false
     @AppStorage("soundEnabled") private var soundEnabled = true
     @AppStorage("hapticEnabled") private var hapticEnabled = true
+    @AppStorage("encouragementEnabled") private var encouragementEnabled = true
     @AppStorage("autoStartBreaks") private var autoStartBreaks = false
     @AppStorage("dailyGoal") private var dailyGoal = 8
     @AppStorage("focusMinutes") private var focusMinutes = 25
@@ -104,12 +105,12 @@ struct SettingsView: View {
             VStack(alignment: .leading, spacing: 8) {
                 PomoWordmark()
                 Text("Timer settings")
-                    .font(.system(size: 26, weight: .medium, design: .rounded))
+                    .font(.system(.title, design: .rounded, weight: .medium))
                     .foregroundStyle(PomoPalette.ink)
             }
             Spacer()
             Text("SETTINGS")
-                .font(.system(size: 10, weight: .bold, design: .monospaced))
+                .font(.system(.caption, design: .monospaced, weight: .bold))
                 .tracking(1.6)
                 .foregroundStyle(PomoPalette.dim)
         }
@@ -195,6 +196,17 @@ struct SettingsView: View {
             divider
             Toggle(isOn: $hapticEnabled) {
                 SettingsLabel(title: "Haptics", detail: "Tactile controls", icon: "hand.tap.fill", tint: PomoPalette.green)
+            }
+            .toggleStyle(PomoToggleStyle())
+            .padding(.vertical, 12)
+            divider
+            Toggle(isOn: $encouragementEnabled) {
+                SettingsLabel(
+                    title: "Encouragement",
+                    detail: "Occasional notes at completion",
+                    icon: "text.bubble.fill",
+                    tint: PomoPalette.accent
+                )
             }
             .toggleStyle(PomoToggleStyle())
             .padding(.vertical, 12)
@@ -298,7 +310,7 @@ struct SettingsView: View {
                 throw PhotoFaceStoreError.unreadableImage
             }
             try photoFaceStore.save(data: data)
-            withAnimation(.snappy(duration: 0.22, extraBounce: 0)) {
+            pomoWithAnimation(.snappy(duration: 0.22, extraBounce: 0)) {
                 face = .photo
             }
         } catch {
@@ -320,10 +332,10 @@ private struct SettingsLabel: View {
                 .frame(width: 24)
             VStack(alignment: .leading, spacing: 3) {
                 Text(title)
-                    .font(.system(size: 14, weight: .medium, design: .rounded))
+                    .font(.system(.body, design: .rounded, weight: .medium))
                     .foregroundStyle(PomoPalette.ink)
                 Text(detail)
-                    .font(.system(size: 11, design: .rounded))
+                    .font(.system(.caption, design: .rounded))
                     .foregroundStyle(PomoPalette.dim)
             }
         }
@@ -345,7 +357,7 @@ private struct SettingStepper: View {
                 .foregroundStyle(tint)
                 .frame(width: 24)
             Text(label)
-                .font(.system(size: 14, weight: .medium, design: .rounded))
+                .font(.system(.body, design: .rounded, weight: .medium))
                 .foregroundStyle(PomoPalette.ink)
             Spacer()
             HStack(spacing: 5) {
@@ -353,7 +365,7 @@ private struct SettingStepper: View {
                     value = max(value - step, range.lowerBound)
                 }
                 Text("\(value) \(suffix)")
-                    .font(.system(size: 12, weight: .semibold, design: .monospaced))
+                    .font(.system(.caption, design: .monospaced, weight: .semibold))
                     .foregroundStyle(PomoPalette.ink)
                     .frame(minWidth: 62)
                 control("plus", enabled: value + step <= range.upperBound) {
@@ -369,8 +381,10 @@ private struct SettingStepper: View {
             Image(systemName: icon)
                 .font(.system(size: 10, weight: .bold))
                 .foregroundStyle(enabled ? PomoPalette.ink : PomoPalette.dim.opacity(0.5))
-                .frame(width: 28, height: 28)
+                .frame(width: 32, height: 32)
                 .background(Circle().fill(PomoPalette.surfaceStrong))
+                .frame(width: 44, height: 44)
+                .contentShape(Rectangle())
         }
         .buttonStyle(.plain)
         .disabled(!enabled)

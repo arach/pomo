@@ -7,10 +7,10 @@
 Control the Pomo macOS timer from your shell
 or an agent — and install it if it's not there yet. A zero-dependency wrapper
 over Pomo's `pomo://` URL scheme and the JSON state file it writes on every
-tick: start, pause, or skip sessions, set your intent, drive audio and YouTube
-playback, and read timer state back as JSON. Or run the live ANSI terminal UI
-(13 templates, 12 themes) next to the floating watch-face HUD that sits on
-screen while you work.
+tick: start, pause, or skip sessions, set your intent, drive YouTube, SoundCloud,
+and direct audio playback, and read timer state back as JSON. Or run the live
+ANSI terminal UI (13 templates, 12 themes) next to the floating watch-face HUD
+that sits on screen while you work.
 
 <p align="center">
   <img src="https://unpkg.com/@arach/pomo/docs/pomo-tui.png" alt="Pomo terminal UI" width="720" />
@@ -98,7 +98,7 @@ Run `pomo help` for the full list.
 
 ```sh
 pomo intent "Writing the launch post"
-pomo audio "https://youtube.com/watch?v=jfKfPfyJRdk"
+pomo audio "https://youtube.com/watch?v=jfKfPfyJRdk" # YouTube, SoundCloud, or direct audio
 pomo audio session focus 1
 pomo fav play 1
 pomo status --json | jq .remainingSeconds
@@ -110,10 +110,17 @@ Finds the newest GitHub release carrying a `.dmg`, downloads it, mounts it,
 copies `Pomo.app` into `/Applications`, clears the download quarantine, and
 unmounts. `--dry-run` prints what it would do; `--open` launches the app afterward.
 
-> **TUI works on any platform.** Commands that drive the timer (`start`, `stop`,
-> `install`, etc.) require macOS + the Pomo app.
+> **Platform:** the npm package targets macOS because the TUI, state reads, app
+> installation, and timer commands are companions to the native Pomo app.
 
 ## How it works
 
 - **Commands** → `open "pomo://<verb>"` (fire-and-forget).
 - **TUI / `status`** → reads `~/Library/Application Support/Pomo/state.json`.
+- **Agent state** → `pomo status --json` includes writer identity, version,
+  freshness (`updatedAt` and `seq`), and player-reported position, duration,
+  title, pause, and account status.
+
+The shared state file remains a last-writer-wins compatibility surface. Agents
+can reject a stale or unexpected writer using the fields above; commands remain
+fire-and-forget until Pomo's launch-scoped command receipts are implemented.

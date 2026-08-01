@@ -3058,7 +3058,7 @@ Intent
   intent clear           clear it
 
 Audio / video
-  audio <url>            play a YouTube/stream link
+  audio <url>            play a YouTube, SoundCloud, or direct-audio link
   audio <play|pause|stop|next|prev>
   audio session <focus|break|long> <favorite#|url|clear>
   volume <0-100>

@@ -19,10 +19,50 @@ display_name="${POMO_DISPLAY_NAME:-Pomo Dev}"
 app_path="${POMO_APP_PATH:-}"
 support_dir="${POMO_SUPPORT_DIR:-Pomo}"
 url_scheme="${POMO_URL_SCHEME:-pomo}"
-version="${POMO_VERSION:-0.1.0}"
+
+# Derive the version from the app's own git tags rather than a fixed fallback.
+# A hardcoded default made every dev build stamp an ancient number, so a build
+# from today's source read as *older* than an installed release and looked stale
+# in the menu bar / Settings.
+#
+# `--match 'v[0-9]*'` is required: this is a monorepo and `git describe --tags`
+# alone picks up sibling namespaces like `cli-v0.3.7`.
+#   short  -> 0.2.9                        (CFBundleShortVersionString)
+#   build  -> 0.2.9-24-g27c1db5-dirty      (CFBundleVersion; commits ahead + sha)
+# so a dev build is always identifiable, and `-dirty` says it has uncommitted
+# source. POMO_VERSION still overrides both (build-dmg.sh relies on that).
+derive_version() {
+  local described
+  described="$(git -C "$repo_root" describe --tags --match 'v[0-9]*' --dirty 2>/dev/null || true)"
+  if [[ -z "$described" ]]; then
+    # No tag reachable (shallow clone, no git); stay honest instead of inventing.
+    local sha
+    sha="$(git -C "$repo_root" rev-parse --short HEAD 2>/dev/null || echo unknown)"
+    printf '0.0.0\t0.0.0-g%s\n' "$sha"
+    return
+  fi
+  printf '%s\t%s\n' "${described%%-*}" "$described"
+}
+
+if [[ -n "${POMO_VERSION:-}" ]]; then
+  version="$POMO_VERSION"
+  build_version="$POMO_VERSION"
+else
+  _derived="$(derive_version)"
+  version="${_derived%%$'\t'*}"       # 0.2.9
+  version="${version#v}"              # strip the tag's leading v
+  build_version="${_derived#*$'\t'}"  # 0.2.9-24-g27c1db5-dirty
+  build_version="${build_version#v}"
+fi
+
 configuration=release
 restart=false
-sign_identity=""
+# Ad-hoc sign by default. `bundle_swiftpm_frameworks` runs `install_name_tool`
+# after the linker's signature, invalidating it; macOS 26 on Apple Silicon then
+# SIGKILLs the app at launch with "Code Signature Invalid" (older macOS did not).
+# Without this the documented `run-app.sh --debug` flow builds fine and dies on
+# launch. `--sign IDENTITY` still overrides for real signing.
+sign_identity="-"
 
 pomo_process_lines() {
   ps -axo pid=,command= | awk -v app="$app_name" '$0 ~ "/" app "\\.app/Contents/MacOS/" app "$"'
@@ -133,7 +173,8 @@ Usage: run-app.sh [--amp] [--debug] [--restart] [--no-open] [--sign IDENTITY]
   --yamp      Legacy alias for --amp
   --restart   Quit a running copy of this app before launching
   --no-open   Build + bundle only; don't launch
-  --sign IDENTITY  Code-sign the app bundle; use "-" for local ad-hoc signing
+  --sign IDENTITY  Code-sign the app bundle with IDENTITY. Defaults to "-"
+                   (ad-hoc), which is required for the app to launch at all.
 EOF
 }
 
@@ -249,7 +290,7 @@ cat > "$app_path/Contents/Info.plist" <<PLIST
   <key>CFBundleShortVersionString</key>
   <string>$version</string>
   <key>CFBundleVersion</key>
-  <string>$version</string>
+  <string>$build_version</string>
   <key>LSMinimumSystemVersion</key>
   <string>14.0</string>
   <key>LSUIElement</key>

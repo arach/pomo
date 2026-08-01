@@ -20,6 +20,11 @@ final class AudioController {
 
     @ObservationIgnored var onStateChange: (() -> Void)?
 
+    /// Throttled tick while the player reports progress. Used to keep the
+    /// agent-facing state file's position fresh without republishing observable
+    /// properties (which would re-render the HUD once a second during playback).
+    @ObservationIgnored var onPlaybackProgress: (() -> Void)?
+
     private(set) var isPlaying = false
     private(set) var engineName = "none"   // "web" | "none" (kept in state.json)
     private(set) var currentURL = ""
@@ -39,6 +44,7 @@ final class AudioController {
 
     init() {
         web.onStateChange = { [weak self] in self?.notify() }
+        web.onPlaybackClock = { [weak self] in self?.onPlaybackProgress?() }
         startBrowserMemoryMaintenance()
     }
 
@@ -86,6 +92,27 @@ final class AudioController {
     var account: AccountStatus { web.account }
     var mediaDuration: Double { web.mediaDuration }
     var mediaPlaybackRate: Double { web.mediaPlaybackRate }
+
+    /// Position **as last reported by the player**, paired with when that report
+    /// arrived. Agents verifying that playback began must use these rather than
+    /// `estimatedMediaTime(at:)`: the estimate extrapolates from host time and so
+    /// keeps advancing for a stalled page, which would make a hung load look live.
+    var reportedMediaTime: Double { web.mediaTime }
+    var mediaClockReportedAt: Date? { web.mediaClockReportedAt }
+
+    /// The *player's* own paused flag, as opposed to `isPlaying` (Pomo's intent).
+    /// Live streams report `duration: Infinity` and a position pinned near 0, so
+    /// position-advance alone cannot prove they are playing; this plus a fresh
+    /// `mediaClockReportedAt` can.
+    var playerPaused: Bool { web.mediaPaused }
+
+    /// Three-state sign-in for `state.json`. `AccountStatus.signedIn` starts
+    /// `false` and is only populated after a page load, so before anything has
+    /// loaded we report `unknown` instead of an untrue `signedOut`.
+    var accountStatusName: String {
+        guard !web.currentURL.isEmpty else { return "unknown" }
+        return web.account.signedIn ? "signedIn" : "signedOut"
+    }
     var audioScope: AudioScopeFrame? { web.audioScope }
     var audioScopeError: String? { web.audioScopeError }
     func estimatedMediaTime(at hostTime: Double = ProcessInfo.processInfo.systemUptime) -> Double {

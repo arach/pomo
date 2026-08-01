@@ -47,6 +47,12 @@ final class WebAudioPlayer: NSObject {
     private(set) var mediaPlaybackRate: Double = 1
     private(set) var mediaPaused: Bool = true
     private var mediaClockHostTime: Double = ProcessInfo.processInfo.systemUptime
+    /// Wall-clock time of the last `clock:` report from the player, or nil if the
+    /// player has not reported since the current track was loaded. Agents use this
+    /// to tell a genuinely advancing position from a stalled one — unlike
+    /// `estimatedMediaTime(at:)`, which extrapolates and keeps climbing while
+    /// `isPlaying` even if the page has gone silent.
+    private(set) var mediaClockReportedAt: Date?
     private var pendingSeekTime: Double?
     private var lastPlaybackSnapshotHostTime = 0.0
     private(set) var audioScope: AudioScopeFrame?
@@ -137,6 +143,19 @@ final class WebAudioPlayer: NSObject {
     /// Fired when playback state changes (from JS player events).
     var onStateChange: (() -> Void)?
 
+    /// Fired (throttled) when the player reports an advancing position, so the
+    /// agent-facing state file can show playback actually progressing.
+    ///
+    /// Deliberately separate from `onStateChange`: that path republishes
+    /// `@Observable` properties and would invalidate the HUD and popover once a
+    /// second for the whole of playback. This one only refreshes the state file.
+    var onPlaybackClock: (() -> Void)?
+
+    private var lastClockNotifyHostTime = 0.0
+    /// Matches the verify loop's "two samples ≥1s apart" — the page reports
+    /// several times a second, and each notify rewrites the state file.
+    private static let clockNotifyInterval: TimeInterval = 1.0
+
     /// Keeps the on-disk cookie backup in sync, and coalesces the writes so a
     /// burst of cookie changes during a page load only persists once.
     private var cookieObserver: CookieStoreObserver?
@@ -179,6 +198,7 @@ final class WebAudioPlayer: NSObject {
         mediaPlaybackRate = 1
         mediaPaused = false
         mediaClockHostTime = ProcessInfo.processInfo.systemUptime
+        mediaClockReportedAt = nil
         resetAudioScope()
         stopNativeAudioScope()
         ensureWebView()
@@ -251,6 +271,7 @@ final class WebAudioPlayer: NSObject {
         mediaPlaybackRate = 1
         mediaPaused = true
         mediaClockHostTime = ProcessInfo.processInfo.systemUptime
+        mediaClockReportedAt = nil
         resetAudioScope()
         stopNativeAudioScope()
         setWindowVisible(false)
@@ -2368,7 +2389,13 @@ final class WebAudioPlayer: NSObject {
         mediaPlaybackRate = max(0, payload["rate"] as? Double ?? mediaPlaybackRate)
         mediaPaused = payload["paused"] as? Bool ?? mediaPaused
         mediaClockHostTime = ProcessInfo.processInfo.systemUptime
+        mediaClockReportedAt = Date()
         persistPlaybackSnapshot(wasPlaying: !mediaPaused && isPlaying)
+
+        if mediaClockHostTime - lastClockNotifyHostTime >= Self.clockNotifyInterval {
+            lastClockNotifyHostTime = mediaClockHostTime
+            onPlaybackClock?()
+        }
     }
 
     private func handleAudioScopeFrame(_ json: String) {

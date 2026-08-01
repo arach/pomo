@@ -953,7 +953,7 @@ function DownloadCTA() {
             >
               View source
             </a>
-            <span style={{ fontFamily: mono, fontSize: 11, letterSpacing: "0.06em", color: "#6b6055" }}>v0.2.8 · macOS 13+</span>
+            <span style={{ fontFamily: mono, fontSize: 11, letterSpacing: "0.06em", color: "#6b6055" }}>v0.2.10 · macOS 14+</span>
           </div>
         </div>
       </div>

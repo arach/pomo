@@ -92,7 +92,7 @@ Two release lines share this repo:
 
 | Line | Tag format | Current | Ships |
 | --- | --- | --- | --- |
-| macOS app | `v*` | `v0.2.9` | `Pomo.dmg` via GitHub Releases |
+| macOS app | `v*` | `v0.2.10` | `Pomo.dmg` via GitHub Releases |
 | npm CLI | `cli-v*` | `cli-v0.3.7` | `@arach/pomo` on npm |
 
 Keep `apps/cli/package.json` in sync with the latest npm publish before cutting

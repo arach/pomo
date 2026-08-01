@@ -6,9 +6,10 @@
 
 Control the Pomo macOS timer from your shell
 or an agent — and install it if it's not there yet. A zero-dependency wrapper
-over Pomo's `pomo://` URL scheme and the JSON state file it writes on every
-tick: start, pause, or skip sessions, set your intent, drive YouTube, SoundCloud,
-and direct audio playback, and read timer state back as JSON. Or run the live
+over Pomo's `pomo://` URL scheme and the JSON state file it refreshes as timer
+and playback state changes: start, pause, or skip sessions, set your intent,
+drive YouTube, SoundCloud, and direct audio playback, and read timer state back
+as JSON. Or run the live
 ANSI terminal UI (13 templates, 12 themes) next to the floating watch-face HUD
 that sits on screen while you work.
 

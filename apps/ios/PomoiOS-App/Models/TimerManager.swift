@@ -49,6 +49,19 @@ enum FocusMode: String, CaseIterable, Codable, Identifiable {
     }
 }
 
+struct SessionOutcome: Identifiable, Equatable {
+    let id = UUID()
+    let mode: FocusMode
+    let duration: TimeInterval
+    let intent: String?
+    let completedAt: Date
+    let nextMode: FocusMode
+    let nextDuration: TimeInterval
+    let cadenceFilled: Int
+    let closedCadenceSet: Bool
+    let autoStartedNext: Bool
+}
+
 @MainActor
 final class TimerManager: ObservableObject {
     typealias CompletionHandler = (FocusMode, TimeInterval, Bool, String?) -> Void
@@ -58,8 +71,8 @@ final class TimerManager: ObservableObject {
     @Published private(set) var sessionDuration: TimeInterval = 25 * 60
     @Published var isActive = false
     @Published var completedPomodoros = 0
-    @Published var showingCompletion = false
-    @Published var completionMessage = ""
+    @Published private(set) var outcome: SessionOutcome?
+    @Published private(set) var stateRevision = 0
     @Published var intent = ""
 
     var onSessionEnded: CompletionHandler?
@@ -69,6 +82,7 @@ final class TimerManager: ObservableObject {
     private var ticker: AnyCancellable?
     private let notificationIdentifier = "pomo.session.complete"
     private let liveActivity = PomoLiveActivityController()
+    private let completionSound = CompletionSoundController()
     private let activeEndDateKey = "activeTimerEndDate"
     private let activeModeKey = "activeTimerMode"
     private let activeIntentKey = "activeTimerIntent"
@@ -85,6 +99,24 @@ final class TimerManager: ObservableObject {
             sessionDuration = 25 * 60
             intent = "Finish the release checklist"
             completedPomodoros = 3
+
+            if ProcessInfo.processInfo.arguments.contains("-previewCompletion") {
+                currentMode = .shortBreak
+                timeRemaining = 5 * 60
+                sessionDuration = 5 * 60
+                intent = ""
+                outcome = SessionOutcome(
+                    mode: .deepFocus,
+                    duration: 25 * 60,
+                    intent: "Finish the release checklist",
+                    completedAt: Date(),
+                    nextMode: .shortBreak,
+                    nextDuration: 5 * 60,
+                    cadenceFilled: 3,
+                    closedCadenceSet: false,
+                    autoStartedNext: false
+                )
+            }
             return
         }
         #endif
@@ -132,6 +164,7 @@ final class TimerManager: ObservableObject {
             accentHex: currentMode.liveActivityAccentHex
         )
         haptic(.medium)
+        stateRevision &+= 1
     }
 
     func pauseTimer() {
@@ -145,14 +178,16 @@ final class TimerManager: ObservableObject {
         clearActiveSessionPersistence()
         liveActivity.pause(remaining: timeRemaining, intent: intent)
         haptic(.light)
+        stateRevision &+= 1
     }
 
     func resetTimer() {
         liveActivity.end(remaining: timeRemaining, immediate: true)
         stopClock()
         timeRemaining = sessionDuration
-        showingCompletion = false
+        outcome = nil
         haptic(.light)
+        stateRevision &+= 1
     }
 
     func skipToNext() {
@@ -165,24 +200,41 @@ final class TimerManager: ObservableObject {
         currentMode = mode
         sessionDuration = duration(for: mode)
         timeRemaining = sessionDuration
-        showingCompletion = false
+        outcome = nil
+        stateRevision &+= 1
     }
 
     func applyDurationSettings() {
         guard !isActive else { return }
         sessionDuration = duration(for: currentMode)
         timeRemaining = sessionDuration
+        stateRevision &+= 1
     }
 
     func setSessionDuration(_ duration: TimeInterval) {
         guard !isActive else { return }
         sessionDuration = min(max(duration.rounded(), 1), 120 * 60 + 59)
         timeRemaining = sessionDuration
-        showingCompletion = false
+        outcome = nil
         haptic(.light)
+        stateRevision &+= 1
+    }
+
+    func dismissOutcome(startNext: Bool) {
+        outcome = nil
+        if startNext, !isActive {
+            startTimer()
+        } else {
+            stateRevision &+= 1
+        }
     }
 
     func handleScenePhase(_ phase: ScenePhase) {
+        if phase == .active,
+           let completedAt = outcome?.completedAt,
+           Date().timeIntervalSince(completedAt) > 2 * 60 * 60 {
+            outcome = nil
+        }
         guard phase == .active, isActive else { return }
         refreshClock()
     }
@@ -248,17 +300,39 @@ final class TimerManager: ObservableObject {
         intent = ""
 
         let shouldAutoStartBreak = defaults.bool(forKey: "autoStartBreaks") && currentMode != .deepFocus
+
+        if showCelebration {
+            let closedCadenceSet = finishedMode == .deepFocus
+                && completedPomodoros > 0
+                && completedPomodoros.isMultiple(of: 4)
+            let cadenceFilled = finishedMode == .deepFocus
+                ? (closedCadenceSet ? 4 : max(completedPomodoros % 4, 1))
+                : completedPomodoros % 4
+            outcome = SessionOutcome(
+                mode: finishedMode,
+                duration: finishedDuration,
+                intent: finishedIntent.isEmpty ? nil : finishedIntent,
+                completedAt: Date(),
+                nextMode: currentMode,
+                nextDuration: sessionDuration,
+                cadenceFilled: cadenceFilled,
+                closedCadenceSet: closedCadenceSet,
+                autoStartedNext: shouldAutoStartBreak
+            )
+        }
+
         if shouldAutoStartBreak {
             startTimer()
         }
 
         if showCelebration {
-            completionMessage = finishedMode == .deepFocus
-                ? "Focus block complete. Your break is ready."
-                : "Break complete. Ready for another focused block?"
-            showingCompletion = true
+            let soundEnabled = defaults.object(forKey: "soundEnabled") as? Bool ?? true
+            if soundEnabled, UIApplication.shared.applicationState == .active {
+                completionSound.play()
+            }
             haptic(.success)
         }
+        stateRevision &+= 1
     }
 
     private func stopClock() {
@@ -317,6 +391,33 @@ final class TimerManager: ObservableObject {
             total: sessionDuration,
             accentHex: mode.liveActivityAccentHex
         )
+        stateRevision &+= 1
+    }
+
+    func sharedSessionState() -> SharedSessionState {
+        SharedSessionState(
+            mode: currentMode.rawValue,
+            intent: intent.trimmingCharacters(in: .whitespacesAndNewlines),
+            duration: sessionDuration,
+            remaining: timeRemaining,
+            endDate: isActive ? Date().addingTimeInterval(timeRemaining) : nil,
+            isRunning: isActive,
+            completedFocusBlocks: completedPomodoros,
+            updatedAt: Date(),
+            outcome: outcome.map {
+                SharedSessionOutcome(
+                    mode: $0.mode.rawValue,
+                    duration: $0.duration,
+                    intent: $0.intent,
+                    completedAt: $0.completedAt,
+                    nextMode: $0.nextMode.rawValue,
+                    nextDuration: $0.nextDuration,
+                    cadenceFilled: $0.cadenceFilled,
+                    closedCadenceSet: $0.closedCadenceSet,
+                    autoStartedNext: $0.autoStartedNext
+                )
+            }
+        )
     }
 
     private func scheduleCompletionNotification() {
@@ -324,7 +425,14 @@ final class TimerManager: ObservableObject {
 
         let content = UNMutableNotificationContent()
         content.title = currentMode == .deepFocus ? "Focus block complete" : "Break complete"
-        content.body = currentMode == .deepFocus ? "Step away for a moment. You earned it." : "Your next focus block is ready."
+        if currentMode == .deepFocus {
+            let minutes = max(Int(sessionDuration.rounded()) / 60, 1)
+            let held = "\(minutes) minute\(minutes == 1 ? "" : "s") held."
+            let trimmedIntent = intent.trimmingCharacters(in: .whitespacesAndNewlines)
+            content.body = trimmedIntent.isEmpty ? held : "\(trimmedIntent) · \(held)"
+        } else {
+            content.body = "Your next focus block is ready."
+        }
         let soundEnabled = defaults.object(forKey: "soundEnabled") as? Bool ?? true
         content.sound = soundEnabled ? .default : nil
 

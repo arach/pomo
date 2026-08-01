@@ -131,10 +131,11 @@ struct ContentView: View {
             stopTimer()
         }
         .onAppear {
-            requestNotificationPermissions()
             restoreTimerState()
         }
-        .onChange(of: scenePhase, perform: handleScenePhaseChange)
+        .onChange(of: scenePhase) { _, newPhase in
+            handleScenePhaseChange(newPhase)
+        }
     }
     
     @ViewBuilder
@@ -361,6 +362,8 @@ struct ContentView: View {
     }
     
     private func startTimer() {
+        requestNotificationPermissions()
+
         // Calculate end time
         let duration = TimeInterval(selectedMinutes * 60)
         endTime = Date().addingTimeInterval(duration)

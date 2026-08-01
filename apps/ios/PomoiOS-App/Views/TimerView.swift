@@ -47,7 +47,7 @@ struct TimerView: View {
     var body: some View {
         NavigationStack {
             ScrollView(showsIndicators: false) {
-                VStack(spacing: 22) {
+                VStack(spacing: 18) {
                     header
                     modeAndFaceRow
                     intentField
@@ -56,8 +56,8 @@ struct TimerView: View {
                     cadence
                 }
                 .padding(.horizontal, 20)
-                .padding(.top, 18)
-                .padding(.bottom, 28)
+                .padding(.top, 14)
+                .padding(.bottom, 96)
             }
             .pomoScreen()
             .toolbar(.hidden, for: .navigationBar)
@@ -97,11 +97,6 @@ struct TimerView: View {
                 .persistentSystemOverlays(.hidden)
                 .preferredColorScheme(.dark)
             }
-            .alert("Session complete", isPresented: $timerManager.showingCompletion) {
-                Button("Continue", role: .cancel) {}
-            } message: {
-                Text(timerManager.completionMessage)
-            }
         }
     }
 
@@ -111,12 +106,13 @@ struct TimerView: View {
             Spacer()
             VStack(alignment: .trailing, spacing: 3) {
                 Text("TODAY")
-                    .font(.system(size: 9, weight: .bold, design: .monospaced))
+                    .font(.system(.caption2, design: .monospaced, weight: .bold))
                     .tracking(1.4)
                     .foregroundStyle(PomoPalette.dim)
-                Text("\(statsManager.todaySessions) / \(dailyGoal)")
-                    .font(.system(size: 15, weight: .semibold, design: .monospaced))
+                Text("\(statsManager.todaySessions) of \(dailyGoal)")
+                    .font(.system(.subheadline, design: .monospaced, weight: .semibold))
                     .foregroundStyle(statsManager.todaySessions >= dailyGoal ? PomoPalette.green : PomoPalette.ink)
+                    .accessibilityLabel("\(statsManager.todaySessions) of \(dailyGoal) focus blocks today")
             }
         }
     }
@@ -140,10 +136,10 @@ struct TimerView: View {
                     Image(systemName: "chevron.down")
                         .font(.caption2)
                 }
-                .font(.system(size: 13, weight: .semibold, design: .monospaced))
+                .font(.system(.subheadline, design: .monospaced, weight: .semibold))
                 .foregroundStyle(PomoPalette.ink)
                 .padding(.horizontal, 14)
-                .frame(height: 42)
+                .frame(minHeight: 44)
                 .background(Capsule().fill(PomoPalette.surface))
                 .overlay(Capsule().stroke(PomoPalette.border, lineWidth: 1))
             }
@@ -159,11 +155,11 @@ struct TimerView: View {
                     Image(systemName: timerManager.isActive ? "lock.fill" : "slider.horizontal.3")
                         .font(.system(size: 9, weight: .bold))
                 }
-                .font(.system(size: 10, weight: .bold, design: .monospaced))
+                .font(.system(.subheadline, design: .monospaced, weight: .semibold))
                 .tracking(1.1)
                 .foregroundStyle(timerManager.isActive ? PomoPalette.dim : PomoPalette.muted)
                 .padding(.horizontal, 12)
-                .frame(height: 42)
+                .frame(minHeight: 44)
                 .background(Capsule().fill(PomoPalette.surface))
                 .overlay(Capsule().stroke(PomoPalette.border, lineWidth: 1))
             }
@@ -181,14 +177,19 @@ struct TimerView: View {
                 Image(systemName: "scope")
                     .font(.system(size: 14, weight: .medium))
                     .foregroundStyle(PomoPalette.accent)
-                TextField("What are you focusing on?", text: $timerManager.intent)
-                    .font(.system(size: 14, weight: .regular, design: .monospaced))
+                TextField(
+                    "Focus intention",
+                    text: $timerManager.intent,
+                    prompt: Text("What are you focusing on?")
+                        .foregroundStyle(PomoPalette.dim)
+                )
+                    .font(.system(.body, design: .monospaced, weight: .regular))
                     .foregroundStyle(PomoPalette.ink)
                     .submitLabel(.done)
                     .disabled(timerManager.isActive)
             }
             .padding(.horizontal, 14)
-            .frame(height: 48)
+            .frame(minHeight: 50)
             .background(
                 RoundedRectangle(cornerRadius: 12, style: .continuous)
                     .fill(PomoPalette.surface)
@@ -204,7 +205,7 @@ struct TimerView: View {
         selectedFace
         .environmentObject(timerManager)
         .frame(maxWidth: .infinity)
-        .aspectRatio(1, contentMode: .fit)
+        .aspectRatio(1.06, contentMode: .fit)
         .background(
             RoundedRectangle(cornerRadius: 26, style: .continuous)
                 .fill(PomoPalette.elevated)
@@ -282,7 +283,7 @@ struct TimerView: View {
 
     private var cadence: some View {
         VStack(spacing: 12) {
-            PomoSectionLabel(title: "Cadence", trailing: "long break after four")
+            PomoSectionLabel(title: "Cadence", trailing: "long break after 4 focus blocks")
             HStack(spacing: 8) {
                 ForEach(0..<4, id: \.self) { index in
                     Capsule()
@@ -320,10 +321,10 @@ private struct SessionDurationPicker: View {
             HStack {
                 VStack(alignment: .leading, spacing: 4) {
                     Text("Session length")
-                        .font(.system(size: 20, weight: .semibold, design: .rounded))
+                        .font(.system(.title3, design: .rounded, weight: .semibold))
                         .foregroundStyle(PomoPalette.ink)
                     Text("This session only. Your default stays the same.")
-                        .font(.system(size: 12, design: .rounded))
+                        .font(.system(.footnote, design: .rounded))
                         .foregroundStyle(PomoPalette.muted)
                 }
                 Spacer()
@@ -335,6 +336,8 @@ private struct SessionDurationPicker: View {
                         .foregroundStyle(PomoPalette.muted)
                         .frame(width: 32, height: 32)
                         .background(Circle().fill(PomoPalette.surfaceStrong))
+                        .frame(width: 44, height: 44)
+                        .contentShape(Rectangle())
                 }
                 .buttonStyle(.plain)
                 .accessibilityLabel("Close")
@@ -373,10 +376,10 @@ private struct SessionDurationPicker: View {
                         seconds = 0
                     } label: {
                         Text("\(preset)m")
-                            .font(.system(size: 11, weight: .semibold, design: .monospaced))
+                            .font(.system(.caption, design: .monospaced, weight: .semibold))
                             .foregroundStyle(minutes == preset && seconds == 0 ? PomoPalette.background : PomoPalette.muted)
                             .frame(maxWidth: .infinity)
-                            .frame(height: 34)
+                            .frame(minHeight: 44)
                             .background(
                                 Capsule().fill(minutes == preset && seconds == 0 ? PomoPalette.accent : PomoPalette.surface)
                             )
@@ -391,7 +394,7 @@ private struct SessionDurationPicker: View {
                 dismiss()
             } label: {
                 Text("Set session to \(formattedSelection)")
-                    .font(.system(size: 14, weight: .bold, design: .rounded))
+                    .font(.system(.body, design: .rounded, weight: .bold))
                     .foregroundStyle(PomoPalette.background)
                     .frame(maxWidth: .infinity)
                     .frame(height: 48)
@@ -420,7 +423,7 @@ private struct SessionDurationPicker: View {
     ) -> some View {
         VStack(spacing: 0) {
             Text(label)
-                .font(.system(size: 9, weight: .bold, design: .monospaced))
+                .font(.system(.caption2, design: .monospaced, weight: .bold))
                 .tracking(1.3)
                 .foregroundStyle(PomoPalette.dim)
             content()
@@ -475,7 +478,7 @@ private struct DialFace: View {
                     .rotationEffect(.degrees(-90))
                     .frame(width: size * 0.67, height: size * 0.67)
                     .shadow(color: timer.currentMode.color.opacity(0.16), radius: 6)
-                    .animation(.linear(duration: 0.2), value: timer.progress)
+                    .pomoAnimation(.linear(duration: 0.2), value: timer.progress)
 
                 Circle()
                     .fill(PomoPalette.elevated)
